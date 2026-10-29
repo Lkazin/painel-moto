@@ -8,7 +8,8 @@ import {
   Sun,
   Moon,
   LogOut,
-  RefreshCw
+  RefreshCw,
+  Power
 } from 'lucide-react';
 import { DriverSession } from '../types';
 import { offlineQueue } from '../services/offlineQueue';
@@ -19,6 +20,7 @@ interface ModalSessionAndStoreProps {
   session: DriverSession;
   onClose: () => void;
   onLogout: () => void;
+  onCloseShift?: () => void;
   onToggleTheme: () => void;
   currentTheme: 'dark' | 'light';
   pendingDeliveriesCount?: number;
@@ -28,6 +30,7 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
   session,
   onClose,
   onLogout,
+  onCloseShift,
   onToggleTheme,
   currentTheme
 }) => {
@@ -247,18 +250,33 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
           </div>
         </div>
 
-        {/* Botão de Encerrar Sessão do Aparelho */}
-        <button
-          onClick={onLogout}
-          className="btn-glove btn-glove-danger"
-          style={{ height: '52px', fontSize: '14px' }}
-        >
-          <LogOut size={18} />
-          <span>Sair deste Aparelho (Revogar Sessão)</span>
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {onCloseShift && (
+            <button
+              onClick={() => {
+                audioAlert.playClickSound();
+                onCloseShift();
+              }}
+              className="btn-glove btn-glove-accent"
+              style={{ height: '54px', fontSize: '14px' }}
+            >
+              <Power size={18} />
+              <span>Encerrar Plantão nesta Loja (Salvar no Extrato)</span>
+            </button>
+          )}
+
+          <button
+            onClick={onLogout}
+            className="btn-glove btn-glove-danger"
+            style={{ height: '48px', fontSize: '13px' }}
+          >
+            <LogOut size={16} />
+            <span>Sair da Conta do Entregador</span>
+          </button>
+        </div>
 
         <p style={{ fontSize: '10px', color: 'var(--text-subtle)', textAlign: 'center', marginTop: '10px' }}>
-          Ao revogar o acesso, será necessário um novo código emitido pela loja para reativar o aparelho.
+          Ao encerrar o plantão, seus ganhos e entregas ficam salvos no seu extrato pessoal.
         </p>
       </div>
     </div>

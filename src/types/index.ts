@@ -1,3 +1,23 @@
+export interface DriverAccount {
+  id: string;
+  name: string;
+  phone: string;
+  vehiclePlate: string;
+  vehicleModel?: string;
+  createdAt: string;
+}
+
+export interface StoreShiftSummary {
+  storeId: string;
+  storeName: string;
+  storeAddress?: string;
+  completedCount: number;
+  canceledCount: number;
+  totalToReceive: number;
+  lastShiftDate: string;
+  isActiveShift?: boolean;
+}
+
 export interface DriverSession {
   token: string;
   driverId: string;
@@ -12,6 +32,7 @@ export interface DriverSession {
   role: string;
   expiresAt: string;
   isActivated: boolean;
+  shiftStartedAt?: string;
 }
 
 export interface DriverPresence {
@@ -98,6 +119,7 @@ export interface OfflineCommand {
 export interface DeliveryHistoryItem {
   id: string;
   orderNumber: string;
+  storeId?: string;
   storeName: string;
   address: string;
   neighborhood: string;

@@ -9,10 +9,12 @@ import {
   WifiOff,
   Settings,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Wallet
 } from 'lucide-react';
 
 import {
+  DriverAccount,
   DriverSession,
   DriverPresence,
   Offer,
@@ -23,7 +25,9 @@ import { api } from './services/api';
 import { offlineQueue } from './services/offlineQueue';
 import { audioAlert } from './utils/audioAlert';
 
-import { ScreenActivation } from './components/ScreenActivation';
+import { ScreenAuthDriver } from './components/ScreenAuthDriver';
+import { ScreenStoreConnect } from './components/ScreenStoreConnect';
+import { ScreenProfileLedger } from './components/ScreenProfileLedger';
 import { ScreenDashboard } from './components/ScreenDashboard';
 import { ModalOfferReceived } from './components/ModalOfferReceived';
 import { ScreenOrdersPickup } from './components/ScreenOrdersPickup';
@@ -36,7 +40,8 @@ import { ModalWithdrawal } from './components/ModalWithdrawal';
 import { ModalRouteCompleted } from './components/ModalRouteCompleted';
 
 export const App: React.FC = () => {
-  // Estados de Sessão e Configuração
+  // Autenticação Pessoal do Entregador e Sessão de Plantão na Loja
+  const [account, setAccount] = useState<DriverAccount | null>(api.getDriverAccount());
   const [session, setSession] = useState<DriverSession | null>(api.getSession());
   const [presence, setPresence] = useState<DriverPresence>(api.getPresence());
   const [isOnline, setIsOnline] = useState<boolean>(offlineQueue.getIsOnline());
@@ -55,6 +60,7 @@ export const App: React.FC = () => {
 
   // Modais de Apoio
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
+  const [isProfileLedgerOpen, setIsProfileLedgerOpen] = useState(false);
   const [withdrawTarget, setWithdrawTarget] = useState<{ assignment: Assignment; isException: boolean } | null>(null);
   const [isRouteCompletedOpen, setIsRouteCompletedOpen] = useState(false);
   const [routeCompletedStats, setRouteCompletedStats] = useState({ count: 0, fees: 0, hasUninformed: false });
@@ -137,7 +143,7 @@ export const App: React.FC = () => {
       const res = await api.validateSession();
       if (!res.valid) {
         setSession(null);
-        showToast('Sessão expirada ou revogada pela loja.', 'error');
+        showToast('Sessão de plantão expirada ou encerrada pela loja.', 'error');
       }
     }, 30000);
 
@@ -148,14 +154,6 @@ export const App: React.FC = () => {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
-
-  // Handler de Ativação
-  const handleActivated = (newSession: DriverSession) => {
-    setSession(newSession);
-    setPresence(api.getPresence());
-    refreshAssignments();
-    showToast(`Bem-vindo, ${newSession.driverName}! Vínculo com ${newSession.storeName} ativado.`, 'success');
-  };
 
   // Handler de Ligado/Desligado
   const handleTogglePresence = async () => {
@@ -247,23 +245,47 @@ export const App: React.FC = () => {
     }
   };
 
-  // Logout seguro
-  const handleLogout = () => {
-    api.logout();
+  // Encerrar Plantão nesta loja e salvar ganhos no extrato
+  const handleCloseStoreShift = async () => {
+    try {
+      const res = await api.closeStoreShift();
+      setSession(null);
+      setIsStoreModalOpen(false);
+      setIsProfileLedgerOpen(false);
+      showToast(
+        `Plantão encerrado em ${res.shiftSummary.storeName}. Total a receber: R$ ${res.shiftSummary.totalToReceive.toFixed(2).replace('.', ',')}`,
+        'success'
+      );
+    } catch (e: any) {
+      showToast(e.message || 'Erro ao encerrar plantão.', 'error');
+    }
+  };
+
+  // Logout seguro da conta do entregador
+  const handleLogoutAccount = () => {
+    api.logoutDriver();
+    setAccount(null);
     setSession(null);
     setIsStoreModalOpen(false);
-    showToast('Sessão revogada neste aparelho com segurança.', 'info');
+    setIsProfileLedgerOpen(false);
+    showToast('Você saiu da sua conta de entregador com segurança.', 'info');
   };
 
   // Pedidos no balcão e na rota para os badges do bottom nav
   const waitingPickupCount = assignments.filter((a) => a.status === 'waiting_pickup').length;
   const activeDeliveries = assignments.filter((a) => a.status === 'picked_up' || a.status === 'in_transit');
 
-  // Se não houver sessão ativa, renderiza a Tela 1 (Ativação por Código)
-  if (!session) {
+  // FLUXO 1: Entregador NÃO está logado na sua conta pessoal -> Tela de Login / Cadastro
+  if (!account) {
     return (
       <div className="app-container">
-        <ScreenActivation onActivated={handleActivated} />
+        <ScreenAuthDriver
+          onLoginSuccess={(newAccount) => {
+            setAccount(newAccount);
+            showToast(`Bem-vindo(a), ${newAccount.name}!`, 'success');
+          }}
+        />
+
         {toastMessage && (
           <div
             style={{
@@ -272,7 +294,7 @@ export const App: React.FC = () => {
               left: '50%',
               transform: 'translateX(-50%)',
               zIndex: 200,
-              background: toastMessage.type === 'error' ? 'var(--nw-red)' : 'var(--bg-card)',
+              background: toastMessage.type === 'error' ? 'var(--nw-red)' : toastMessage.type === 'success' ? 'var(--nw-emerald)' : 'var(--bg-card)',
               border: '1px solid var(--border-strong)',
               color: '#ffffff',
               padding: '12px 20px',
@@ -293,12 +315,69 @@ export const App: React.FC = () => {
     );
   }
 
+  // FLUXO 2: Entregador está logado, mas NÃO tem plantão ativo na loja -> Tela de Conectar à Loja & Extrato
+  if (!session) {
+    return (
+      <div className="app-container">
+        <ScreenStoreConnect
+          account={account}
+          onShiftStarted={(newSession) => {
+            setSession(newSession);
+            setPresence(api.getPresence());
+            refreshAssignments();
+            showToast(`Plantão iniciado na ${newSession.storeName}!`, 'success');
+          }}
+          onLogoutAccount={handleLogoutAccount}
+          onOpenLedgerModal={() => setIsProfileLedgerOpen(true)}
+        />
+
+        {/* Modal de Extrato Completo e Perfil */}
+        {isProfileLedgerOpen && (
+          <ScreenProfileLedger
+            account={account}
+            activeSession={session}
+            onClose={() => setIsProfileLedgerOpen(false)}
+            onCloseShift={handleCloseStoreShift}
+            onLogoutAccount={handleLogoutAccount}
+          />
+        )}
+
+        {toastMessage && (
+          <div
+            style={{
+              position: 'fixed',
+              top: '20px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 200,
+              background: toastMessage.type === 'error' ? 'var(--nw-red)' : toastMessage.type === 'success' ? 'var(--nw-emerald)' : 'var(--bg-card)',
+              border: '1px solid var(--border-strong)',
+              color: '#ffffff',
+              padding: '12px 20px',
+              borderRadius: '16px',
+              fontSize: '13px',
+              fontWeight: 800,
+              boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            {toastMessage.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
+            <span>{toastMessage.text}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // FLUXO 3: Entregador logado com Plantão Ativo na Loja -> Dashboard operacional de entregas
   return (
     <div className="app-container">
       {/* Top Header Fixo */}
       <header className="top-header">
         <div className="top-header-row">
-          {/* Brand Universal (Nunca fixo ao nome da loja) */}
+          {/* Brand Universal */}
           <div className="brand-pill">
             <span className="logo-dot" />
             <span>NovaesWeb</span>
@@ -306,14 +385,39 @@ export const App: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* Store Context Pill: Nome da loja ativa como detalhe contextual */}
+            {/* Botão de Extrato Rápido */}
+            <button
+              onClick={() => {
+                audioAlert.playClickSound();
+                setIsProfileLedgerOpen(true);
+              }}
+              style={{
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                color: 'var(--nw-emerald)',
+                padding: '6px 10px',
+                borderRadius: '12px',
+                fontSize: '11px',
+                fontWeight: 900,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                cursor: 'pointer'
+              }}
+              title="Ver meu extrato e perfil"
+            >
+              <Wallet size={14} />
+              <span>Extrato</span>
+            </button>
+
+            {/* Store Context Pill: Nome da loja ativa */}
             <button
               onClick={() => {
                 audioAlert.playClickSound();
                 setIsStoreModalOpen(true);
               }}
               className="store-context-pill"
-              title="Ver detalhes da loja ativa e conexão"
+              title="Ver detalhes da loja ativa e configurações"
             >
               <Store size={14} color="#d8b4fe" />
               <span>{session.storeName}</span>
@@ -453,9 +557,21 @@ export const App: React.FC = () => {
         <ModalSessionAndStore
           session={session}
           onClose={() => setIsStoreModalOpen(false)}
-          onLogout={handleLogout}
+          onLogout={handleLogoutAccount}
+          onCloseShift={handleCloseStoreShift}
           onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           currentTheme={theme}
+        />
+      )}
+
+      {/* Modal de Perfil & Extrato por Loja */}
+      {isProfileLedgerOpen && (
+        <ScreenProfileLedger
+          account={account}
+          activeSession={session}
+          onClose={() => setIsProfileLedgerOpen(false)}
+          onCloseShift={handleCloseStoreShift}
+          onLogoutAccount={handleLogoutAccount}
         />
       )}
 
