@@ -8,7 +8,6 @@ import {
   Wifi,
   WifiOff,
   Settings,
-  Bell,
   CheckCircle,
   AlertCircle
 } from 'lucide-react';
@@ -17,8 +16,7 @@ import {
   DriverSession,
   DriverPresence,
   Offer,
-  Assignment,
-  RouteStop
+  Assignment
 } from './types';
 
 import { api } from './services/api';
@@ -53,12 +51,13 @@ export const App: React.FC = () => {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [currentOffer, setCurrentOffer] = useState<Offer | null>(null);
   const [pendingSyncCount, setPendingSyncCount] = useState<number>(offlineQueue.getPendingCount());
+  const [historySummary, setHistorySummary] = useState({ totalEarnings: 0, itemsCount: 0 });
 
   // Modais de Apoio
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
   const [withdrawTarget, setWithdrawTarget] = useState<{ assignment: Assignment; isException: boolean } | null>(null);
   const [isRouteCompletedOpen, setIsRouteCompletedOpen] = useState(false);
-  const [routeCompletedStats, setRouteCompletedStats] = useState({ count: 2, fees: 26.5, hasUninformed: false });
+  const [routeCompletedStats, setRouteCompletedStats] = useState({ count: 0, fees: 0, hasUninformed: false });
 
   // Toast de Notificação
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -85,7 +84,7 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Monitora conectividade e fila offline
+  // Monitora conectividade e fila offline real
   useEffect(() => {
     const unsubscribe = offlineQueue.subscribe((queue) => {
       setIsOnline(offlineQueue.getIsOnline());
@@ -94,12 +93,19 @@ export const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // Carrega atribuições e ofertas da API
+  // Carrega atribuições e histórico real da API
   const refreshAssignments = useCallback(async () => {
     if (!session) return;
     try {
-      const data = await api.getAssignments();
+      const [data, hist] = await Promise.all([
+        api.getAssignments(),
+        api.getHistory()
+      ]);
       setAssignments(data);
+      setHistorySummary({
+        totalEarnings: hist.totalEarnings,
+        itemsCount: hist.items.length
+      });
     } catch {}
   }, [session]);
 
@@ -107,7 +113,7 @@ export const App: React.FC = () => {
     refreshAssignments();
   }, [refreshAssignments]);
 
-  // Polling leve para verificar ofertas e presença a cada 8 segundos
+  // Polling em tempo real para verificar novas ofertas disparadas pela loja (a cada 5 segundos)
   useEffect(() => {
     if (!session || !presence.manualEnabled) return;
 
@@ -118,10 +124,25 @@ export const App: React.FC = () => {
           setCurrentOffer(offers[0]);
         }
       } catch {}
-    }, 8000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [session, presence.manualEnabled, currentOffer]);
+
+  // Validação periódica da sessão com o servidor (heartbeat a cada 30 segundos)
+  useEffect(() => {
+    if (!session) return;
+
+    const heartbeat = setInterval(async () => {
+      const res = await api.validateSession();
+      if (!res.valid) {
+        setSession(null);
+        showToast('Sessão expirada ou revogada pela loja.', 'error');
+      }
+    }, 30000);
+
+    return () => clearInterval(heartbeat);
+  }, [session, showToast]);
 
   // Aplica tema CSS no body
   useEffect(() => {
@@ -174,20 +195,9 @@ export const App: React.FC = () => {
   };
 
   // Oferta Expirada pelos 60s
-  const handleOfferExpired = (offerId: string) => {
+  const handleOfferExpired = (_offerId: string) => {
     setCurrentOffer(null);
     showToast('Tempo limite de 60s esgotado. Oferta devolvida ao lojista.', 'info');
-  };
-
-  // Disparo manual de oferta de teste para homologação
-  const handleTriggerSimulatedOffer = () => {
-    if (!presence.manualEnabled) {
-      showToast('Ligue sua disponibilidade primeiro para poder receber ofertas.', 'info');
-      return;
-    }
-    const offer = api.triggerSimulatedOffer();
-    setCurrentOffer(offer);
-    showToast('Nova oferta disparada pela Bella Pizza! Teste o áudio e a contagem de 60s.', 'info');
   };
 
   // Confirmar Retirada de Pedidos
@@ -205,12 +215,11 @@ export const App: React.FC = () => {
   };
 
   // Sucesso na Entrega com PIN
-  const handleDeliverySuccess = async (message: string, isOfflinePending?: boolean) => {
+  const handleDeliverySuccess = async (_message: string, isOfflinePending?: boolean) => {
     const completedAssignment = pinTarget || activeDelivery;
     setPinTarget(null);
     setActiveDelivery(null);
 
-    // Verifica quantas entregas restam na rota
     const remainingInRoute = assignments.filter(
       (a) =>
         (a.status === 'picked_up' || a.status === 'in_transit') &&
@@ -220,30 +229,22 @@ export const App: React.FC = () => {
     await refreshAssignments();
 
     if (isOfflinePending) {
-      showToast('Entrega gravada localmente! Pendente de validação online com a loja.', 'info');
+      showToast('Entrega gravada no aparelho! Pendente de validação online com a loja.', 'info');
     } else {
       showToast('Entrega validada com sucesso pelo servidor da loja!', 'success');
     }
 
-    // Se concluiu a última entrega da rota, abre a tela 4.11 de Resumo de Fim de Rota (AC-27)
+    // Se concluiu a última entrega da rota, abre a tela de Resumo de Rota
     if (remainingInRoute.length === 0) {
       setRouteCompletedStats({
-        count: 2,
-        fees: 26.5,
-        hasUninformed: false
+        count: 1,
+        fees: completedAssignment?.deliveryFee || 0,
+        hasUninformed: completedAssignment?.deliveryFee === null
       });
       setIsRouteCompletedOpen(true);
     } else {
       setActiveTab('route');
     }
-  };
-
-  // Troca de Loja Vinculada (AC-06)
-  const handleSwitchStore = async (storeId: string) => {
-    const updated = await api.switchStore(storeId);
-    setSession(updated);
-    await refreshAssignments();
-    showToast(`Vínculo ativo alterado para ${updated.storeName}.`, 'success');
   };
 
   // Logout seguro
@@ -258,7 +259,7 @@ export const App: React.FC = () => {
   const waitingPickupCount = assignments.filter((a) => a.status === 'waiting_pickup').length;
   const activeDeliveries = assignments.filter((a) => a.status === 'picked_up' || a.status === 'in_transit');
 
-  // Se não estiver ativado, renderiza a Tela 1
+  // Se não houver sessão ativa, renderiza a Tela 1 (Ativação por Código)
   if (!session) {
     return (
       <div className="app-container">
@@ -343,14 +344,12 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Banner de Modo Sem Internet / Offline */}
+        {/* Banner de Conexão Offline Real */}
         {!isOnline && (
-          <div className={`offline-banner ${offlineQueue.getIsSimulated() ? 'offline-banner-simulated' : ''}`}>
+          <div className="offline-banner">
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <WifiOff size={16} />
-              <span>
-                {offlineQueue.getIsSimulated() ? 'Simulação Offline Ativa' : 'Sem Conexão com a Internet'}
-              </span>
+              <span>Sem Conexão com a Internet</span>
             </div>
             {pendingSyncCount > 0 && (
               <span style={{ fontSize: '11px', background: 'rgba(0,0,0,0.3)', padding: '2px 8px', borderRadius: '10px' }}>
@@ -387,10 +386,11 @@ export const App: React.FC = () => {
                 session={session}
                 presence={presence}
                 assignments={assignments}
+                completedTodayCount={historySummary.itemsCount}
+                earningsEstimated={historySummary.totalEarnings}
                 onTogglePresence={handleTogglePresence}
                 onNavigateToRoute={() => setActiveTab('route')}
                 onNavigateToOrders={() => setActiveTab('orders')}
-                onTriggerSimulatedOffer={handleTriggerSimulatedOffer}
               />
             )}
 
@@ -430,7 +430,7 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Modal 4.11: Resumo de Fim de Rota (Critério AC-25 e AC-27) */}
+      {/* Modal 4.11: Resumo de Fim de Rota */}
       {isRouteCompletedOpen && (
         <ModalRouteCompleted
           completedOrdersCount={routeCompletedStats.count}
@@ -448,16 +448,14 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Modal de Configuração & Loja Ativa (Critério AC-06) */}
+      {/* Modal de Configuração & Loja Ativa */}
       {isStoreModalOpen && (
         <ModalSessionAndStore
           session={session}
           onClose={() => setIsStoreModalOpen(false)}
           onLogout={handleLogout}
           onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          onSwitchStore={handleSwitchStore}
           currentTheme={theme}
-          pendingDeliveriesCount={waitingPickupCount + activeDeliveries.length}
         />
       )}
 

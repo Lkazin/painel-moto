@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, AlertCircle, KeyRound, ArrowRight, Smartphone, Sparkles } from 'lucide-react';
+import { ShieldCheck, AlertCircle, KeyRound, ArrowRight, Smartphone } from 'lucide-react';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
 import { DriverSession } from '../types';
@@ -13,11 +13,11 @@ export const ScreenActivation: React.FC<ScreenActivationProps> = ({ onActivated 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Gera ou resgata fingerprint do dispositivo
+  // Gera ou resgata fingerprint único do aparelho
   const getDeviceFingerprint = () => {
     let fp = localStorage.getItem('novaesweb_device_fp');
     if (!fp) {
-      fp = 'dev_fp_' + Math.random().toString(36).substring(2, 10);
+      fp = 'dev_fp_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 9);
       localStorage.setItem('novaesweb_device_fp', fp);
     }
     return fp;
@@ -59,12 +59,6 @@ export const ScreenActivation: React.FC<ScreenActivationProps> = ({ onActivated 
     } finally {
       setLoading(false);
     }
-  };
-
-  const fillQuickCode = (code: string) => {
-    setInviteCode(code);
-    setErrorMessage(null);
-    audioAlert.playClickSound();
   };
 
   return (
@@ -166,47 +160,6 @@ export const ScreenActivation: React.FC<ScreenActivationProps> = ({ onActivated 
             )}
           </button>
         </form>
-
-        {/* Atalhos Rápidos para Demonstração / Homologação */}
-        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)' }}>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Sparkles size={13} color="var(--nw-pink)" /> Atalhos de Teste de Bancada:
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            <button
-              type="button"
-              onClick={() => fillQuickCode('NW-104928')}
-              style={{
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border-subtle)',
-                color: '#d8b4fe',
-                padding: '6px 10px',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              NW-104928 (Bella Pizza)
-            </button>
-            <button
-              type="button"
-              onClick={() => fillQuickCode('NW-EXPIRADO')}
-              style={{
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border-subtle)',
-                color: '#f87171',
-                padding: '6px 10px',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              NW-EXPIRADO (Simular Vencido)
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Rodapé de Informação de Aparelho */}

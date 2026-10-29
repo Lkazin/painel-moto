@@ -165,10 +165,6 @@ body {
   animation: pulse-red 2s infinite ease-in-out;
 }
 
-.offline-banner-simulated {
-  background: linear-gradient(90deg, #d97706, #b45309);
-  animation: none;
-}
 
 @keyframes pulse-red {
   0%, 100% { opacity: 1; }

@@ -1,41 +1,24 @@
 import { OfflineCommand } from '../types';
 
 const QUEUE_STORAGE_KEY = 'novaesweb_offline_queue_v1';
-const SIMULATED_OFFLINE_KEY = 'novaesweb_simulated_offline';
 
 class OfflineQueueManager {
   private queue: OfflineCommand[] = [];
   private listeners: ((queue: OfflineCommand[]) => void)[] = [];
-  private isSimulatedOffline = false;
 
   constructor() {
     this.loadQueue();
     if (typeof window !== 'undefined') {
-      this.isSimulatedOffline = localStorage.getItem(SIMULATED_OFFLINE_KEY) === 'true';
       window.addEventListener('online', () => this.handleNetworkChange());
       window.addEventListener('offline', () => this.handleNetworkChange());
     }
   }
 
   public getIsOnline(): boolean {
-    if (this.isSimulatedOffline) return false;
     if (typeof navigator !== 'undefined') {
       return navigator.onLine;
     }
     return true;
-  }
-
-  public toggleSimulatedOffline(): boolean {
-    this.isSimulatedOffline = !this.isSimulatedOffline;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(SIMULATED_OFFLINE_KEY, String(this.isSimulatedOffline));
-    }
-    this.notify();
-    return this.isSimulatedOffline;
-  }
-
-  public getIsSimulated(): boolean {
-    return this.isSimulatedOffline;
   }
 
   private loadQueue(): void {

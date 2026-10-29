@@ -5,10 +5,7 @@ import {
   Package,
   TrendingUp,
   AlertCircle,
-  Bell,
-  Clock,
   ArrowRight,
-  Sparkles,
   Info
 } from 'lucide-react';
 import { DriverSession, DriverPresence, Assignment } from '../types';
@@ -18,20 +15,22 @@ interface ScreenDashboardProps {
   session: DriverSession;
   presence: DriverPresence;
   assignments: Assignment[];
+  completedTodayCount: number;
+  earningsEstimated: number;
   onTogglePresence: () => void;
   onNavigateToRoute: () => void;
   onNavigateToOrders: () => void;
-  onTriggerSimulatedOffer: () => void;
 }
 
 export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
   session,
   presence,
   assignments,
+  completedTodayCount,
+  earningsEstimated,
   onTogglePresence,
   onNavigateToRoute,
-  onNavigateToOrders,
-  onTriggerSimulatedOffer
+  onNavigateToOrders
 }) => {
   const [toggleLoading, setToggleLoading] = useState(false);
 
@@ -39,10 +38,6 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
     (a) => a.status === 'picked_up' || a.status === 'in_transit'
   );
   const waitingPickup = assignments.filter((a) => a.status === 'waiting_pickup');
-
-  // Cálculo de ganhos das entregas do dia
-  const completedTodayCount = 3;
-  const earningsEstimated = 44.5;
 
   const handlePresenceClick = () => {
     setToggleLoading(true);
@@ -81,7 +76,7 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
             </span>
             <span style={{ fontSize: '11px', fontWeight: 600, opacity: 0.85 }}>
               {isAvailable
-                ? 'Pronto para receber corridas da Bella Pizza'
+                ? `Pronto para receber corridas de ${session.storeName}`
                 : 'Toque para ligar e receber novas ofertas'}
             </span>
           </div>
@@ -186,7 +181,7 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
         </div>
       )}
 
-      {/* Resumo de Corridas do Dia & Ganhos Informados */}
+      {/* Resumo Real de Corridas e Ganhos */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
         <div className="card-surface" style={{ padding: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--nw-purple)' }}>
@@ -230,39 +225,6 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
         <span>
           O total apresentado soma apenas valores informados pelo lojista no despacho e não comprova pagamento formal.
         </span>
-      </div>
-
-      {/* Card de Teste de Bancada: Disparar Oferta Sonora */}
-      <div
-        className="card-surface"
-        style={{
-          border: '1px dashed var(--nw-purple)',
-          background: 'rgba(30, 27, 75, 0.35)',
-          padding: '14px'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Sparkles size={16} color="var(--nw-pink)" />
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#fbcfe8' }}>
-              Homologação de Oferta (60s)
-            </span>
-          </div>
-          <span style={{ fontSize: '10px', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: '6px', color: 'var(--text-subtle)' }}>
-            Simulador
-          </span>
-        </div>
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
-          Simule a loja disparando um pedido para você. Testa o alerta sonoro Web Audio e o card flutuante de 60 segundos.
-        </p>
-        <button
-          onClick={onTriggerSimulatedOffer}
-          className="btn-glove btn-glove-accent"
-          style={{ height: '48px', fontSize: '14px' }}
-        >
-          <Bell size={18} />
-          <span>Disparar Oferta de Teste (Bella Pizza)</span>
-        </button>
       </div>
     </div>
   );
