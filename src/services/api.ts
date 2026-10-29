@@ -10,7 +10,9 @@ import {
 import { offlineQueue } from './offlineQueue';
 
 const API_BASE_URL =
-  (import.meta as any).env?.VITE_LOGISTICS_API_URL || 'http://localhost:3000/api/v1/logistics';
+  (import.meta as any).env?.NEXT_PUBLIC_LOGISTICS_API_URL ||
+  (import.meta as any).env?.VITE_LOGISTICS_API_URL ||
+  'http://localhost:3000/api/v1/logistics';
 
 const SESSION_STORAGE_KEY = 'novaesweb_driver_session';
 const PRESENCE_STORAGE_KEY = 'novaesweb_driver_presence';
@@ -323,10 +325,20 @@ class ApiClient {
   public async respondOffer(offerId: string, decision: 'accepted' | 'rejected'): Promise<{ success: boolean; assignment?: Assignment }> {
     const offer = this.offers.find(o => o.offerId === offerId);
 
-    // Se a oferta expirou no cliente
+    // Se a oferta expirou no cliente (Critério AC-11)
     if (offer && new Date(offer.expiresAt).getTime() <= Date.now()) {
       this.offers = this.offers.filter(o => o.offerId !== offerId);
       throw new Error('A oferta expirou no servidor antes do seu aceite.');
+    }
+
+    // Critério AC-13: Limite simultâneo configurado pela loja impede excesso de aceites
+    if (decision === 'accepted') {
+      const activeCount = this.assignments.filter(
+        a => a.status === 'waiting_pickup' || a.status === 'picked_up' || a.status === 'in_transit'
+      ).length;
+      if (activeCount >= 4) {
+        throw new Error('Capacidade máxima atingida: limite configurado pela loja de até 4 pedidos simultâneos.');
+      }
     }
 
     if (offlineQueue.getIsOnline() && this.session) {
@@ -774,6 +786,55 @@ class ApiClient {
     }
 
     return { syncedCount: synced, errors };
+  }
+
+  // Minhas Lojas e Troca de Vínculo (Critério AC-06: Bloqueado com entregas pendentes)
+  public getLinkedStores(): { storeId: string; storeName: string; address: string; active: boolean }[] {
+    return [
+      {
+        storeId: 'store_bella_pizza_01',
+        storeName: 'Bella Pizza Forneria (Jardins)',
+        address: 'Rua das Camélias, 412 - Jardins, SP',
+        active: this.session?.storeId === 'store_bella_pizza_01'
+      },
+      {
+        storeId: 'store_bella_pizza_02',
+        storeName: 'Bella Pizza Express (Pinheiros)',
+        address: 'Av. Rebouças, 1890 - Pinheiros, SP',
+        active: this.session?.storeId === 'store_bella_pizza_02'
+      }
+    ];
+  }
+
+  public async switchStore(storeId: string): Promise<DriverSession> {
+    const pendingDeliveries = this.assignments.filter(
+      a => a.status === 'accepted' || a.status === 'waiting_pickup' || a.status === 'picked_up' || a.status === 'in_transit'
+    );
+
+    // Regra inegociável AC-06: Troca de loja é bloqueada com entregas pendentes
+    if (pendingDeliveries.length > 0) {
+      throw new Error(
+        `Troca de loja bloqueada: você possui ${pendingDeliveries.length} pedido(s) pendente(s) na loja ativa. Conclua todas as entregas antes de trocar de vínculo.`
+      );
+    }
+
+    const stores = this.getLinkedStores();
+    const target = stores.find(s => s.storeId === storeId);
+    if (!target) {
+      throw new Error('Loja não encontrada ou vínculo não autorizado.');
+    }
+
+    if (this.session) {
+      this.session = {
+        ...this.session,
+        storeId: target.storeId,
+        storeName: target.storeName,
+        storeAddress: target.address
+      };
+      this.saveSession();
+    }
+
+    return this.session!;
   }
 
   // Logout e limpeza segura

@@ -13,7 +13,9 @@ import {
   RefreshCw,
   CheckCircle,
   AlertTriangle,
-  Info
+  Info,
+  ShieldAlert,
+  ArrowRight
 } from 'lucide-react';
 import { DriverSession } from '../types';
 import { offlineQueue } from '../services/offlineQueue';
@@ -25,7 +27,9 @@ interface ModalSessionAndStoreProps {
   onClose: () => void;
   onLogout: () => void;
   onToggleTheme: () => void;
+  onSwitchStore?: (storeId: string) => Promise<void>;
   currentTheme: 'dark' | 'light';
+  pendingDeliveriesCount?: number;
 }
 
 export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
@@ -33,13 +37,18 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
   onClose,
   onLogout,
   onToggleTheme,
-  currentTheme
+  onSwitchStore,
+  currentTheme,
+  pendingDeliveriesCount = 0
 }) => {
   const [isSimulatedOffline, setIsSimulatedOffline] = useState(offlineQueue.getIsSimulated());
   const [isFlushingQueue, setIsFlushingQueue] = useState(false);
   const [flushMessage, setFlushMessage] = useState<string | null>(null);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+  const [isSwitching, setIsSwitching] = useState(false);
 
   const pendingCount = offlineQueue.getPendingCount();
+  const linkedStores = api.getLinkedStores();
 
   const handleToggleOffline = () => {
     audioAlert.playClickSound();
@@ -67,6 +76,27 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
       setFlushMessage('Falha ao sincronizar. Tentará automaticamente ao reconectar.');
     } finally {
       setIsFlushingQueue(false);
+    }
+  };
+
+  const handleSwitchStore = async (storeId: string) => {
+    setSwitchError(null);
+    setIsSwitching(true);
+    audioAlert.playClickSound();
+
+    try {
+      if (onSwitchStore) {
+        await onSwitchStore(storeId);
+      } else {
+        await api.switchStore(storeId);
+      }
+      audioAlert.playSuccessSound();
+      onClose();
+    } catch (err: any) {
+      audioAlert.playErrorSound();
+      setSwitchError(err.message || 'Não foi possível trocar de loja.');
+    } finally {
+      setIsSwitching(false);
     }
   };
 
@@ -104,10 +134,15 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
 
         {/* Card da Loja Ativa */}
         <div className="card-surface card-highlight" style={{ padding: '16px', marginBottom: '14px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: '#c084fc', textTransform: 'uppercase' }}>
-            Loja Ativa Vinculada
-          </span>
-          <h4 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', marginTop: '2px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#c084fc', textTransform: 'uppercase' }}>
+              Loja Ativa no Momento
+            </span>
+            <span style={{ fontSize: '10px', background: 'var(--nw-emerald)', color: '#000', fontWeight: 900, padding: '2px 8px', borderRadius: '8px' }}>
+              ATIVA
+            </span>
+          </div>
+          <h4 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', marginTop: '4px' }}>
             {session.storeName}
           </h4>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -117,6 +152,81 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)', fontSize: '11px', color: 'var(--text-subtle)' }}>
             <span>Vínculo: {session.membershipId}</span>
             <span>Expira em: {new Date(session.expiresAt).toLocaleDateString('pt-BR')}</span>
+          </div>
+        </div>
+
+        {/* Seção 4.3: Minhas Lojas & Troca de Loja (Critério AC-06) */}
+        <div className="card-surface" style={{ padding: '14px', marginBottom: '14px' }}>
+          <h4 style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
+            Minhas Lojas Vinculadas (Apenas uma ativa)
+          </h4>
+
+          {pendingDeliveriesCount > 0 && (
+            <div
+              style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid var(--nw-red)',
+                borderRadius: '10px',
+                padding: '8px 12px',
+                marginBottom: '10px',
+                fontSize: '11px',
+                color: '#fca5a5',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <ShieldAlert size={16} color="var(--nw-red)" style={{ flexShrink: 0 }} />
+              <span>Troca bloqueada: {pendingDeliveriesCount} pedido(s) pendente(s) na loja ativa (AC-06).</span>
+            </div>
+          )}
+
+          {switchError && (
+            <div style={{ color: 'var(--nw-red)', fontSize: '11px', fontWeight: 700, marginBottom: '8px' }}>
+              {switchError}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {linkedStores.map((st) => (
+              <div
+                key={st.storeId}
+                style={{
+                  background: st.active ? 'rgba(139, 92, 246, 0.15)' : 'var(--bg-app)',
+                  border: st.active ? '1px solid var(--nw-purple)' : '1px solid var(--border-subtle)',
+                  borderRadius: '12px',
+                  padding: '10px 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: '13px', color: '#ffffff' }}>{st.storeName}</strong>
+                  <p style={{ fontSize: '11px', color: 'var(--text-subtle)' }}>{st.address}</p>
+                </div>
+                {st.active ? (
+                  <span style={{ fontSize: '11px', color: 'var(--nw-emerald)', fontWeight: 800 }}>Em uso</span>
+                ) : (
+                  <button
+                    onClick={() => handleSwitchStore(st.storeId)}
+                    disabled={isSwitching || pendingDeliveriesCount > 0}
+                    style={{
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-strong)',
+                      color: pendingDeliveriesCount > 0 ? 'var(--text-subtle)' : '#ffffff',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: pendingDeliveriesCount > 0 ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    Alternar
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 

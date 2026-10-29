@@ -35,6 +35,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
   const [stops, setStops] = useState<Assignment[]>(activeAssignments);
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Reordenação por setas Subir/Descer
   const moveStop = (index: number, direction: 'up' | 'down') => {
@@ -50,6 +51,31 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
 
     setStops(newStops);
     setHasChanges(true);
+  };
+
+  // Suporte a Arrastar e Soltar (HTML5 Drag & Drop)
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === targetIndex) return;
+
+    const newStops = [...stops];
+    const [removed] = newStops.splice(draggedIndex, 1);
+    newStops.splice(targetIndex, 0, removed);
+
+    setStops(newStops);
+    setHasChanges(true);
+    setDraggedIndex(null);
+    audioAlert.playClickSound();
   };
 
   const handleSaveOrder = async () => {
@@ -77,7 +103,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
         <div>
           <h2 style={{ fontSize: '20px', fontWeight: 900 }}>Minha Rota de Entregas</h2>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Defina a ordem das entregas. O lojista apenas visualiza.
+            Organize por arrastar ou setas. O lojista apenas visualiza.
           </p>
         </div>
         <span
@@ -150,23 +176,32 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
             </div>
           )}
 
-          {/* Lista Ordenada de Paradas */}
+          {/* Lista Ordenada de Paradas com suporte a Drag & Drop e Setas */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {stops.map((stop, index) => {
               const isFirst = index === 0;
               const isLast = index === stops.length - 1;
+              const isDragging = draggedIndex === index;
 
               return (
                 <div
                   key={stop.assignmentId}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, index)}
                   className={`card-surface ${isFirst ? 'card-highlight' : ''}`}
                   style={{
                     borderLeft: isFirst ? '5px solid var(--nw-emerald)' : '5px solid var(--border-strong)',
-                    padding: '16px'
+                    padding: '16px',
+                    opacity: isDragging ? 0.4 : 1,
+                    cursor: 'grab',
+                    transition: 'border 0.2s ease, opacity 0.2s ease'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <GripVertical size={18} color="var(--text-subtle)" style={{ cursor: 'grab' }} />
                       <span
                         style={{
                           width: '32px',

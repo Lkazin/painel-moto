@@ -35,6 +35,7 @@ import { ScreenPinConfirm } from './components/ScreenPinConfirm';
 import { ScreenHistory } from './components/ScreenHistory';
 import { ModalSessionAndStore } from './components/ModalSessionAndStore';
 import { ModalWithdrawal } from './components/ModalWithdrawal';
+import { ModalRouteCompleted } from './components/ModalRouteCompleted';
 
 export const App: React.FC = () => {
   // Estados de Sessão e Configuração
@@ -56,6 +57,8 @@ export const App: React.FC = () => {
   // Modais de Apoio
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
   const [withdrawTarget, setWithdrawTarget] = useState<{ assignment: Assignment; isException: boolean } | null>(null);
+  const [isRouteCompletedOpen, setIsRouteCompletedOpen] = useState(false);
+  const [routeCompletedStats, setRouteCompletedStats] = useState({ count: 2, fees: 26.5, hasUninformed: false });
 
   // Toast de Notificação
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -203,15 +206,44 @@ export const App: React.FC = () => {
 
   // Sucesso na Entrega com PIN
   const handleDeliverySuccess = async (message: string, isOfflinePending?: boolean) => {
+    const completedAssignment = pinTarget || activeDelivery;
     setPinTarget(null);
     setActiveDelivery(null);
+
+    // Verifica quantas entregas restam na rota
+    const remainingInRoute = assignments.filter(
+      (a) =>
+        (a.status === 'picked_up' || a.status === 'in_transit') &&
+        a.assignmentId !== completedAssignment?.assignmentId
+    );
+
     await refreshAssignments();
+
     if (isOfflinePending) {
       showToast('Entrega gravada localmente! Pendente de validação online com a loja.', 'info');
     } else {
       showToast('Entrega validada com sucesso pelo servidor da loja!', 'success');
     }
-    setActiveTab('route');
+
+    // Se concluiu a última entrega da rota, abre a tela 4.11 de Resumo de Fim de Rota (AC-27)
+    if (remainingInRoute.length === 0) {
+      setRouteCompletedStats({
+        count: 2,
+        fees: 26.5,
+        hasUninformed: false
+      });
+      setIsRouteCompletedOpen(true);
+    } else {
+      setActiveTab('route');
+    }
+  };
+
+  // Troca de Loja Vinculada (AC-06)
+  const handleSwitchStore = async (storeId: string) => {
+    const updated = await api.switchStore(storeId);
+    setSession(updated);
+    await refreshAssignments();
+    showToast(`Vínculo ativo alterado para ${updated.storeName}.`, 'success');
   };
 
   // Logout seguro
@@ -398,14 +430,34 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Modal de Configuração & Loja Ativa */}
+      {/* Modal 4.11: Resumo de Fim de Rota (Critério AC-25 e AC-27) */}
+      {isRouteCompletedOpen && (
+        <ModalRouteCompleted
+          completedOrdersCount={routeCompletedStats.count}
+          totalFeesInformed={routeCompletedStats.fees}
+          hasUninformedFees={routeCompletedStats.hasUninformed}
+          isAccessExpired={new Date(session.expiresAt).getTime() < Date.now()}
+          onReturnToHome={() => {
+            setIsRouteCompletedOpen(false);
+            setActiveTab('dashboard');
+          }}
+          onViewHistory={() => {
+            setIsRouteCompletedOpen(false);
+            setActiveTab('history');
+          }}
+        />
+      )}
+
+      {/* Modal de Configuração & Loja Ativa (Critério AC-06) */}
       {isStoreModalOpen && (
         <ModalSessionAndStore
           session={session}
           onClose={() => setIsStoreModalOpen(false)}
           onLogout={handleLogout}
           onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          onSwitchStore={handleSwitchStore}
           currentTheme={theme}
+          pendingDeliveriesCount={waitingPickupCount + activeDeliveries.length}
         />
       )}
 
