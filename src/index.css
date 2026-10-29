@@ -1,0 +1,454 @@
+:root {
+  /* NovaesWeb Brand Identity */
+  --nw-pink: #ec4899;
+  --nw-pink-hover: #f43f5e;
+  --nw-pink-light: #fbcfe8;
+  --nw-pink-glow: rgba(236, 72, 153, 0.35);
+
+  --nw-purple: #8b5cf6;
+  --nw-purple-dark: #6d28d9;
+  --nw-purple-deep: #1e1b4b;
+  --nw-purple-glow: rgba(139, 92, 246, 0.3);
+
+  /* Semantic State Colors */
+  --nw-emerald: #10b981;
+  --nw-emerald-dark: #059669;
+  --nw-emerald-glow: rgba(16, 185, 129, 0.35);
+
+  --nw-amber: #f59e0b;
+  --nw-amber-glow: rgba(245, 158, 11, 0.3);
+
+  --nw-red: #ef4444;
+  --nw-red-glow: rgba(239, 68, 68, 0.3);
+
+  /* Dark Theme Surfaces (Default - Sunlight and Battery optimized) */
+  --bg-app: #0b0a12;
+  --bg-surface: #141221;
+  --bg-card: #1c1930;
+  --bg-card-hover: #262242;
+  --bg-elevated: #282444;
+  --border-subtle: rgba(139, 92, 246, 0.18);
+  --border-strong: rgba(139, 92, 246, 0.4);
+
+  --text-main: #f9fafb;
+  --text-muted: #9ca3af;
+  --text-subtle: #6b7280;
+
+  --nav-height: 74px;
+  --topbar-height: 64px;
+
+  /* Touch Target Standard for Bike Glove / Moto Mount */
+  --touch-min-h: 58px;
+  --touch-radius: 16px;
+}
+
+[data-theme='light'] {
+  --bg-app: #f3f4f8;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-elevated: #f1f5f9;
+  --border-subtle: rgba(139, 92, 246, 0.15);
+  --border-strong: rgba(139, 92, 246, 0.35);
+
+  --text-main: #111827;
+  --text-muted: #4b5563;
+  --text-subtle: #9ca3af;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  overflow-x: hidden;
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  line-height: 1.4;
+}
+
+/* Scrollbar invisível ou mínima */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--nw-purple-dark);
+  border-radius: 4px;
+}
+
+/* Container do App Shell */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 540px;
+  margin: 0 auto;
+  position: relative;
+  background-color: var(--bg-app);
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.6);
+  padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 16px));
+}
+
+/* Header Superior Fixo */
+.top-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(20, 18, 33, 0.94);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.top-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: -0.3px;
+}
+
+.brand-pill .logo-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--nw-pink), var(--nw-purple));
+  box-shadow: 0 0 10px var(--nw-pink);
+}
+
+.store-context-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid var(--border-strong);
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #d8b4fe;
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Banner de Modo Offline */
+.offline-banner {
+  background: linear-gradient(90deg, #dc2626, #b91c1c);
+  color: #ffffff;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 10px;
+  animation: pulse-red 2s infinite ease-in-out;
+}
+
+.offline-banner-simulated {
+  background: linear-gradient(90deg, #d97706, #b45309);
+  animation: none;
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+/* Navegação Inferior Fixa para Polegar */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 540px;
+  height: var(--nav-height);
+  background: rgba(20, 18, 33, 0.96);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding-bottom: env(safe-area-inset-bottom, 6px);
+  z-index: 50;
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 100%;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 700;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.nav-item.active {
+  color: var(--nw-pink);
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 36px;
+  height: 3px;
+  border-radius: 0 0 4px 4px;
+  background: linear-gradient(90deg, var(--nw-pink), var(--nw-purple));
+  box-shadow: 0 2px 8px var(--nw-pink-glow);
+}
+
+.nav-badge {
+  position: absolute;
+  top: 8px;
+  right: calc(50% - 18px);
+  background: var(--nw-pink);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 10px;
+  box-shadow: 0 0 8px var(--nw-pink-glow);
+}
+
+/* BOTÕES GLOVE-FRIENDLY (Otimizados para toque com luva no suporte) */
+.btn-glove {
+  width: 100%;
+  min-height: var(--touch-min-h);
+  border-radius: var(--touch-radius);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 20px;
+  transition: transform 0.12s ease, filter 0.15s ease, box-shadow 0.15s ease;
+  touch-action: manipulation;
+}
+
+.btn-glove:active {
+  transform: scale(0.97);
+  filter: brightness(1.15);
+}
+
+.btn-glove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-glove-primary {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  box-shadow: 0 6px 20px var(--nw-emerald-glow);
+}
+
+.btn-glove-accent {
+  background: linear-gradient(135deg, var(--nw-pink), var(--nw-purple));
+  color: #ffffff;
+  box-shadow: 0 6px 22px var(--nw-pink-glow);
+}
+
+.btn-glove-danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #ffffff;
+  box-shadow: 0 6px 20px var(--nw-red-glow);
+}
+
+.btn-glove-secondary {
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-strong);
+}
+
+.btn-glove-waze {
+  background: #33ccff;
+  color: #0b1a2f;
+  font-weight: 900;
+  box-shadow: 0 6px 18px rgba(51, 204, 255, 0.3);
+}
+
+.btn-glove-maps {
+  background: #4285f4;
+  color: #ffffff;
+  font-weight: 800;
+  box-shadow: 0 6px 18px rgba(66, 133, 244, 0.3);
+}
+
+/* Cards Estilizados */
+.card-surface {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 18px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card-highlight {
+  border-color: var(--border-strong);
+  background: linear-gradient(145deg, var(--bg-card), var(--bg-elevated));
+}
+
+/* Modais e Overlays */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  animation: fade-in 0.2s ease;
+}
+
+.modal-content {
+  background: var(--bg-surface);
+  border-top: 2px solid var(--nw-pink);
+  border-radius: 28px 28px 0 0;
+  width: 100%;
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 16px));
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8);
+  animation: slide-up 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* Teclado Numérico para Luva */
+.glove-keypad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.keypad-key {
+  height: 68px;
+  border-radius: 18px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  color: var(--text-main);
+  font-size: 26px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.keypad-key:active {
+  background: var(--nw-pink);
+  color: #ffffff;
+  transform: scale(0.94);
+  box-shadow: 0 0 16px var(--nw-pink-glow);
+}
+
+.keypad-key-action {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* Indicador de PIN 4 dígitos */
+.pin-slots {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin: 18px 0;
+}
+
+.pin-slot {
+  width: 60px;
+  height: 68px;
+  border-radius: 16px;
+  background: var(--bg-card);
+  border: 2px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--nw-pink);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: all 0.18s ease;
+}
+
+.pin-slot.filled {
+  border-color: var(--nw-pink);
+  background: rgba(236, 72, 153, 0.12);
+  box-shadow: 0 0 16px var(--nw-pink-glow);
+}
+
+/* Contagem regressiva da oferta */
+.timer-circular-wrap {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timer-circular-svg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+}
+
+.timer-circular-text {
+  position: absolute;
+  font-size: 20px;
+  font-weight: 900;
+  color: #ffffff;
+}
