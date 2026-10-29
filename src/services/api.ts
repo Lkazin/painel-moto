@@ -14,7 +14,7 @@ import { offlineQueue } from './offlineQueue';
 const API_BASE_URL =
   (import.meta as any).env?.NEXT_PUBLIC_LOGISTICS_API_URL ||
   (import.meta as any).env?.VITE_LOGISTICS_API_URL ||
-  'http://localhost:3000/api/v1/logistics';
+  '/api/v1/logistics';
 
 const ACCOUNT_STORAGE_KEY = 'novaesweb_driver_account_v2';
 const ACCOUNTS_DB_KEY = 'novaesweb_driver_registered_accounts';
@@ -292,14 +292,32 @@ class ApiClient {
 
       if (response.ok) {
         const data = await response.json();
-        this.session = data.session || data;
-        this.session!.driverName = this.account.name;
-        this.session!.phone = this.account.phone;
-        this.session!.vehiclePlate = this.account.vehiclePlate;
-        this.session!.shiftStartedAt = new Date().toISOString();
+        const storeObj = data.store || {};
+        const driverObj = data.driver || {};
+
+        const newSession: DriverSession = {
+          token: data.sessionToken || data.token || 'jwt_shift_' + Date.now(),
+          driverId: driverObj.driverId || driverObj.id || this.account.id,
+          driverName: driverObj.driverName || driverObj.name || this.account.name,
+          phone: driverObj.phone || this.account.phone,
+          vehiclePlate: driverObj.vehiclePlate || this.account.vehiclePlate,
+          deviceFingerprint: fingerprint,
+          storeId: storeObj.id || 'store_' + cleanCode.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+          storeName: storeObj.name || 'Bella Pizza',
+          storeAddress: storeObj.address || 'Rua das Camélias, 412 - Jardins, SP',
+          membershipId: data.membershipId || 'mem_' + cleanCode,
+          role: 'entregador_plantao',
+          expiresAt: data.expiresAt || new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+          isActivated: true,
+          shiftStartedAt: new Date().toISOString()
+        };
+
+        this.session = newSession;
+        this.presence.manualEnabled = true;
         this.saveSession();
-        this.updateLedgerForStore(this.session!.storeId, this.session!.storeName, this.session!.storeAddress);
-        return this.session!;
+        this.savePresence();
+        this.updateLedgerForStore(newSession.storeId, newSession.storeName, newSession.storeAddress);
+        return this.session;
       }
     } catch {}
 
