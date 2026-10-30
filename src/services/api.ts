@@ -744,20 +744,21 @@ class ApiClient {
         }
 
         const newAssignment: Assignment = {
-          id: 'asg_' + Date.now(),
+          assignmentId: 'asg_' + Date.now(),
           orderId: offer?.orderId || ('ord_' + Date.now()),
           orderNumber: offer?.orderNumber || offer?.orderId || ('#' + Math.floor(100 + Math.random() * 900)),
           storeId: offer?.storeId || this.session.storeId,
           storeName: offer?.storeName || this.session.storeName,
-          address: offer?.deliveryAddress || offer?.customerAddress || 'Endereço da Entrega',
-          region: offer?.region || 'Bairro Próximo',
           customerName: offer?.customerName || 'Cliente',
           customerPhone: offer?.customerPhone || '(11) 99999-9999',
-          feeOffered: offer?.deliveryFee || offer?.feeOffered || 12.00,
-          driverId: this.session.driverId,
-          driverName: this.session.driverName,
-          status: 'a_caminho',
-          pinCode: offer?.pinCode || '1234',
+          address: offer?.deliveryAddress || offer?.customerAddress || 'Endereço da Entrega',
+          addressNumber: 'S/N',
+          neighborhood: offer?.region || 'Bairro',
+          city: 'São Paulo',
+          deliveryFee: offer?.deliveryFee || offer?.feeOffered || 12.00,
+          itemsSummary: offer?.itemsSummary || '1x Pedido Delivery',
+          status: 'accepted',
+          sequence: 1,
           acceptedAt: new Date().toISOString()
         };
 
@@ -797,10 +798,29 @@ class ApiClient {
     // Busca na Nuvem Supabase
     try {
       const cloudState = await fetchCloudLogistics();
-      return cloudState.assignments.filter((a: any) =>
-        (a.driverId === this.session?.driverId || a.driverName === this.session?.driverName) &&
-        a.status !== 'entregue'
-      );
+      return cloudState.assignments
+        .filter((a: any) =>
+          (a.driverId === this.session?.driverId || a.driverName === this.session?.driverName) &&
+          a.status !== 'delivered' && a.status !== 'entregue'
+        )
+        .map((a: any, idx: number) => ({
+          assignmentId: a.assignmentId || a.id || ('asg_' + idx),
+          orderId: a.orderId || ('ord_' + idx),
+          orderNumber: a.orderNumber || ('#' + (100 + idx)),
+          storeId: a.storeId || this.session?.storeId,
+          storeName: a.storeName || this.session?.storeName,
+          customerName: a.customerName || 'Cliente',
+          customerPhone: a.customerPhone,
+          address: a.address || a.deliveryAddress || 'Endereço',
+          addressNumber: a.addressNumber || 'S/N',
+          neighborhood: a.neighborhood || a.region || 'Bairro',
+          city: a.city || 'São Paulo',
+          deliveryFee: a.deliveryFee || a.feeOffered || 12.00,
+          itemsSummary: a.itemsSummary || '1x Pedido Delivery',
+          status: (a.status === 'in_transit' || a.status === 'picked_up' || a.status === 'waiting_pickup') ? a.status : 'accepted',
+          sequence: idx + 1,
+          acceptedAt: a.acceptedAt || new Date().toISOString()
+        }));
     } catch {}
 
     return [];
@@ -822,10 +842,10 @@ class ApiClient {
     try {
       const cloudState = await fetchCloudLogistics();
       for (const id of assignmentIds) {
-        const asg = cloudState.assignments.find((a: any) => a.id === id);
+        const asg = cloudState.assignments.find((a: any) => a.assignmentId === id || a.id === id);
         if (asg) {
-          asg.status = 'em_rota';
-          asg.pickedUpAt = new Date().toISOString();
+          asg.status = 'picked_up';
+          asg.pickupConfirmedAt = new Date().toISOString();
         }
       }
       await saveCloudLogistics(cloudState);
@@ -856,12 +876,15 @@ class ApiClient {
     try {
       const assignments = await this.getAssignments();
       return assignments.map((a, idx) => ({
-        assignmentId: a.id,
+        assignmentId: a.assignmentId,
         orderNumber: a.orderNumber,
-        address: a.address,
-        region: a.region,
         sequence: idx + 1,
-        status: a.status === 'em_rota' ? 'em_deslocamento' : 'pendente'
+        customerName: a.customerName || 'Cliente',
+        address: a.address,
+        neighborhood: a.neighborhood || 'Bairro',
+        status: a.status,
+        isCurrent: idx === 0,
+        deliveryFee: a.deliveryFee
       }));
     } catch {}
 
