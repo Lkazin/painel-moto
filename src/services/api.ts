@@ -254,6 +254,21 @@ class ApiClient {
     this.logoutDriver();
   }
 
+  // Limpa completamente todos os dados e histórico salvos localmente
+  public clearAllLocalData(): void {
+    this.account = null;
+    this.session = null;
+    this.ledger = [];
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(ACCOUNT_STORAGE_KEY);
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      localStorage.removeItem(PRESENCE_STORAGE_KEY);
+      localStorage.removeItem(LEDGER_STORAGE_KEY);
+      localStorage.removeItem(ACCOUNTS_DB_KEY);
+      localStorage.removeItem('novaesweb_device_fp');
+    }
+  }
+
   // Compatibilidade com ativação legada
   public async activateInvite(inviteCode: string, _deviceFingerprint?: string): Promise<DriverSession> {
     if (!this.account) {
