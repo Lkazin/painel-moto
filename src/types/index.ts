@@ -103,6 +103,8 @@ export interface Assignment {
   acceptedAt: string;
   pickupConfirmedAt?: string;
   deliveredAt?: string;
+  driverId?: string;
+  driverName?: string;
   isPendingSync?: boolean; // Para confirmações offline
   pinCandidateOffline?: string;
 }

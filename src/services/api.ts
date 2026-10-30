@@ -861,6 +861,8 @@ class ApiClient {
             orderNumber: ord.orderNumber ? String(ord.orderNumber) : ('#' + Math.floor(100 + Math.random() * 900)),
             storeId: offer?.storeId || this.session?.storeId || 'store_bella_pizza',
             storeName: offer?.storeName || this.session?.storeName || 'Bella Pizza',
+            driverId: this.session?.driverId || this.account?.id || offer?.targetDriverId || offer?.driverId,
+            driverName: this.session?.driverName || this.account?.name || offer?.driverName,
             customerName: ord.customerName || 'Cliente',
             customerPhone: ord.customerPhone || '(11) 99999-9999',
             address: ord.customerAddress || ord.address || 'Endereço da Entrega',
@@ -990,10 +992,13 @@ class ApiClient {
     // Busca na Nuvem Supabase
     try {
       const cloudState = await fetchCloudLogistics();
+      const currentDriverId = this.session?.driverId || this.account?.id;
+      const currentDriverName = this.session?.driverName || this.account?.name;
+
       return cloudState.assignments
         .filter((a: any) =>
-          (a.driverId === this.session?.driverId || a.driverName === this.session?.driverName) &&
-          a.status !== 'delivered' && a.status !== 'entregue'
+          (!a.driverId || a.driverId === currentDriverId || a.driverName === currentDriverName) &&
+          a.status !== 'delivered' && a.status !== 'entregue' && a.status !== 'canceled_by_store'
         )
         .map((a: any, idx: number) => ({
           assignmentId: a.assignmentId || a.id || ('asg_' + idx),
@@ -1296,9 +1301,12 @@ class ApiClient {
     // Busca na Nuvem Supabase Storage
     try {
       const cloudState = await fetchCloudLogistics();
+      const currentDriverId = this.session?.driverId || this.account?.id;
+      const currentDriverName = this.session?.driverName || this.account?.name;
+
       const delivered = cloudState.assignments.filter((a: any) =>
-        (a.driverId === this.session?.driverId || a.driverName === this.session?.driverName) &&
-        a.status === 'entregue'
+        (!a.driverId || a.driverId === currentDriverId || a.driverName === currentDriverName) &&
+        (a.status === 'entregue' || a.status === 'delivered')
       );
       let total = 0;
       const items: DeliveryHistoryItem[] = delivered.map((d: any) => {
