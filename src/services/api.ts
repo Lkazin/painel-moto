@@ -697,12 +697,33 @@ class ApiClient {
     try {
       const cloudState = await fetchCloudLogistics();
       const now = Date.now();
-      const myOffers = cloudState.offers.filter((o: any) => {
-        const notExpired = !o.expiresAt || new Date(o.expiresAt).getTime() > now;
-        const isPending = o.status === 'pendente';
-        const isForMe = !o.targetDriverId || !o.driverId || o.targetDriverId === this.session?.driverId || o.driverId === this.session?.driverId;
-        return notExpired && isPending && isForMe;
-      });
+      const myOffers: Offer[] = cloudState.offers
+        .filter((o: any) => {
+          const notExpired = !o.expiresAt || new Date(o.expiresAt).getTime() > now;
+          const isPending = o.status === 'pendente';
+          const isForMe = !o.targetDriverId || !o.driverId || o.targetDriverId === this.session?.driverId || o.driverId === this.session?.driverId;
+          return notExpired && isPending && isForMe;
+        })
+        .map((o: any) => {
+          const offId = o.offerId || o.id || o.orderId || ('off_' + Date.now());
+          return {
+            offerId: offId,
+            orderId: o.orderId || offId,
+            orderNumber: o.orderNumber ? String(o.orderNumber) : ('#' + Math.floor(100 + Math.random() * 900)),
+            storeId: o.storeId || this.session?.storeId || 'store_bella_pizza',
+            storeName: o.storeName || this.session?.storeName || 'Bella Pizza',
+            customerAddress: o.deliveryAddress || o.customerAddress || o.address || 'Endereço da Entrega',
+            customerNeighborhood: o.customerNeighborhood || o.neighborhood || o.region || 'Bairro Próximo',
+            customerCity: o.customerCity || o.city || 'São Paulo',
+            estimatedDistanceKm: o.estimatedDistanceKm || 2.5,
+            deliveryFee: (o.deliveryFee !== undefined && o.deliveryFee !== null) ? Number(o.deliveryFee) : ((o.feeOffered !== undefined && o.feeOffered !== null) ? Number(o.feeOffered) : 12.00),
+            itemsSummary: o.itemsSummary || '1x Pedido Delivery',
+            totalOrdersGrouped: o.totalOrdersGrouped || 1,
+            createdAt: o.createdAt || new Date().toISOString(),
+            expiresAt: o.expiresAt || new Date(Date.now() + 60000).toISOString(),
+            totalSeconds: o.totalSeconds || 60
+          };
+        });
       return myOffers;
     } catch {}
 
@@ -735,41 +756,78 @@ class ApiClient {
     // 2. Sincronização direta na nuvem Supabase
     try {
       const cloudState = await fetchCloudLogistics();
-      const offerIdx = cloudState.offers.findIndex((o: any) => o.id === offerId || o.orderId === offerId);
+      
+      // Encontra a oferta correspondente na nuvem por offerId, id, orderId ou primeira pendente
+      const offerIdx = cloudState.offers.findIndex((o: any) =>
+        (offerId && (o.offerId === offerId || o.id === offerId || o.orderId === offerId)) ||
+        (o.status === 'pendente')
+      );
+
+      const offer = offerIdx !== -1 ? cloudState.offers[offerIdx] : null;
 
       if (decision === 'accepted') {
-        const offer = offerIdx !== -1 ? cloudState.offers[offerIdx] : null;
         if (offer) {
           offer.status = 'atribuida';
+          offer.driverId = this.session.driverId;
+          offer.driverName = this.session.driverName;
         }
 
         const newAssignment: Assignment = {
-          assignmentId: 'asg_' + Date.now(),
-          orderId: offer?.orderId || ('ord_' + Date.now()),
-          orderNumber: offer?.orderNumber || offer?.orderId || ('#' + Math.floor(100 + Math.random() * 900)),
+          assignmentId: 'asg_' + (offer?.orderId || offer?.offerId || offer?.id || offerId || Date.now()),
+          orderId: offer?.orderId || offerId || ('ord_' + Date.now()),
+          orderNumber: offer?.orderNumber ? String(offer.orderNumber) : ('#' + Math.floor(100 + Math.random() * 900)),
           storeId: offer?.storeId || this.session.storeId,
           storeName: offer?.storeName || this.session.storeName,
           customerName: offer?.customerName || 'Cliente',
           customerPhone: offer?.customerPhone || '(11) 99999-9999',
           address: offer?.deliveryAddress || offer?.customerAddress || 'Endereço da Entrega',
-          addressNumber: 'S/N',
-          neighborhood: offer?.region || 'Bairro',
-          city: 'São Paulo',
-          deliveryFee: offer?.deliveryFee || offer?.feeOffered || 12.00,
+          addressNumber: offer?.addressNumber || 'S/N',
+          neighborhood: offer?.customerNeighborhood || offer?.region || 'Bairro',
+          city: offer?.customerCity || 'São Paulo',
+          deliveryFee: (offer?.deliveryFee !== undefined && offer?.deliveryFee !== null) ? Number(offer.deliveryFee) : ((offer?.feeOffered !== undefined && offer?.feeOffered !== null) ? Number(offer.feeOffered) : 12.00),
           itemsSummary: offer?.itemsSummary || '1x Pedido Delivery',
-          status: 'accepted',
+          status: 'waiting_pickup',
           sequence: 1,
           acceptedAt: new Date().toISOString()
         };
 
-        cloudState.assignments.unshift(newAssignment);
+        // Marca como atribuída em cloudState.offers para nunca mais retornar como pendente
+        cloudState.offers = cloudState.offers.map((o: any) => {
+          if (
+            (offerId && (o.offerId === offerId || o.id === offerId || o.orderId === offerId)) ||
+            (offer && (o.id === offer.id || o.orderId === offer.orderId))
+          ) {
+            return { ...o, status: 'atribuida', driverId: this.session?.driverId };
+          }
+          return o;
+        });
+
+        // Insere nos assignments do entregador
+        const existingIdx = cloudState.assignments.findIndex((a: any) =>
+          a.assignmentId === newAssignment.assignmentId || a.orderId === newAssignment.orderId
+        );
+        if (existingIdx >= 0) {
+          cloudState.assignments[existingIdx] = newAssignment;
+        } else {
+          cloudState.assignments.unshift(newAssignment);
+        }
+
         await saveCloudLogistics(cloudState);
         return { success: true, assignment: newAssignment };
       } else {
-        if (offerIdx !== -1) {
-          cloudState.offers[offerIdx].status = 'recusada';
-          await saveCloudLogistics(cloudState);
+        if (offer) {
+          offer.status = 'recusada';
         }
+        cloudState.offers = cloudState.offers.map((o: any) => {
+          if (
+            (offerId && (o.offerId === offerId || o.id === offerId || o.orderId === offerId)) ||
+            (offer && (o.id === offer.id || o.orderId === offer.orderId))
+          ) {
+            return { ...o, status: 'recusada' };
+          }
+          return o;
+        });
+        await saveCloudLogistics(cloudState);
         return { success: true };
       }
     } catch (err: any) {
@@ -806,19 +864,19 @@ class ApiClient {
         .map((a: any, idx: number) => ({
           assignmentId: a.assignmentId || a.id || ('asg_' + idx),
           orderId: a.orderId || ('ord_' + idx),
-          orderNumber: a.orderNumber || ('#' + (100 + idx)),
+          orderNumber: a.orderNumber ? String(a.orderNumber) : ('#' + (100 + idx)),
           storeId: a.storeId || this.session?.storeId,
           storeName: a.storeName || this.session?.storeName,
           customerName: a.customerName || 'Cliente',
           customerPhone: a.customerPhone,
           address: a.address || a.deliveryAddress || 'Endereço',
           addressNumber: a.addressNumber || 'S/N',
-          neighborhood: a.neighborhood || a.region || 'Bairro',
-          city: a.city || 'São Paulo',
-          deliveryFee: a.deliveryFee || a.feeOffered || 12.00,
+          neighborhood: a.neighborhood || a.customerNeighborhood || a.region || 'Bairro',
+          city: a.city || a.customerCity || 'São Paulo',
+          deliveryFee: (a.deliveryFee !== undefined && a.deliveryFee !== null) ? Number(a.deliveryFee) : ((a.feeOffered !== undefined && a.feeOffered !== null) ? Number(a.feeOffered) : 12.00),
           itemsSummary: a.itemsSummary || '1x Pedido Delivery',
-          status: (a.status === 'in_transit' || a.status === 'picked_up' || a.status === 'waiting_pickup') ? a.status : 'accepted',
-          sequence: idx + 1,
+          status: (a.status === 'in_transit' || a.status === 'picked_up' || a.status === 'waiting_pickup') ? a.status : 'waiting_pickup',
+          sequence: a.sequence || (idx + 1),
           acceptedAt: a.acceptedAt || new Date().toISOString()
         }));
     } catch {}
