@@ -123,7 +123,7 @@ export const ModalOfferReceived: React.FC<ModalOfferReceivedProps> = ({
               }}
             />
             <span style={{ fontSize: '13px', fontWeight: 800, color: '#fbcfe8', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
-              Nova Corrida Disparada
+              {offer.totalOrdersGrouped > 1 ? `Oferta em Lote • ${offer.totalOrdersGrouped} Entregas` : 'Nova Corrida Disparada'}
             </span>
           </div>
 
@@ -159,26 +159,29 @@ export const ModalOfferReceived: React.FC<ModalOfferReceivedProps> = ({
             border: '1px solid var(--border-strong)',
             borderRadius: '20px',
             padding: '16px 20px',
-            marginBottom: '16px'
+            marginBottom: '14px'
           }}
         >
           <div>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', display: 'block' }}>
-              VALOR DA ENTREGA (LOJA)
+            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', display: 'block' }}>
+              REPASSE AO ENTREGADOR
             </span>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '2px' }}>
-              {offer.deliveryFee !== null ? (
-                <span style={{ fontSize: '32px', fontWeight: 900, color: 'var(--nw-emerald)' }}>
-                  R$ {offer.deliveryFee.toFixed(2).replace('.', ',')}
+              {offer.deliveryFee !== null && offer.deliveryFee !== undefined ? (
+                <span style={{ fontSize: '28px', fontWeight: 900, color: 'var(--nw-emerald)' }}>
+                  R$ {Number(offer.deliveryFee).toFixed(2).replace('.', ',')}
                 </span>
               ) : (
-                <span style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-subtle)' }}>
-                  Valor não informado
+                <span style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text-subtle)' }}>
+                  A combinar com a loja
                 </span>
               )}
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--text-subtle)' }}>
-              {offer.storeName} • {offer.orderNumber}
+            <span style={{ fontSize: '12px', fontWeight: 800, color: '#ffffff' }}>
+              {offer.storeName}
+            </span>
+            <span style={{ fontSize: '10px', color: 'var(--text-subtle)', display: 'block' }}>
+              Retirada: {offer.storeAddress || 'Balcão da Pizzaria'}
             </span>
           </div>
 
@@ -206,52 +209,101 @@ export const ModalOfferReceived: React.FC<ModalOfferReceivedProps> = ({
           </div>
         </div>
 
-        {/* Detalhes do Destino & Pacote */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '10px',
-              background: 'var(--bg-app)',
-              padding: '12px 14px',
-              borderRadius: '14px'
-            }}
-          >
-            <MapPin size={22} color="var(--nw-pink)" style={{ flexShrink: 0, marginTop: '2px' }} />
-            <div>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-subtle)', textTransform: 'uppercase' }}>
-                Endereço de Entrega
-              </span>
-              <p style={{ fontSize: '15px', fontWeight: 800, color: '#ffffff', lineHeight: 1.3 }}>
-                {offer.customerAddress}
-              </p>
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                {offer.customerNeighborhood} • aprox. {offer.estimatedDistanceKm} km
-              </p>
-            </div>
-          </div>
+        {/* Informação do Lote */}
+        <div
+          style={{
+            background: 'rgba(236, 72, 153, 0.08)',
+            border: '1px solid rgba(236, 72, 153, 0.25)',
+            borderRadius: '14px',
+            padding: '10px 14px',
+            marginBottom: '14px',
+            fontSize: '12px',
+            color: '#fbcfe8',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}
+        >
+          <span>
+            {offer.totalOrdersGrouped > 1
+              ? `Você recebeu uma oferta com ${offer.totalOrdersGrouped} entregas.`
+              : 'Você recebeu uma oferta com 1 entrega.'}
+          </span>
+          <span style={{ fontWeight: 800, fontSize: '11px', color: 'var(--text-subtle)' }}>
+            {offer.estimatedDistanceKm ? `Percurso ~ ${offer.estimatedDistanceKm} km` : 'Distância indisponível'}
+          </span>
+        </div>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              background: 'var(--bg-app)',
-              padding: '12px 14px',
-              borderRadius: '14px'
-            }}
-          >
-            <Package size={20} color="var(--nw-purple)" style={{ flexShrink: 0 }} />
-            <div>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-subtle)', textTransform: 'uppercase' }}>
-                Itens da Pizzaria
-              </span>
-              <p style={{ fontSize: '13px', fontWeight: 700, color: '#ffffff' }}>
-                {offer.itemsSummary}
-              </p>
+        {/* Detalhes dos Destinos do Percurso */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto', marginBottom: '16px', paddingRight: '4px' }}>
+          {offer.orders && offer.orders.length > 0 ? (
+            offer.orders.map((ord, idx) => (
+              <div
+                key={ord.id || idx}
+                style={{
+                  background: 'var(--bg-app)',
+                  border: '1px solid var(--border-subtle)',
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  gap: '10px',
+                  alignItems: 'flex-start'
+                }}
+              >
+                <div
+                  style={{
+                    background: 'var(--nw-pink)',
+                    color: '#ffffff',
+                    fontSize: '11px',
+                    fontWeight: 900,
+                    borderRadius: '8px',
+                    padding: '2px 7px',
+                    marginTop: '2px',
+                    flexShrink: 0
+                  }}
+                >
+                  #{idx + 1}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>
+                      {ord.orderNumber.startsWith('#') ? ord.orderNumber : `#${ord.orderNumber}`} • {ord.customerName}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#e4e4e7', marginTop: '2px', lineHeight: 1.2 }}>
+                    {ord.customerAddress}
+                  </p>
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {ord.customerNeighborhood} • {ord.itemsSummary}
+                  </p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px',
+                background: 'var(--bg-app)',
+                padding: '12px 14px',
+                borderRadius: '14px'
+              }}
+            >
+              <MapPin size={22} color="var(--nw-pink)" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-subtle)', textTransform: 'uppercase' }}>
+                  Endereço de Entrega
+                </span>
+                <p style={{ fontSize: '15px', fontWeight: 800, color: '#ffffff', lineHeight: 1.3 }}>
+                  {offer.customerAddress}
+                </p>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  {offer.customerNeighborhood} • {offer.itemsSummary}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Botões Grandes para Uso com Luva / Suporte de Moto */}
@@ -260,25 +312,29 @@ export const ModalOfferReceived: React.FC<ModalOfferReceivedProps> = ({
             onClick={handleAccept}
             disabled={isSubmitting || secondsRemaining <= 0}
             className="btn-glove btn-glove-primary"
-            style={{ height: '64px', fontSize: '18px' }}
+            style={{ height: '62px', fontSize: '17px' }}
           >
-            <CheckCircle2 size={26} strokeWidth={2.6} />
-            <span>ACEITAR CORRIDA ({secondsRemaining}s)</span>
+            <CheckCircle2 size={24} strokeWidth={2.6} />
+            <span>
+              {offer.totalOrdersGrouped > 1
+                ? `ACEITAR AS ${offer.totalOrdersGrouped} ENTREGAS (${secondsRemaining}s)`
+                : `ACEITAR CORRIDA (${secondsRemaining}s)`}
+            </span>
           </button>
 
           <button
             onClick={handleReject}
             disabled={isSubmitting}
             className="btn-glove btn-glove-danger"
-            style={{ height: '52px', fontSize: '15px' }}
+            style={{ height: '48px', fontSize: '14px' }}
           >
-            <XCircle size={20} />
+            <XCircle size={18} />
             <span>Recusar Oferta</span>
           </button>
         </div>
 
-        <p style={{ fontSize: '11px', color: 'var(--text-subtle)', textAlign: 'center', marginTop: '12px' }}>
-          Se você recusar ou o tempo expirar, a oferta retorna ao despacho manual da pizzaria.
+        <p style={{ fontSize: '11px', color: 'var(--text-subtle)', textAlign: 'center', marginTop: '10px' }}>
+          O lojista escolhe os pedidos. Você aceita ou recusa o lote inteiro.
         </p>
       </div>
     </div>

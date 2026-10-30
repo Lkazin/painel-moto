@@ -81,6 +81,47 @@ async function saveCloudLogistics(state: CloudLogisticsState): Promise<boolean> 
   }
 }
 
+const ORDERS_FILE = 'orders.json';
+
+async function fetchCloudOrders(): Promise<any[]> {
+  try {
+    const url = `${SUPABASE_PROJECT_URL}/storage/v1/object/${STORAGE_BUCKET}/${ORDERS_FILE}?t=${Date.now()}`;
+    const res = await fetch(url, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    }
+  } catch (err) {
+    console.warn('[CloudOrders] Falha ao carregar pedidos da nuvem:', err);
+  }
+  return [];
+}
+
+async function saveCloudOrders(orders: any[]): Promise<boolean> {
+  try {
+    const url = `${SUPABASE_PROJECT_URL}/storage/v1/object/${STORAGE_BUCKET}/${ORDERS_FILE}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'x-upsert': 'true',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(orders)
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('[CloudOrders] Falha ao salvar pedidos na nuvem:', err);
+    return false;
+  }
+}
+
 const ACCOUNT_STORAGE_KEY = 'novaesweb_driver_account_v2';
 const ACCOUNTS_DB_KEY = 'novaesweb_driver_registered_accounts';
 const SESSION_STORAGE_KEY = 'novaesweb_driver_session_v2';
@@ -706,19 +747,37 @@ class ApiClient {
         })
         .map((o: any) => {
           const offId = o.offerId || o.id || o.orderId || ('off_' + Date.now());
+          const groupedOrders = Array.isArray(o.orders) && o.orders.length > 0
+            ? o.orders.map((ord: any) => ({
+                id: ord.id || ord.orderId,
+                orderNumber: ord.orderNumber ? String(ord.orderNumber) : ('#' + Math.floor(100 + Math.random() * 900)),
+                customerName: ord.customerName || 'Cliente',
+                customerAddress: ord.deliveryAddress || ord.customerAddress || ord.address || 'Endereço',
+                customerNeighborhood: ord.customerNeighborhood || ord.region || 'Bairro',
+                customerCity: ord.customerCity || 'São Paulo',
+                customerPhone: ord.customerPhone || ord.phone || '',
+                itemsSummary: ord.itemsSummary || '1x Pedido Delivery',
+                total: ord.total ? Number(ord.total) : undefined
+              }))
+            : undefined;
+
+          const totalOrders = groupedOrders ? groupedOrders.length : (o.totalOrdersGrouped || 1);
+
           return {
             offerId: offId,
-            orderId: o.orderId || offId,
-            orderNumber: o.orderNumber ? String(o.orderNumber) : ('#' + Math.floor(100 + Math.random() * 900)),
+            orderId: o.orderId || (groupedOrders ? groupedOrders[0]?.id : offId),
+            orderNumber: o.orderNumber ? String(o.orderNumber) : (groupedOrders ? groupedOrders.map((g: any) => '#' + g.orderNumber.replace('#','')).join(', ') : ('#' + Math.floor(100 + Math.random() * 900))),
             storeId: o.storeId || this.session?.storeId || 'store_bella_pizza',
             storeName: o.storeName || this.session?.storeName || 'Bella Pizza',
-            customerAddress: o.deliveryAddress || o.customerAddress || o.address || 'Endereço da Entrega',
-            customerNeighborhood: o.customerNeighborhood || o.neighborhood || o.region || 'Bairro Próximo',
+            storeAddress: o.storeAddress || this.session?.storeAddress || 'Rua das Camélias, 412 - Jardins, SP',
+            customerAddress: o.deliveryAddress || o.customerAddress || o.address || (groupedOrders ? `${groupedOrders.length} endereços de entrega` : 'Endereço da Entrega'),
+            customerNeighborhood: o.customerNeighborhood || o.neighborhood || o.region || (groupedOrders ? groupedOrders[0]?.customerNeighborhood : 'Bairro Próximo'),
             customerCity: o.customerCity || o.city || 'São Paulo',
             estimatedDistanceKm: o.estimatedDistanceKm || 2.5,
             deliveryFee: (o.deliveryFee !== undefined && o.deliveryFee !== null) ? Number(o.deliveryFee) : ((o.feeOffered !== undefined && o.feeOffered !== null) ? Number(o.feeOffered) : 12.00),
-            itemsSummary: o.itemsSummary || '1x Pedido Delivery',
-            totalOrdersGrouped: o.totalOrdersGrouped || 1,
+            itemsSummary: o.itemsSummary || (groupedOrders ? groupedOrders.map((g: any) => g.itemsSummary).join(' • ') : '1x Pedido Delivery'),
+            totalOrdersGrouped: totalOrders,
+            orders: groupedOrders,
             createdAt: o.createdAt || new Date().toISOString(),
             expiresAt: o.expiresAt || new Date(Date.now() + 60000).toISOString(),
             totalSeconds: o.totalSeconds || 60
@@ -772,48 +831,99 @@ class ApiClient {
           offer.driverName = this.session.driverName;
         }
 
-        const newAssignment: Assignment = {
-          assignmentId: 'asg_' + (offer?.orderId || offer?.offerId || offer?.id || offerId || Date.now()),
-          orderId: offer?.orderId || offerId || ('ord_' + Date.now()),
-          orderNumber: offer?.orderNumber ? String(offer.orderNumber) : ('#' + Math.floor(100 + Math.random() * 900)),
-          storeId: offer?.storeId || this.session.storeId,
-          storeName: offer?.storeName || this.session.storeName,
-          customerName: offer?.customerName || 'Cliente',
-          customerPhone: offer?.customerPhone || '(11) 99999-9999',
-          address: offer?.deliveryAddress || offer?.customerAddress || 'Endereço da Entrega',
-          addressNumber: offer?.addressNumber || 'S/N',
-          neighborhood: offer?.customerNeighborhood || offer?.region || 'Bairro',
-          city: offer?.customerCity || 'São Paulo',
-          deliveryFee: (offer?.deliveryFee !== undefined && offer?.deliveryFee !== null) ? Number(offer.deliveryFee) : ((offer?.feeOffered !== undefined && offer?.feeOffered !== null) ? Number(offer.feeOffered) : 12.00),
-          itemsSummary: offer?.itemsSummary || '1x Pedido Delivery',
-          status: 'waiting_pickup',
-          sequence: 1,
-          acceptedAt: new Date().toISOString()
-        };
+        // Se a oferta tiver pedidos agrupados
+        const offerOrders = Array.isArray(offer?.orders) && offer.orders.length > 0
+          ? offer.orders
+          : [{
+              id: offer?.orderId || offerId || ('ord_' + Date.now()),
+              orderNumber: offer?.orderNumber ? String(offer.orderNumber) : ('#' + Math.floor(100 + Math.random() * 900)),
+              customerName: offer?.customerName || 'Cliente',
+              customerPhone: offer?.customerPhone || '(11) 99999-9999',
+              customerAddress: offer?.deliveryAddress || offer?.customerAddress || 'Endereço da Entrega',
+              customerNeighborhood: offer?.customerNeighborhood || offer?.region || 'Bairro',
+              customerCity: offer?.customerCity || 'São Paulo',
+              itemsSummary: offer?.itemsSummary || '1x Pedido Delivery',
+              total: offer?.total
+            }];
 
-        // Marca como atribuída em cloudState.offers para nunca mais retornar como pendente
+        const createdAssignments: Assignment[] = [];
+
+        offerOrders.forEach((ord: any, idx: number) => {
+          const ordId = ord.id || ord.orderId || ('ord_' + idx + '_' + Date.now());
+          const asgId = 'asg_' + ordId;
+          const feePerOrder = (offer?.deliveryFee !== undefined && offer?.deliveryFee !== null)
+            ? Number(offer.deliveryFee) / offerOrders.length
+            : ((offer?.feeOffered !== undefined && offer?.feeOffered !== null) ? Number(offer.feeOffered) / offerOrders.length : 12.00);
+
+          const newAsg: Assignment = {
+            assignmentId: asgId,
+            orderId: ordId,
+            orderNumber: ord.orderNumber ? String(ord.orderNumber) : ('#' + Math.floor(100 + Math.random() * 900)),
+            storeId: offer?.storeId || this.session?.storeId || 'store_bella_pizza',
+            storeName: offer?.storeName || this.session?.storeName || 'Bella Pizza',
+            customerName: ord.customerName || 'Cliente',
+            customerPhone: ord.customerPhone || '(11) 99999-9999',
+            address: ord.customerAddress || ord.address || 'Endereço da Entrega',
+            addressNumber: ord.addressNumber || 'S/N',
+            neighborhood: ord.customerNeighborhood || ord.region || 'Bairro',
+            city: ord.customerCity || 'São Paulo',
+            deliveryFee: feePerOrder,
+            itemsSummary: ord.itemsSummary || '1x Pedido Delivery',
+            status: 'waiting_pickup',
+            sequence: idx + 1,
+            acceptedAt: new Date().toISOString()
+          };
+
+          const existingIdx = cloudState.assignments.findIndex((a: any) =>
+            a.assignmentId === newAsg.assignmentId || a.orderId === newAsg.orderId
+          );
+          if (existingIdx >= 0) {
+            cloudState.assignments[existingIdx] = newAsg;
+          } else {
+            cloudState.assignments.unshift(newAsg);
+          }
+          createdAssignments.push(newAsg);
+        });
+
+        // Marca como atribuída em cloudState.offers
         cloudState.offers = cloudState.offers.map((o: any) => {
           if (
             (offerId && (o.offerId === offerId || o.id === offerId || o.orderId === offerId)) ||
             (offer && (o.id === offer.id || o.orderId === offer.orderId))
           ) {
-            return { ...o, status: 'atribuida', driverId: this.session?.driverId };
+            return { ...o, status: 'atribuida', driverId: this.session?.driverId, driverName: this.session?.driverName };
           }
           return o;
         });
 
-        // Insere nos assignments do entregador
-        const existingIdx = cloudState.assignments.findIndex((a: any) =>
-          a.assignmentId === newAssignment.assignmentId || a.orderId === newAssignment.orderId
-        );
-        if (existingIdx >= 0) {
-          cloudState.assignments[existingIdx] = newAssignment;
-        } else {
-          cloudState.assignments.unshift(newAssignment);
+        await saveCloudLogistics(cloudState);
+
+        // ATUALIZA STATUS NOS PEDIDOS DA LOJA: Aceito — Aguardando Retirada!
+        try {
+          const cloudOrders = await fetchCloudOrders();
+          let ordersChanged = false;
+          const orderIdSet = new Set(offerOrders.map((o: any) => String(o.id || o.orderId)));
+          const orderNumberSet = new Set(offerOrders.map((o: any) => String(o.orderNumber).replace('#', '')));
+
+          cloudOrders.forEach((ord: any) => {
+            const idMatch = orderIdSet.has(String(ord.id));
+            const numMatch = orderNumberSet.has(String(ord.orderNumber));
+            if (idMatch || numMatch) {
+              ord.dispatchStatus = 'aceito_aguardando_retirada';
+              ord.driverName = this.session?.driverName || 'Motoboy';
+              ord.assignedDriverName = this.session?.driverName || 'Motoboy';
+              ord.acceptedAt = new Date().toISOString();
+              ordersChanged = true;
+            }
+          });
+          if (ordersChanged) {
+            await saveCloudOrders(cloudOrders);
+          }
+        } catch (e) {
+          console.warn('[respondOffer] Erro ao atualizar status do pedido na loja:', e);
         }
 
-        await saveCloudLogistics(cloudState);
-        return { success: true, assignment: newAssignment };
+        return { success: true, assignment: createdAssignments[0] };
       } else {
         if (offer) {
           offer.status = 'recusada';
@@ -828,6 +938,30 @@ class ApiClient {
           return o;
         });
         await saveCloudLogistics(cloudState);
+
+        // Devolve pedidos para 'disponivel' na loja
+        try {
+          const cloudOrders = await fetchCloudOrders();
+          let ordersChanged = false;
+          const offerOrderIds = new Set(
+            Array.isArray(offer?.orders)
+              ? offer.orders.map((o: any) => String(o.id || o.orderId))
+              : [String(offer?.orderId || offerId)]
+          );
+
+          cloudOrders.forEach((ord: any) => {
+            if (offerOrderIds.has(String(ord.id)) || offerOrderIds.has(String(ord.orderNumber))) {
+              ord.dispatchStatus = 'disponivel';
+              ord.assignedDriverName = null;
+              ord.driverName = null;
+              ordersChanged = true;
+            }
+          });
+          if (ordersChanged) {
+            await saveCloudOrders(cloudOrders);
+          }
+        } catch {}
+
         return { success: true };
       }
     } catch (err: any) {
@@ -899,14 +1033,38 @@ class ApiClient {
     // Atualiza na Nuvem Supabase
     try {
       const cloudState = await fetchCloudLogistics();
+      const pickedOrderIds: string[] = [];
+
       for (const id of assignmentIds) {
         const asg = cloudState.assignments.find((a: any) => a.assignmentId === id || a.id === id);
         if (asg) {
           asg.status = 'picked_up';
           asg.pickupConfirmedAt = new Date().toISOString();
+          if (asg.orderId) pickedOrderIds.push(asg.orderId);
         }
       }
       await saveCloudLogistics(cloudState);
+
+      // ATUALIZA OS PEDIDOS CORRESPONDENTES NA LOJA PARA: "em_entrega"
+      try {
+        const cloudOrders = await fetchCloudOrders();
+        let ordersChanged = false;
+        const pickedSet = new Set(pickedOrderIds.map(String));
+        cloudOrders.forEach((ord: any) => {
+          if (pickedSet.has(String(ord.id)) || pickedSet.has(String(ord.orderNumber))) {
+            ord.status = 'em_entrega';
+            ord.dispatchStatus = 'em_entrega';
+            ord.pickedUpAt = new Date().toISOString();
+            ord.driverName = this.session?.driverName;
+            ordersChanged = true;
+          }
+        });
+        if (ordersChanged) {
+          await saveCloudOrders(cloudOrders);
+        }
+      } catch (errOrders) {
+        console.warn('[confirmPickup] Erro ao sincronizar pedidos com a loja:', errOrders);
+      }
     } catch {}
 
     return { confirmed: assignmentIds, errors: {} };
@@ -1001,16 +1159,44 @@ class ApiClient {
     }
 
     // Sincroniza e valida na Nuvem Supabase
+    let matchedOrderId: string | null = null;
+    let matchedOrderNumber: string | null = null;
     try {
       const cloudState = await fetchCloudLogistics();
-      const assignment = cloudState.assignments.find((a: any) => a.id === assignmentId);
+      const assignment = cloudState.assignments.find((a: any) => a.assignmentId === assignmentId || a.id === assignmentId);
       if (assignment) {
         if (assignment.pinCode && pinCandidate && pinCandidate.trim() !== assignment.pinCode.trim()) {
           throw new Error('Código PIN incorreto. Peça ao cliente para verificar os 4 dígitos no app.');
         }
         assignment.status = 'entregue';
         assignment.deliveredAt = new Date().toISOString();
+        matchedOrderId = assignment.orderId ? String(assignment.orderId) : null;
+        matchedOrderNumber = assignment.orderNumber ? String(assignment.orderNumber).replace('#', '') : null;
         await saveCloudLogistics(cloudState);
+      }
+
+      // ATUALIZA O PEDIDO CORRESPONDENTE NA LOJA PARA "concluido" / "Finalizado/Entregue"!
+      if (matchedOrderId || matchedOrderNumber) {
+        try {
+          const cloudOrders = await fetchCloudOrders();
+          let orderUpdated = false;
+          cloudOrders.forEach((ord: any) => {
+            const idMatch = matchedOrderId && String(ord.id) === matchedOrderId;
+            const numMatch = matchedOrderNumber && String(ord.orderNumber).replace('#', '') === matchedOrderNumber;
+            if (idMatch || numMatch) {
+              ord.status = 'concluido';
+              ord.dispatchStatus = 'entregue';
+              ord.deliveredAt = new Date().toISOString();
+              ord.driverName = this.session?.driverName;
+              orderUpdated = true;
+            }
+          });
+          if (orderUpdated) {
+            await saveCloudOrders(cloudOrders);
+          }
+        } catch (errOrd) {
+          console.warn('[confirmDelivery] Erro ao sincronizar pedido concluído com a loja:', errOrd);
+        }
       }
     } catch (err: any) {
       if (err.message && err.message.includes('PIN incorreto')) throw err;

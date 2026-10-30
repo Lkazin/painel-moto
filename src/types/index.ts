@@ -41,12 +41,25 @@ export interface DriverPresence {
   lastHeartbeat: string;
 }
 
+export interface OfferOrderItem {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerAddress: string;
+  customerNeighborhood: string;
+  customerCity?: string;
+  customerPhone?: string;
+  itemsSummary: string;
+  total?: number;
+}
+
 export interface Offer {
   offerId: string;
   orderId: string;
   orderNumber: string;
   storeId: string;
   storeName: string;
+  storeAddress?: string;
   customerAddress: string;
   customerNeighborhood: string;
   customerCity?: string;
@@ -54,6 +67,7 @@ export interface Offer {
   deliveryFee: number | null; // null se não informado pela loja
   itemsSummary: string;
   totalOrdersGrouped: number;
+  orders?: OfferOrderItem[];
   createdAt: string;
   expiresAt: string;
   totalSeconds: number;
