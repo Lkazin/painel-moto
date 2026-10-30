@@ -12,9 +12,9 @@ import {
 import { offlineQueue } from './offlineQueue';
 
 const API_BASE_URL =
-  (import.meta as any).env?.NEXT_PUBLIC_LOGISTICS_API_URL ||
   (import.meta as any).env?.VITE_LOGISTICS_API_URL ||
-  '/api/v1/logistics';
+  (import.meta as any).env?.NEXT_PUBLIC_LOGISTICS_API_URL ||
+  'http://localhost:3000/api/v1/logistics';
 
 const ACCOUNT_STORAGE_KEY = 'novaesweb_driver_account_v2';
 const ACCOUNTS_DB_KEY = 'novaesweb_driver_registered_accounts';
@@ -305,70 +305,44 @@ class ApiClient {
         })
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        const storeObj = data.store || {};
-        const driverObj = data.driver || {};
-
-        const newSession: DriverSession = {
-          token: data.sessionToken || data.token || 'jwt_shift_' + Date.now(),
-          driverId: driverObj.driverId || driverObj.id || this.account.id,
-          driverName: driverObj.driverName || driverObj.name || this.account.name,
-          phone: driverObj.phone || this.account.phone,
-          vehiclePlate: driverObj.vehiclePlate || this.account.vehiclePlate,
-          deviceFingerprint: fingerprint,
-          storeId: storeObj.id || 'store_' + cleanCode.toLowerCase().replace(/[^a-z0-9]/g, '_'),
-          storeName: storeObj.name || 'Bella Pizza',
-          storeAddress: storeObj.address || 'Rua das Camélias, 412 - Jardins, SP',
-          membershipId: data.membershipId || 'mem_' + cleanCode,
-          role: 'entregador_plantao',
-          expiresAt: data.expiresAt || new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-          isActivated: true,
-          shiftStartedAt: new Date().toISOString()
-        };
-
-        this.session = newSession;
-        this.presence.manualEnabled = true;
-        this.saveSession();
-        this.savePresence();
-        this.updateLedgerForStore(newSession.storeId, newSession.storeName, newSession.storeAddress);
-        return this.session;
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || errData.message || 'Código de plantão inválido ou expirado na loja.');
       }
-    } catch {}
 
-    // Resgate de código da loja (ex: NW-XXXXXX enviado pela pizzaria)
-    if (cleanCode.length < 5 || !cleanCode.startsWith('NW')) {
-      throw new Error('Formato inválido. O código emitido pela loja deve iniciar com NW- seguido dos números.');
+      const data = await response.json();
+      const storeObj = data.store || {};
+      const driverObj = data.driver || {};
+
+      const newSession: DriverSession = {
+        token: data.sessionToken || data.token || 'jwt_shift_' + Date.now(),
+        driverId: driverObj.driverId || driverObj.id || this.account.id,
+        driverName: driverObj.driverName || driverObj.name || this.account.name,
+        phone: driverObj.phone || this.account.phone,
+        vehiclePlate: driverObj.vehiclePlate || this.account.vehiclePlate,
+        deviceFingerprint: fingerprint,
+        storeId: storeObj.id || 'store_' + cleanCode.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+        storeName: storeObj.name || 'Bella Pizza',
+        storeAddress: storeObj.address || 'Rua das Camélias, 412 - Jardins, SP',
+        membershipId: data.membershipId || 'mem_' + cleanCode,
+        role: 'entregador_plantao',
+        expiresAt: data.expiresAt || new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+        isActivated: true,
+        shiftStartedAt: new Date().toISOString()
+      };
+
+      this.session = newSession;
+      this.presence.manualEnabled = true;
+      this.saveSession();
+      this.savePresence();
+      this.updateLedgerForStore(newSession.storeId, newSession.storeName, newSession.storeAddress);
+      return this.session;
+    } catch (err: any) {
+      if (err.message && !err.message.includes('fetch') && !err.message.includes('Failed to fetch')) {
+        throw err;
+      }
+      throw new Error(`Falha de conexão com a loja em ${API_BASE_URL}. Certifique-se de que a loja está aberta e rodando na porta 3000.`);
     }
-
-    const storeName = cleanCode.includes('BELLA') || cleanCode.includes('1049')
-      ? 'Bella Pizza Forneria'
-      : 'Pizzaria & Forneria Novaes';
-
-    const newSession: DriverSession = {
-      token: 'jwt_shift_' + Date.now(),
-      driverId: this.account.id,
-      driverName: this.account.name,
-      phone: this.account.phone,
-      vehiclePlate: this.account.vehiclePlate,
-      deviceFingerprint: fingerprint,
-      storeId: 'store_' + cleanCode.toLowerCase().replace(/[^a-z0-9]/g, '_'),
-      storeName: storeName,
-      storeAddress: 'Rua das Camélias, 412 - Jardins, SP',
-      membershipId: 'mem_' + cleanCode,
-      role: 'entregador_plantao',
-      expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-      isActivated: true,
-      shiftStartedAt: new Date().toISOString()
-    };
-
-    this.session = newSession;
-    this.presence.manualEnabled = true;
-    this.saveSession();
-    this.savePresence();
-    this.updateLedgerForStore(newSession.storeId, newSession.storeName, newSession.storeAddress);
-
-    return this.session;
   }
 
   // Encerrar Plantão na Loja e liberar o motoboy
