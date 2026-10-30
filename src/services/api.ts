@@ -16,29 +16,18 @@ const API_BASE_URL =
   (import.meta as any).env?.NEXT_PUBLIC_LOGISTICS_API_URL ||
   'http://localhost:3000/api/v1/logistics';
 
-// Configuração do armazenamento compartilhado em nuvem (tempo real)
-//
-// SEGURANÇA: nenhuma chave secreta fica no código-fonte.
-//  - Recomendado: defina VITE_STORAGE_PROXY_URL (ex.: https://SUA-LOJA/api/storage). As leituras e
-//    gravações passam pelo servidor da loja, que guarda a chave. Nenhuma chave vai para o navegador.
-//  - Alternativa (legado): VITE_SUPABASE_SERVICE_ROLE_KEY no ambiente de build. Essa chave é
-//    embutida no pacote do navegador; use apenas em testes e troque pelo proxy o quanto antes.
-const STORAGE_PROXY_URL: string = (
-  ((import.meta as any).env?.VITE_STORAGE_PROXY_URL as string | undefined) || ''
-).replace(/\/+$/, '');
-
+// Configuração Supabase Cloud Storage (Nuvem em Tempo Real)
 const SUPABASE_PROJECT_URL =
   (import.meta as any).env?.VITE_SUPABASE_URL ||
   'https://nrdbporbyujwtgnpiejz.supabase.co';
 
-// Chave publicável (anon): feita para ficar no navegador, não é secreta.
 const SUPABASE_ANON_KEY =
   (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ||
   'sb_publishable_ynzw0icpmaxAhkCJWDYDGg_nTQCPUeY';
 
-// Chave service_role: SOMENTE por variável de ambiente (nunca no código).
-const SUPABASE_SERVICE_KEY: string =
-  (import.meta as any).env?.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+const SUPABASE_SERVICE_KEY =
+  (import.meta as any).env?.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5yZGJwb3JieXVqd3RnbnBpZWp6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzE3NjI1MiwiZXhwIjoyMTA4NzUyMjUyfQ.14LuRaZIPmmRCyHz9uD6PiTajpH0ap5vGphW2_d0YrA';
 
 const STORAGE_BUCKET = 'novaesweb_store';
 const LOGISTICS_FILE = 'logistics.json';
@@ -49,46 +38,15 @@ interface CloudLogisticsState {
   assignments: any[];
 }
 
-function cloudFileUrl(file: string, bustCache: boolean): string {
-  const bust = bustCache ? `?t=${Date.now()}` : '';
-  return STORAGE_PROXY_URL
-    ? `${STORAGE_PROXY_URL}/${file}${bust}`
-    : `${SUPABASE_PROJECT_URL}/storage/v1/object/${STORAGE_BUCKET}/${file}${bust}`;
-}
-
-function cloudReadHeaders(): Record<string, string> {
-  return STORAGE_PROXY_URL
-    ? {}
-    : { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` };
-}
-
-async function cloudWrite(file: string, payload: unknown): Promise<boolean> {
-  let headers: Record<string, string>;
-  if (STORAGE_PROXY_URL) {
-    headers = { 'Content-Type': 'application/json' };
-  } else {
-    if (!SUPABASE_SERVICE_KEY) {
-      console.warn('[Cloud] Gravação na nuvem desativada: defina VITE_STORAGE_PROXY_URL (recomendado) ou VITE_SUPABASE_SERVICE_ROLE_KEY.');
-      return false;
-    }
-    headers = {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'x-upsert': 'true',
-      'Content-Type': 'application/json'
-    };
-  }
-  const res = await fetch(cloudFileUrl(file, false), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload)
-  });
-  return res.ok;
-}
-
 async function fetchCloudLogistics(): Promise<CloudLogisticsState> {
   try {
-    const res = await fetch(cloudFileUrl(LOGISTICS_FILE, true), { headers: cloudReadHeaders() });
+    const url = `${SUPABASE_PROJECT_URL}/storage/v1/object/${STORAGE_BUCKET}/${LOGISTICS_FILE}?t=${Date.now()}`;
+    const res = await fetch(url, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
     if (res.ok) {
       const data = await res.json();
       return {
@@ -105,7 +63,18 @@ async function fetchCloudLogistics(): Promise<CloudLogisticsState> {
 
 async function saveCloudLogistics(state: CloudLogisticsState): Promise<boolean> {
   try {
-    return await cloudWrite(LOGISTICS_FILE, state);
+    const url = `${SUPABASE_PROJECT_URL}/storage/v1/object/${STORAGE_BUCKET}/${LOGISTICS_FILE}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'x-upsert': 'true',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(state)
+    });
+    return res.ok;
   } catch (err) {
     console.warn('[CloudLogistics] Falha ao salvar estado na nuvem:', err);
     return false;
@@ -116,7 +85,13 @@ const ORDERS_FILE = 'orders.json';
 
 async function fetchCloudOrders(): Promise<any[]> {
   try {
-    const res = await fetch(cloudFileUrl(ORDERS_FILE, true), { headers: cloudReadHeaders() });
+    const url = `${SUPABASE_PROJECT_URL}/storage/v1/object/${STORAGE_BUCKET}/${ORDERS_FILE}?t=${Date.now()}`;
+    const res = await fetch(url, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
     if (res.ok) {
       const data = await res.json();
       return Array.isArray(data) ? data : [];
@@ -129,7 +104,18 @@ async function fetchCloudOrders(): Promise<any[]> {
 
 async function saveCloudOrders(orders: any[]): Promise<boolean> {
   try {
-    return await cloudWrite(ORDERS_FILE, orders);
+    const url = `${SUPABASE_PROJECT_URL}/storage/v1/object/${STORAGE_BUCKET}/${ORDERS_FILE}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'x-upsert': 'true',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(orders)
+    });
+    return res.ok;
   } catch (err) {
     console.warn('[CloudOrders] Falha ao salvar pedidos na nuvem:', err);
     return false;
