@@ -32,6 +32,8 @@ export const ScreenPinConfirm: React.FC<ScreenPinConfirmProps> = ({
   const [attempts, setAttempts] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState<boolean>(false);
+  const [showForceModal, setShowForceModal] = useState<boolean>(false);
+  const [isForcing, setIsForcing] = useState<boolean>(false);
 
   const isOnline = offlineQueue.getIsOnline();
 
@@ -84,6 +86,29 @@ export const ScreenPinConfirm: React.FC<ScreenPinConfirmProps> = ({
     }
   };
 
+  const handleForceDelivery = async () => {
+    setIsForcing(true);
+    setErrorMessage(null);
+    try {
+      const result = await api.confirmDelivery(
+        assignment.assignmentId,
+        'SEM_PIN',
+        assignment.deliveryFee,
+        true,
+        'Entrega concluída sob termo de responsabilidade pelo motoboy'
+      );
+      audioAlert.playSuccessSound();
+      setShowForceModal(false);
+      onDeliverySuccess(result.message, result.isOfflinePending);
+    } catch (err: any) {
+      audioAlert.playErrorSound();
+      setErrorMessage(err.message || 'Falha ao forçar conclusão.');
+      setShowForceModal(false);
+    } finally {
+      setIsForcing(false);
+    }
+  };
+
   return (
     <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {/* Botão Superior Voltar */}
@@ -127,8 +152,8 @@ export const ScreenPinConfirm: React.FC<ScreenPinConfirmProps> = ({
         <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#ffffff' }}>
           Código de Confirmação
         </h2>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '300px', margin: '4px auto 0' }}>
-          Peça ao cliente os 4 dígitos exibidos no aplicativo dele ao entregar a pizza.
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '340px', margin: '4px auto 0', lineHeight: 1.35 }}>
+          Digite os <strong style={{ color: '#fff' }}>4 dígitos do PIN</strong>, ou os <strong style={{ color: '#fff' }}>4 finais do celular</strong> do cliente, ou o <strong style={{ color: '#fff' }}>número do pedido</strong>.
         </p>
       </div>
 
@@ -227,28 +252,169 @@ export const ScreenPinConfirm: React.FC<ScreenPinConfirmProps> = ({
         </button>
       </div>
 
-      {/* Solicitar Exceção à Pizzaria */}
-      <div style={{ marginTop: '6px', textAlign: 'center' }}>
+      {/* Opções de Resolução de Entrega */}
+      <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <button
-          onClick={() => onRequestException(assignment)}
+          onClick={() => {
+            audioAlert.playClickSound();
+            setShowForceModal(true);
+          }}
           disabled={isValidating}
           style={{
-            background: 'none',
-            border: 'none',
-            color: '#c084fc',
+            background: 'rgba(245, 158, 11, 0.12)',
+            border: '1px solid rgba(245, 158, 11, 0.45)',
+            color: '#fbbf24',
+            borderRadius: '12px',
+            padding: '12px 14px',
             fontSize: '13px',
-            fontWeight: 700,
+            fontWeight: 800,
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '6px',
-            textDecoration: 'underline'
+            justifyContent: 'center',
+            gap: '8px',
+            transition: 'all 0.2s ease'
           }}
         >
-          <HelpCircle size={16} />
-          <span>Cliente sem celular ou sem código? Solicitar exceção à loja</span>
+          <ShieldAlert size={18} color="#fbbf24" style={{ flexShrink: 0 }} />
+          <span>Cliente sem código? Forçar Entrega (Assumir Responsabilidade)</span>
         </button>
+
+        <div style={{ textAlign: 'center', marginTop: '2px' }}>
+          <button
+            onClick={() => onRequestException(assignment)}
+            disabled={isValidating}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-subtle)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              textDecoration: 'underline'
+            }}
+          >
+            <HelpCircle size={15} />
+            <span>Outro problema? Notificar a loja</span>
+          </button>
+        </div>
       </div>
+
+      {/* Modal: Termo de Responsabilidade do Entregador */}
+      {showForceModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px'
+          }}
+          onClick={() => {
+            if (!isForcing) setShowForceModal(false);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#18181b',
+              border: '2px solid #d97706',
+              borderRadius: '20px',
+              maxWidth: '440px',
+              width: '100%',
+              padding: '24px',
+              color: '#ffffff',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#fbbf24', marginBottom: '14px' }}>
+              <ShieldAlert size={28} color="#fbbf24" />
+              <h3 style={{ fontSize: '18px', fontWeight: 900, margin: 0 }}>
+                Termo de Responsabilidade
+              </h3>
+            </div>
+
+            <p style={{ fontSize: '14px', lineHeight: 1.5, color: '#e4e4e7', marginBottom: '14px' }}>
+              Você está concluindo o <strong style={{ color: '#ffffff' }}>Pedido #{assignment.orderNumber}</strong> para <strong style={{ color: '#ffffff' }}>{assignment.customerName}</strong> sem a digitação do código do cliente.
+            </p>
+
+            <div
+              style={{
+                backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+                borderRadius: '12px',
+                padding: '14px',
+                fontSize: '12px',
+                color: '#fef3c7',
+                lineHeight: 1.45,
+                marginBottom: '20px'
+              }}
+            >
+              ⚠️ <strong>Declaração de Entrega Realizada:</strong> Ao confirmar, você atesta sob sua inteira responsabilidade que esteve no endereço e entregou a pizza nas mãos do cliente ou responsável. Esta ação ficará gravada com seu nome e horário exato no painel de controle da pizzaria.
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={handleForceDelivery}
+                disabled={isForcing}
+                style={{
+                  height: '52px',
+                  backgroundColor: '#d97706',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                  fontWeight: 900,
+                  cursor: isForcing ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(217, 119, 6, 0.4)'
+                }}
+              >
+                {isForcing ? (
+                  <>
+                    <Clock size={18} className="animate-spin" />
+                    <span>Registrando Entrega...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={18} />
+                    <span>Assumir Responsabilidade e Concluir</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowForceModal(false)}
+                disabled={isForcing}
+                style={{
+                  height: '44px',
+                  backgroundColor: '#27272a',
+                  color: '#d4d4d8',
+                  border: '1px solid #3f3f46',
+                  borderRadius: '12px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Voltar e Digitar Código
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

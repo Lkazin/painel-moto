@@ -1143,12 +1143,14 @@ class ApiClient {
   public async confirmDelivery(
     assignmentId: string,
     pinCandidate: string,
-    deliveryFee?: number | null
+    deliveryFee?: number | null,
+    isForced?: boolean,
+    forcedReason?: string
   ): Promise<{ success: boolean; message: string; isOfflinePending?: boolean }> {
     const isOnline = offlineQueue.getIsOnline();
 
     if (!isOnline) {
-      offlineQueue.enqueue('delivery_confirm', { assignmentId, pinCandidate });
+      offlineQueue.enqueue('delivery_confirm', { assignmentId, pinCandidate, isForced, forcedReason });
       if (this.session) {
         this.recordDeliveryInLedger(this.session.storeId, deliveryFee || 0);
       }
@@ -1167,44 +1169,98 @@ class ApiClient {
     let matchedOrderId: string | null = null;
     let matchedOrderNumber: string | null = null;
     try {
-      const cloudState = await fetchCloudLogistics();
+      const [cloudState, cloudOrders] = await Promise.all([
+        fetchCloudLogistics(),
+        fetchCloudOrders()
+      ]);
+
       const assignment = cloudState.assignments.find((a: any) => a.assignmentId === assignmentId || a.id === assignmentId);
-      if (assignment) {
-        if (assignment.pinCode && pinCandidate && pinCandidate.trim() !== assignment.pinCode.trim()) {
-          throw new Error('Código PIN incorreto. Peça ao cliente para verificar os 4 dígitos no app.');
+      
+      const ordIdTarget = assignment?.orderId ? String(assignment.orderId) : null;
+      const ordNumTarget = assignment?.orderNumber ? String(assignment.orderNumber).replace(/\D/g, '') : null;
+
+      const matchingOrder = cloudOrders.find((ord: any) => {
+        const idMatch = ordIdTarget && String(ord.id) === ordIdTarget;
+        const numMatch = ordNumTarget && String(ord.orderNumber).replace(/\D/g, '') === ordNumTarget;
+        return idMatch || numMatch;
+      });
+
+      // VALIDAÇÃO RIGOROSA DO CÓDIGO (SE NÃO FOR FORÇADO)
+      if (!isForced) {
+        const cleanPin = String(pinCandidate || '').trim();
+        const validCodes = new Set<string>();
+
+        // 1. PIN de entrega oficial do pedido
+        if (matchingOrder?.deliveryPin) {
+          validCodes.add(String(matchingOrder.deliveryPin).trim());
         }
+        if (assignment?.pinCode) {
+          validCodes.add(String(assignment.pinCode).trim());
+        }
+
+        // 2. 4 últimos dígitos do celular do cliente
+        const customerPhone = String(matchingOrder?.phone || assignment?.customerPhone || '').replace(/\D/g, '');
+        if (customerPhone.length >= 4) {
+          validCodes.add(customerPhone.slice(-4));
+        }
+
+        // 3. Número do pedido (ex: pedido #1042 -> 1042)
+        const orderDigits = String(matchingOrder?.orderNumber || assignment?.orderNumber || '').replace(/\D/g, '');
+        if (orderDigits.length >= 2) {
+          validCodes.add(orderDigits);
+        }
+
+        // Se houver códigos válidos cadastrados, exige correspondência exata
+        if (validCodes.size > 0 && !validCodes.has(cleanPin)) {
+          throw new Error('Código incorreto! Peça o PIN do app, os 4 últimos números do celular do cliente ou o número do pedido.');
+        }
+      }
+
+      const nowISO = new Date().toISOString();
+
+      if (assignment) {
         assignment.status = 'entregue';
-        assignment.deliveredAt = new Date().toISOString();
+        assignment.deliveredAt = nowISO;
+        if (isForced) {
+          assignment.forcedDelivery = true;
+          assignment.forcedDeliveryReason = forcedReason || 'Confirmado sob termo de responsabilidade pelo motoboy';
+          assignment.forcedByDriverName = this.session?.driverName;
+          assignment.forcedAt = nowISO;
+        }
         matchedOrderId = assignment.orderId ? String(assignment.orderId) : null;
         matchedOrderNumber = assignment.orderNumber ? String(assignment.orderNumber).replace('#', '') : null;
         await saveCloudLogistics(cloudState);
       }
 
       // ATUALIZA O PEDIDO CORRESPONDENTE NA LOJA PARA "concluido" / "Finalizado/Entregue"!
-      if (matchedOrderId || matchedOrderNumber) {
-        try {
-          const cloudOrders = await fetchCloudOrders();
-          let orderUpdated = false;
-          cloudOrders.forEach((ord: any) => {
-            const idMatch = matchedOrderId && String(ord.id) === matchedOrderId;
-            const numMatch = matchedOrderNumber && String(ord.orderNumber).replace('#', '') === matchedOrderNumber;
-            if (idMatch || numMatch) {
-              ord.status = 'concluido';
-              ord.dispatchStatus = 'entregue';
-              ord.deliveredAt = new Date().toISOString();
-              ord.driverName = this.session?.driverName;
-              orderUpdated = true;
+      if (matchingOrder || matchedOrderId || matchedOrderNumber) {
+        let orderUpdated = false;
+        cloudOrders.forEach((ord: any) => {
+          const idMatch = (matchedOrderId && String(ord.id) === matchedOrderId) || (matchingOrder && ord.id === matchingOrder.id);
+          const numMatch = (matchedOrderNumber && String(ord.orderNumber).replace('#', '') === matchedOrderNumber) || (matchingOrder && ord.orderNumber === matchingOrder.orderNumber);
+          if (idMatch || numMatch) {
+            ord.status = 'concluido';
+            ord.dispatchStatus = 'entregue';
+            ord.deliveredAt = nowISO;
+            ord.driverName = this.session?.driverName;
+            if (isForced) {
+              ord.forcedDelivery = true;
+              ord.forcedDeliveryReason = forcedReason || 'Confirmado sob termo de responsabilidade pelo motoboy';
+              ord.forcedByDriverName = this.session?.driverName;
+              ord.forcedAt = nowISO;
             }
-          });
-          if (orderUpdated) {
-            await saveCloudOrders(cloudOrders);
+            orderUpdated = true;
           }
-        } catch (errOrd) {
-          console.warn('[confirmDelivery] Erro ao sincronizar pedido concluído com a loja:', errOrd);
+        });
+        if (orderUpdated) {
+          await saveCloudOrders(cloudOrders);
         }
       }
     } catch (err: any) {
-      if (err.message && err.message.includes('PIN incorreto')) throw err;
+      if (err.message && (err.message.includes('Código incorreto') || err.message.includes('PIN incorreto'))) {
+        throw err;
+      }
+      console.warn('[confirmDelivery] Aviso durante sincronização:', err);
     }
 
     // Tenta API se não for localhost

@@ -105,6 +105,11 @@ export interface Assignment {
   deliveredAt?: string;
   driverId?: string;
   driverName?: string;
+  pinCode?: string;
+  forcedDelivery?: boolean;
+  forcedDeliveryReason?: string;
+  forcedByDriverName?: string;
+  forcedAt?: string;
   isPendingSync?: boolean; // Para confirmações offline
   pinCandidateOffline?: string;
 }
