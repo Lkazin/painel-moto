@@ -9,7 +9,11 @@ import {
   Clock,
   ArrowRight,
   ShieldAlert,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
+  Compass,
+  MessageCircle,
+  Map
 } from 'lucide-react';
 import { Assignment } from '../types';
 import { audioAlert } from '../utils/audioAlert';
@@ -36,6 +40,58 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  // Roteirização Inteligente: Ordena as entregas em lote agrupando por bairro e número
+  const handleOptimizeRoute = () => {
+    if (stops.length <= 1) return;
+    audioAlert.playClickSound();
+
+    const optimized = [...stops].sort((a, b) => {
+      // 1. Agrupar por bairro idêntico
+      const nA = (a.neighborhood || '').toLowerCase().trim();
+      const nB = (b.neighborhood || '').toLowerCase().trim();
+      if (nA !== nB) return nA.localeCompare(nB);
+
+      // 2. Ordenar por número do endereço na mesma rua/bairro
+      const numA = parseInt(a.addressNumber?.replace(/\D/g, '') || '0', 10);
+      const numB = parseInt(b.addressNumber?.replace(/\D/g, '') || '0', 10);
+      if (numA && numB && numA !== numB) return numA - numB;
+
+      // 3. Ordem de retirada
+      return (a.sequence || 0) - (b.sequence || 0);
+    });
+
+    setStops(optimized);
+    setHasChanges(true);
+    audioAlert.playSuccessSound();
+  };
+
+  const getFullAddress = (stop: Assignment) => {
+    return `${stop.address}, ${stop.addressNumber || ''}, ${stop.neighborhood || ''}, ${stop.city || ''}`;
+  };
+
+  const handleOpenWaze = (e: React.MouseEvent, stop: Assignment) => {
+    e.stopPropagation();
+    audioAlert.playClickSound();
+    const encoded = encodeURIComponent(getFullAddress(stop));
+    window.open(`https://waze.com/ul?q=${encoded}&navigate=yes`, '_blank');
+  };
+
+  const handleOpenGoogleMaps = (e: React.MouseEvent, stop: Assignment) => {
+    e.stopPropagation();
+    audioAlert.playClickSound();
+    const encoded = encodeURIComponent(getFullAddress(stop));
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank');
+  };
+
+  const handleOpenWhatsApp = (e: React.MouseEvent, stop: Assignment) => {
+    e.stopPropagation();
+    audioAlert.playClickSound();
+    const rawPhone = (stop.customerPhone || '').replace(/\D/g, '');
+    if (!rawPhone) return;
+    const msg = encodeURIComponent(`Olá ${stop.customerName || 'Cliente'}! Sou o entregador da Bella Pizza e estou a caminho do seu pedido #${stop.orderNumber}.`);
+    window.open(`https://wa.me/55${rawPhone}?text=${msg}`, '_blank');
+  };
 
   // Reordenação por setas Subir/Descer
   const moveStop = (index: number, direction: 'up' | 'down') => {
@@ -106,19 +162,44 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
             Organize por arrastar ou setas. O lojista apenas visualiza.
           </p>
         </div>
-        <span
-          style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-strong)',
-            color: 'var(--nw-pink)',
-            padding: '4px 10px',
-            borderRadius: '12px',
-            fontSize: '12px',
-            fontWeight: 800
-          }}
-        >
-          {stops.length} {stops.length === 1 ? 'parada' : 'paradas'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {stops.length > 1 && (
+            <button
+              onClick={handleOptimizeRoute}
+              style={{
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)',
+                border: '1px solid var(--nw-emerald)',
+                color: 'var(--nw-emerald)',
+                padding: '6px 12px',
+                borderRadius: '12px',
+                fontSize: '12px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              title="Reorganiza as paradas agrupando bairros para economizar tempo"
+            >
+              <Sparkles size={14} />
+              <span>Otimizar Roteiro</span>
+            </button>
+          )}
+
+          <span
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-strong)',
+              color: 'var(--nw-pink)',
+              padding: '6px 10px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              fontWeight: 800
+            }}
+          >
+            {stops.length} {stops.length === 1 ? 'parada' : 'paradas'}
+          </span>
+        </div>
       </div>
 
       {stops.length === 0 ? (
@@ -299,8 +380,82 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                     </p>
                   </div>
 
+                  {/* Botões Rápidos de Navegação e Contato */}
+                  <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={(e) => handleOpenWaze(e, stop)}
+                      style={{
+                        flex: 1,
+                        background: 'rgba(56, 189, 248, 0.12)',
+                        border: '1px solid rgba(56, 189, 248, 0.35)',
+                        color: '#38bdf8',
+                        padding: '8px 10px',
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px'
+                      }}
+                      title="Navegar com Waze"
+                    >
+                      <Compass size={14} />
+                      <span>Waze</span>
+                    </button>
+
+                    <button
+                      onClick={(e) => handleOpenGoogleMaps(e, stop)}
+                      style={{
+                        flex: 1,
+                        background: 'rgba(52, 211, 153, 0.12)',
+                        border: '1px solid rgba(52, 211, 153, 0.35)',
+                        color: '#34d399',
+                        padding: '8px 10px',
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px'
+                      }}
+                      title="Navegar com Google Maps"
+                    >
+                      <Map size={14} />
+                      <span>Maps</span>
+                    </button>
+
+                    {stop.customerPhone && (
+                      <button
+                        onClick={(e) => handleOpenWhatsApp(e, stop)}
+                        style={{
+                          flex: 1,
+                          background: 'rgba(37, 211, 102, 0.15)',
+                          border: '1px solid rgba(37, 211, 102, 0.45)',
+                          color: '#25D366',
+                          padding: '8px 10px',
+                          borderRadius: '10px',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                        title="Enviar mensagem WhatsApp avisando que está a caminho"
+                      >
+                        <MessageCircle size={14} />
+                        <span>Zap</span>
+                      </button>
+                    )}
+                  </div>
+
                   {/* Ação: Abrir Tela de Entrega Ativa */}
-                  <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
+                  <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
                     <button
                       onClick={() => onSelectDelivery(stop)}
                       className={`btn-glove ${isFirst ? 'btn-glove-primary' : 'btn-glove-secondary'}`}

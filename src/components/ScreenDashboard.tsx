@@ -6,7 +6,8 @@ import {
   TrendingUp,
   AlertCircle,
   ArrowRight,
-  Info
+  Info,
+  Smartphone
 } from 'lucide-react';
 import { DriverSession, DriverPresence, Assignment } from '../types';
 import { audioAlert } from '../utils/audioAlert';
@@ -206,6 +207,9 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
         </div>
       </div>
 
+      {/* Banner de Instalação do Aplicativo (PWA) no Celular */}
+      <PwaInstallCard />
+
       {/* Nota Legal Obrigatória (Documento 02 - Seção 13) */}
       <div
         style={{
@@ -226,6 +230,128 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
           O total apresentado soma apenas valores informados pelo lojista no despacho e não comprova pagamento formal.
         </span>
       </div>
+    </div>
+  );
+};
+
+// Componente de Instalação PWA
+const PwaInstallCard: React.FC = () => {
+  const [deferredPrompt, setDeferredPrompt] = React.useState<any>(null);
+  const [isInstalled, setIsInstalled] = React.useState<boolean>(false);
+  const [isIos, setIsIos] = React.useState<boolean>(false);
+  const [showIosInstructions, setShowIosInstructions] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    // Detectar se já está rodando instalado como standalone PWA
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+      setIsInstalled(true);
+      return;
+    }
+
+    // Detectar iOS Safari
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const isAppleDevice = /iphone|ipad|ipod/.test(userAgent);
+    setIsIos(isAppleDevice);
+
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const choiceResult = await deferredPrompt.userChoice;
+      if (choiceResult.outcome === 'accepted') {
+        setIsInstalled(true);
+      }
+      setDeferredPrompt(null);
+    } else if (isIos) {
+      setShowIosInstructions(!showIosInstructions);
+    }
+  };
+
+  if (isInstalled) return null;
+
+  return (
+    <div
+      className="card-surface"
+      style={{
+        padding: '16px',
+        border: '1px solid rgba(236, 72, 153, 0.35)',
+        background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)',
+        borderRadius: '16px'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div
+            style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              background: 'var(--nw-pink)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              flexShrink: 0
+            }}
+          >
+            <Smartphone size={22} />
+          </div>
+          <div>
+            <h4 style={{ fontSize: '14px', fontWeight: 900, color: '#ffffff', margin: 0 }}>
+              Instalar App no Celular
+            </h4>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+              Acesso rápido na tela inicial, tela cheia e som alto sem barra de navegador
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleInstallClick}
+          style={{
+            background: 'var(--nw-pink)',
+            color: '#ffffff',
+            border: 'none',
+            padding: '10px 16px',
+            borderRadius: '12px',
+            fontSize: '12px',
+            fontWeight: 800,
+            cursor: 'pointer',
+            flexShrink: 0,
+            boxShadow: '0 4px 14px rgba(236, 72, 153, 0.4)'
+          }}
+        >
+          {isIos ? (showIosInstructions ? 'Fechar' : 'Como Instalar') : 'Instalar'}
+        </button>
+      </div>
+
+      {showIosInstructions && isIos && (
+        <div
+          style={{
+            marginTop: '12px',
+            paddingTop: '12px',
+            borderTop: '1px solid rgba(255,255,255,0.1)',
+            fontSize: '12px',
+            color: 'var(--text-secondary)',
+            lineHeight: 1.5
+          }}
+        >
+          <p style={{ margin: '0 0 6px 0', fontWeight: 700, color: '#ffffff' }}>No iPhone / Safari:</p>
+          <ol style={{ margin: 0, paddingLeft: '18px' }}>
+            <li>Toque no botão <strong>Compartilhar</strong> (ícone do quadrado com seta para cima ⎋)</li>
+            <li>Role para baixo e selecione <strong>Adicionar à Tela de Início</strong> ⊞</li>
+            <li>Toque em <strong>Adicionar</strong> no canto superior direito</li>
+          </ol>
+        </div>
+      )}
     </div>
   );
 };

@@ -9,7 +9,8 @@ import {
   Store,
   Clock,
   Compass,
-  FileText
+  FileText,
+  MessageCircle
 } from 'lucide-react';
 import { Assignment } from '../types';
 import { audioAlert } from '../utils/audioAlert';
@@ -44,6 +45,14 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({
     if (!assignment.customerPhone) return;
     audioAlert.playClickSound();
     window.location.href = `tel:${assignment.customerPhone.replace(/[^0-9]/g, '')}`;
+  };
+
+  const openWhatsApp = () => {
+    if (!assignment.customerPhone) return;
+    audioAlert.playClickSound();
+    const raw = assignment.customerPhone.replace(/\D/g, '');
+    const msg = encodeURIComponent(`Olá ${assignment.customerName}! Sou o entregador da Bella Pizza e estou com o seu pedido #${assignment.orderNumber} a caminho.`);
+    window.open(`https://wa.me/55${raw}?text=${msg}`, '_blank');
   };
 
   return (
@@ -180,16 +189,33 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({
         </button>
       </div>
 
-      {/* Botão de Ligar para o Cliente */}
+      {/* Contato Rápido com o Cliente: WhatsApp ou Ligação */}
       {assignment.customerPhone ? (
-        <button
-          onClick={callCustomer}
-          className="btn-glove btn-glove-secondary"
-          style={{ height: '56px', fontSize: '15px' }}
-        >
-          <Phone size={20} color="var(--nw-emerald)" />
-          <span>Ligar para o Cliente ({assignment.customerPhone})</span>
-        </button>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <button
+            onClick={openWhatsApp}
+            className="btn-glove"
+            style={{
+              height: '56px',
+              fontSize: '14px',
+              background: 'rgba(37, 211, 102, 0.15)',
+              border: '1px solid rgba(37, 211, 102, 0.45)',
+              color: '#25D366'
+            }}
+          >
+            <MessageCircle size={22} />
+            <span>WhatsApp</span>
+          </button>
+
+          <button
+            onClick={callCustomer}
+            className="btn-glove btn-glove-secondary"
+            style={{ height: '56px', fontSize: '14px' }}
+          >
+            <Phone size={20} color="var(--nw-emerald)" />
+            <span>Ligar</span>
+          </button>
+        </div>
       ) : (
         <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-subtle)' }}>
           Telefone do cliente não informado no cadastro do pedido
