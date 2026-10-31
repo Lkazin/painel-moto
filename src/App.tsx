@@ -24,6 +24,7 @@ import {
 import { api } from './services/api';
 import { offlineQueue } from './services/offlineQueue';
 import { audioAlert } from './utils/audioAlert';
+import { triggerOfferNotification, requestScreenWakeLock, releaseScreenWakeLock } from './utils/mobileWake';
 
 import { ScreenAuthDriver } from './components/ScreenAuthDriver';
 import { ScreenStoreConnect } from './components/ScreenStoreConnect';
@@ -127,13 +128,35 @@ export const App: React.FC = () => {
       try {
         const offers = await api.getOffers();
         if (offers.length > 0 && !currentOffer) {
-          setCurrentOffer(offers[0]);
+          const offer = offers[0];
+          setCurrentOffer(offer);
+          triggerOfferNotification(offer);
         }
       } catch {}
     }, 5000);
 
     return () => clearInterval(interval);
   }, [session, presence.manualEnabled, currentOffer]);
+
+  // Modo Manter Tela Acesa (Screen Wake Lock) enquanto o entregador estiver ligado no suporte
+  useEffect(() => {
+    if (session && presence.manualEnabled) {
+      requestScreenWakeLock();
+    } else {
+      releaseScreenWakeLock();
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && session && presence.manualEnabled) {
+        requestScreenWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      releaseScreenWakeLock();
+    };
+  }, [session, presence.manualEnabled]);
 
   // Validação periódica da sessão com o servidor (heartbeat a cada 30 segundos)
   useEffect(() => {

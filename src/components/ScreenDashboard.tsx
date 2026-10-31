@@ -7,10 +7,13 @@ import {
   AlertCircle,
   ArrowRight,
   Info,
-  Smartphone
+  Smartphone,
+  BellRing,
+  ShieldCheck
 } from 'lucide-react';
 import { DriverSession, DriverPresence, Assignment } from '../types';
 import { audioAlert } from '../utils/audioAlert';
+import { requestNotificationPermission, getNotificationPermission } from '../utils/mobileWake';
 
 interface ScreenDashboardProps {
   session: DriverSession;
@@ -207,6 +210,9 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
         </div>
       </div>
 
+      {/* Card de Ativação de Notificações com Tela Bloqueada */}
+      <NotificationPermissionCard />
+
       {/* Banner de Instalação do Aplicativo (PWA) no Celular */}
       <PwaInstallCard />
 
@@ -230,6 +236,89 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
           O total apresentado soma apenas valores informados pelo lojista no despacho e não comprova pagamento formal.
         </span>
       </div>
+    </div>
+  );
+};
+
+// Componente de Permissão de Notificações com Celular Bloqueado
+const NotificationPermissionCard: React.FC = () => {
+  const [permission, setPermission] = React.useState<'granted' | 'denied' | 'default' | 'unsupported'>('default');
+
+  React.useEffect(() => {
+    setPermission(getNotificationPermission());
+  }, []);
+
+  if (permission === 'unsupported' || permission === 'granted') {
+    return null;
+  }
+
+  const handleEnable = async () => {
+    audioAlert.playClickSound();
+    const granted = await requestNotificationPermission();
+    setPermission(granted ? 'granted' : 'denied');
+  };
+
+  return (
+    <div
+      className="card-surface"
+      style={{
+        padding: '14px 16px',
+        border: '1px solid rgba(245, 158, 11, 0.45)',
+        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.05) 100%)',
+        borderRadius: '16px'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '12px',
+              backgroundColor: '#d97706',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              flexShrink: 0
+            }}
+          >
+            <BellRing size={20} />
+          </div>
+          <div>
+            <h4 style={{ fontSize: '13px', fontWeight: 900, color: '#ffffff', margin: 0 }}>
+              Alertas na Tela Bloqueada
+            </h4>
+            <p style={{ fontSize: '11px', color: '#fde68a', margin: '2px 0 0 0' }}>
+              Ative para o celular vibrar e tocar sirene mesmo no bolso ou bloqueado
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleEnable}
+          style={{
+            background: '#d97706',
+            color: '#ffffff',
+            border: 'none',
+            padding: '10px 14px',
+            borderRadius: '12px',
+            fontSize: '12px',
+            fontWeight: 800,
+            cursor: 'pointer',
+            flexShrink: 0,
+            boxShadow: '0 4px 14px rgba(217, 119, 6, 0.4)'
+          }}
+        >
+          {permission === 'denied' ? 'Ver Como' : 'Ativar'}
+        </button>
+      </div>
+
+      {permission === 'denied' && (
+        <p style={{ fontSize: '11px', color: '#fca5a5', marginTop: '8px', lineHeight: 1.4, margin: '8px 0 0 0' }}>
+          ⚠️ Notificações foram bloqueadas no navegador. Para reativar, clique no cadeado da barra de endereço e marque &quot;Notificações&quot; como Permitir.
+        </p>
+      )}
     </div>
   );
 };
