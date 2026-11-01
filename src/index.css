@@ -1,14 +1,14 @@
 :root {
   /* NovaesWeb Brand Identity */
-  --nw-pink: #ec4899;
-  --nw-pink-hover: #f43f5e;
-  --nw-pink-light: #fbcfe8;
-  --nw-pink-glow: rgba(236, 72, 153, 0.35);
+  --nw-pink: #FF2E9A;
+  --nw-pink-hover: #FF3D6E;
+  --nw-pink-light: #FFB3E0;
+  --nw-pink-glow: rgba(255, 46, 154, 0.45);
 
-  --nw-purple: #8b5cf6;
-  --nw-purple-dark: #6d28d9;
-  --nw-purple-deep: #1e1b4b;
-  --nw-purple-glow: rgba(139, 92, 246, 0.3);
+  --nw-purple: #8B2FE8;
+  --nw-purple-dark: #6B1FB8;
+  --nw-purple-deep: #2A0A3D;
+  --nw-purple-glow: rgba(139, 47, 232, 0.4);
 
   /* Semantic State Colors */
   --nw-emerald: #10b981;
@@ -18,21 +18,21 @@
   --nw-amber: #f59e0b;
   --nw-amber-glow: rgba(245, 158, 11, 0.3);
 
-  --nw-red: #ef4444;
-  --nw-red-glow: rgba(239, 68, 68, 0.3);
+  --nw-red: #FF3D6E;
+  --nw-red-glow: rgba(255, 61, 110, 0.4);
 
   /* Dark Theme Surfaces (Default - Sunlight and Battery optimized) */
-  --bg-app: #0b0a12;
-  --bg-surface: #141221;
-  --bg-card: #1c1930;
-  --bg-card-hover: #262242;
-  --bg-elevated: #282444;
-  --border-subtle: rgba(139, 92, 246, 0.18);
-  --border-strong: rgba(139, 92, 246, 0.4);
+  --bg-app: #16061F;
+  --bg-surface: #22072F;
+  --bg-card: #2A0A3D;
+  --bg-card-hover: #350D4D;
+  --bg-elevated: #3A0E54;
+  --border-subtle: rgba(255, 110, 200, 0.22);
+  --border-strong: rgba(255, 110, 200, 0.45);
 
-  --text-main: #f9fafb;
-  --text-muted: #9ca3af;
-  --text-subtle: #6b7280;
+  --text-main: #FFFFFF;
+  --text-muted: #E5C4F0;
+  --text-subtle: #B38BBF;
 
   --nav-height: 74px;
   --topbar-height: 64px;
@@ -93,6 +93,12 @@ body {
   margin: 0 auto;
   position: relative;
   background-color: var(--bg-app);
+  background-image:
+    radial-gradient(90% 45% at 0% 0%, rgba(255, 46, 154, 0.35) 0%, rgba(255, 46, 154, 0) 60%),
+    radial-gradient(80% 45% at 100% 22%, rgba(139, 47, 232, 0.3) 0%, rgba(139, 47, 232, 0) 65%),
+    radial-gradient(110% 45% at 100% 100%, rgba(255, 61, 110, 0.3) 0%, rgba(255, 61, 110, 0) 60%),
+    radial-gradient(90% 40% at 0% 100%, rgba(170, 30, 200, 0.25) 0%, rgba(170, 30, 200, 0) 60%);
+  background-attachment: fixed;
   box-shadow: 0 0 50px rgba(0, 0, 0, 0.6);
   padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 16px));
 }
@@ -102,7 +108,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(20, 18, 33, 0.94);
+  background: rgba(34, 7, 47, 0.94);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border-subtle);
   padding: 10px 16px;
@@ -138,13 +144,13 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(139, 92, 246, 0.15);
+  background: linear-gradient(90deg, rgba(255, 61, 110, 0.25), rgba(139, 47, 232, 0.35));
   border: 1px solid var(--border-strong);
   padding: 5px 12px;
   border-radius: 20px;
   font-size: 12px;
   font-weight: 700;
-  color: #d8b4fe;
+  color: #FFB3E0;
   max-width: 230px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -180,7 +186,7 @@ body {
   width: 100%;
   max-width: 540px;
   height: var(--nav-height);
-  background: rgba(20, 18, 33, 0.96);
+  background: rgba(34, 7, 47, 0.96);
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--border-subtle);
   display: flex;
@@ -275,9 +281,10 @@ body {
 }
 
 .btn-glove-accent {
-  background: linear-gradient(135deg, var(--nw-pink), var(--nw-purple));
+  background: linear-gradient(90deg, #FF3D6E 0%, #FF2E9A 40%, #C02BE0 72%, #8B2FE8 100%);
   color: #ffffff;
-  box-shadow: 0 6px 22px var(--nw-pink-glow);
+  border: 1px solid rgba(255, 190, 235, 0.5);
+  box-shadow: 0 0 24px rgba(255, 46, 154, 0.55), 0 8px 20px rgba(139, 47, 232, 0.35);
 }
 
 .btn-glove-danger {
@@ -320,7 +327,8 @@ body {
 
 .card-highlight {
   border-color: var(--border-strong);
-  background: linear-gradient(145deg, var(--bg-card), var(--bg-elevated));
+  background: linear-gradient(160deg, rgba(139, 47, 232, 0.28) 0%, rgba(42, 10, 61, 0.85) 100%);
+  box-shadow: 0 0 20px rgba(255, 46, 154, 0.2);
 }
 
 /* Modais e Overlays */

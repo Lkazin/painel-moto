@@ -97,7 +97,7 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
         {/* Card da Loja Ativa */}
         <div className="card-surface card-highlight" style={{ padding: '16px', marginBottom: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: '#c084fc', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#FFB3E0', textTransform: 'uppercase' }}>
               Loja Vinculada
             </span>
             <span style={{ fontSize: '10px', background: 'var(--nw-emerald)', color: '#000', fontWeight: 900, padding: '2px 8px', borderRadius: '8px' }}>
@@ -133,7 +133,7 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
             </div>
           </div>
           <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-subtle)' }}>
-            Fingerprint do Aparelho: <code style={{ color: '#d8b4fe' }}>{session.deviceFingerprint}</code>
+            Fingerprint do Aparelho: <code style={{ color: '#FFB3E0' }}>{session.deviceFingerprint}</code>
           </div>
         </div>
 

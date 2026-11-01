@@ -122,7 +122,7 @@ export const ModalOfferReceived: React.FC<ModalOfferReceivedProps> = ({
                 boxShadow: isUrgent ? '0 0 10px var(--nw-red)' : '0 0 10px var(--nw-emerald)'
               }}
             />
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#fbcfe8', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: '#FFB3E0', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
               {offer.totalOrdersGrouped > 1 ? `Oferta em Lote • ${offer.totalOrdersGrouped} Entregas` : 'Nova Corrida Disparada'}
             </span>
           </div>
@@ -212,13 +212,13 @@ export const ModalOfferReceived: React.FC<ModalOfferReceivedProps> = ({
         {/* Informação do Lote */}
         <div
           style={{
-            background: 'rgba(236, 72, 153, 0.08)',
-            border: '1px solid rgba(236, 72, 153, 0.25)',
+            background: 'rgba(255, 46, 154, 0.08)',
+            border: '1px solid rgba(255, 46, 154, 0.25)',
             borderRadius: '14px',
             padding: '10px 14px',
             marginBottom: '14px',
             fontSize: '12px',
-            color: '#fbcfe8',
+            color: '#FFB3E0',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between'

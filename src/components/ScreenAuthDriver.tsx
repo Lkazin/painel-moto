@@ -11,8 +11,12 @@ import {
   Shield,
   FileText,
   HelpCircle,
-  X
+  X,
+  Package,
+  ShieldCheck,
+  Headphones
 } from 'lucide-react';
+import './ScreenAuthDriver.css';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
 import { DriverAccount } from '../types';
@@ -62,55 +66,42 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
   };
 
   return (
-    <div
-      style={{
-        padding: '24px 16px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '22px',
-        maxWidth: '440px',
-        margin: '0 auto',
-        minHeight: '100vh',
-        justifyContent: 'space-between'
-      }}
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+    <div className="nwl-root">
+      <div className="nwl-bg" aria-hidden="true" />
+
+      <div className="nwl-content">
+      <div className="nwl-main">
         {/* Cabeçalho */}
-        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', paddingTop: '12px' }}>
-          <div
-            style={{
-              width: '80px',
-              height: '80px',
-              borderRadius: '24px',
-              background: 'linear-gradient(135deg, var(--nw-pink), var(--nw-purple))',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 8px 30px rgba(236, 72, 153, 0.45)',
-              marginBottom: '6px'
-            }}
-          >
+        <header className="nwl-header">
+          <div className="nwl-logo">
             <Bike size={46} color="#ffffff" strokeWidth={2.4} />
           </div>
 
-          <h1 style={{ fontSize: '26px', fontWeight: 900, letterSpacing: '-0.5px', marginTop: '4px' }}>
-            NovaesWeb <span style={{ color: 'var(--nw-pink)' }}>Entregador</span>
+          <h1 className="nwl-title">
+            NovaesWeb <span className="nwl-title-accent">Entregador</span>
           </h1>
 
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '340px', lineHeight: 1.4 }}>
+          <span className="nwl-badge">
+            <Package size={16} color="#F5B6D7" />
+            Painel do Entregador
+          </span>
+
+          <p className="nwl-subtitle">
             Acesse seu painel com seu usuário ou telefone cadastrado para receber entregas e vincular-se às lojas.
           </p>
-        </div>
+        </header>
 
         {/* Formulário Principal de Login */}
-        <div className="card-surface card-highlight" style={{ padding: '24px' }}>
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        <div className="nwl-card">
+          <form onSubmit={handleLogin} className="nwl-form">
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#c084fc', marginBottom: '6px', textTransform: 'uppercase' }}>
+              <label htmlFor="nwl-login-identifier" className="nwl-label">
+                <Phone size={16} color="#F8F5FC" />
                 Telefone ou Usuário
               </label>
-              <div style={{ position: 'relative' }}>
+              <div className="nwl-field">
                 <input
+                  id="nwl-login-identifier"
                   type="text"
                   value={loginIdentifier}
                   onChange={(e) => {
@@ -119,29 +110,20 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
                   }}
                   placeholder="(11) 98765-4321 ou Nome"
                   autoFocus
-                  style={{
-                    width: '100%',
-                    height: '56px',
-                    padding: '0 16px 0 46px',
-                    background: 'var(--bg-app)',
-                    border: '1.5px solid var(--border-subtle)',
-                    borderRadius: '14px',
-                    color: '#ffffff',
-                    fontSize: '16px',
-                    fontWeight: 700,
-                    outline: 'none'
-                  }}
+                  className="nwl-input"
                 />
-                <Phone size={20} color="var(--nw-purple)" style={{ position: 'absolute', left: '16px', top: '18px' }} />
+                <Phone size={20} color="#754B98" className="nwl-input-icon" />
               </div>
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#c084fc', marginBottom: '6px', textTransform: 'uppercase' }}>
+              <label htmlFor="nwl-login-password" className="nwl-label">
+                <Lock size={16} color="#F8F5FC" />
                 Senha de Acesso
               </label>
-              <div style={{ position: 'relative' }}>
+              <div className="nwl-field">
                 <input
+                  id="nwl-login-password"
                   type={showPassword ? 'text' : 'password'}
                   value={loginPassword}
                   onChange={(e) => {
@@ -149,32 +131,14 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
                     setErrorMessage(null);
                   }}
                   placeholder="••••••••"
-                  style={{
-                    width: '100%',
-                    height: '56px',
-                    padding: '0 48px 0 46px',
-                    background: 'var(--bg-app)',
-                    border: '1.5px solid var(--border-subtle)',
-                    borderRadius: '14px',
-                    color: '#ffffff',
-                    fontSize: '18px',
-                    fontWeight: 700,
-                    outline: 'none'
-                  }}
+                  className="nwl-input nwl-input--password"
                 />
-                <Lock size={20} color="var(--nw-purple)" style={{ position: 'absolute', left: '16px', top: '18px' }} />
+                <Lock size={20} color="#754B98" className="nwl-input-icon" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute',
-                    right: '14px',
-                    top: '16px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer'
-                  }}
+                  className="nwl-eye-btn"
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -182,21 +146,8 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
             </div>
 
             {errorMessage && (
-              <div
-                style={{
-                  background: 'rgba(239, 68, 68, 0.15)',
-                  border: '1px solid var(--nw-red)',
-                  borderRadius: '12px',
-                  padding: '12px 14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  color: '#fca5a5',
-                  fontSize: '13px',
-                  fontWeight: 600
-                }}
-              >
-                <AlertCircle size={20} color="var(--nw-red)" style={{ flexShrink: 0 }} />
+              <div className="nwl-error" role="alert">
+                <AlertCircle size={20} color="#C85B75" style={{ flexShrink: 0 }} />
                 <span>{errorMessage}</span>
               </div>
             )}
@@ -204,8 +155,7 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
             <button
               type="submit"
               disabled={loading}
-              className="btn-glove btn-glove-accent"
-              style={{ marginTop: '6px', height: '60px', fontSize: '16px' }}
+              className="nwl-submit"
             >
               {loading ? (
                 <span>Autenticando...</span>
@@ -220,101 +170,60 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
           </form>
         </div>
 
-        <div style={{ textAlign: 'center', color: 'var(--text-subtle)', fontSize: '12px', lineHeight: 1.5 }}>
-          🔒 Conexão criptografada de ponta a ponta vinculada à Central NovaesWeb.
+        <div className="nwl-secure">
+          <ShieldCheck size={26} color="#D97BB9" style={{ flexShrink: 0 }} />
+          <span>Conexão criptografada de ponta a ponta vinculada à Central NovaesWeb.</span>
         </div>
       </div>
 
       {/* RODAPÉ OFICIAL NOVAESWEB */}
-      <footer
-        style={{
-          borderTop: '1px solid var(--border-subtle)',
-          paddingTop: '20px',
-          marginTop: '24px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '12px',
-          textAlign: 'center'
-        }}
-      >
+      <footer className="nwl-footer">
         {/* Links Rápidos: Política de Privacidade, Termos e Ajuda */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div className="nwl-links">
           <button
             type="button"
             onClick={() => setActiveModal('privacy')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#c084fc',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
+            className="nwl-link"
           >
-            <Shield size={14} />
+            <Shield size={17} color="#F5B6D7" />
             Política de Privacidade
           </button>
 
-          <span style={{ color: 'var(--border-subtle)', fontSize: '12px' }}>•</span>
+          <span className="nwl-divider" aria-hidden="true" />
 
           <button
             type="button"
             onClick={() => setActiveModal('terms')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-muted)',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
+            className="nwl-link"
           >
-            <FileText size={14} />
+            <FileText size={17} color="#F5B6D7" />
             Termos de Uso
-          </button>
-
-          <span style={{ color: 'var(--border-subtle)', fontSize: '12px' }}>•</span>
-
-          <button
-            type="button"
-            onClick={() => setActiveModal('support')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-muted)',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-          >
-            <HelpCircle size={14} />
-            Ajuda / Suporte
           </button>
         </div>
 
+        <button
+          type="button"
+          onClick={() => setActiveModal('support')}
+          className="nwl-support"
+        >
+          <Headphones size={17} color="#F5B6D7" />
+          Ajuda / Suporte
+        </button>
+
         {/* Informações da Plataforma */}
-        <div style={{ fontSize: '11px', color: 'var(--text-subtle)', lineHeight: 1.6 }}>
-          <p style={{ margin: 0, fontWeight: 700, color: 'var(--text-muted)' }}>
-            NovaesWeb Tecnologia & Logística Integrada
+        <div className="nwl-company">
+          <p className="nwl-company-name">
+            NovaesWeb Tecnologia &amp; Logística Integrada
           </p>
-          <p style={{ margin: 0 }}>
+          <p>
             Todos os direitos reservados • Versão 2.4.0 (Build Seguro)
           </p>
-          <p style={{ margin: '4px 0 0 0', opacity: 0.8 }}>
-            CNPJ & Infraestrutura Cloud em conformidade com a LGPD (Lei Nº 13.709/2018)
+          <p className="nwl-company-legal">
+            CNPJ &amp; Infraestrutura Cloud em conformidade com a LGPD (Lei Nº 13.709/2018)
           </p>
         </div>
       </footer>
+      </div>
 
       {/* MODAL DE POLÍTICA DE PRIVACIDADE E TERMOS */}
       {activeModal && (

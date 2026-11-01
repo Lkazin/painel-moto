@@ -129,7 +129,7 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
                 style={{
                   fontSize: '11px',
                   fontWeight: 800,
-                  background: 'rgba(236, 72, 153, 0.2)',
+                  background: 'rgba(255, 46, 154, 0.2)',
                   color: 'var(--nw-pink)',
                   padding: '1px 7px',
                   borderRadius: '6px',
@@ -184,7 +184,7 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
               width: '42px',
               height: '42px',
               borderRadius: '12px',
-              background: 'rgba(236, 72, 153, 0.15)',
+              background: 'rgba(255, 46, 154, 0.15)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -208,7 +208,7 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
               display: 'block',
               fontSize: '11px',
               fontWeight: 800,
-              color: '#c084fc',
+              color: '#FFB3E0',
               marginBottom: '6px',
               textTransform: 'uppercase',
               letterSpacing: '0.5px'
@@ -247,7 +247,7 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
         {errorMessage && (
           <div
             style={{
-              background: 'rgba(239, 68, 68, 0.15)',
+              background: 'rgba(255, 61, 110, 0.15)',
               border: '1px solid var(--nw-red)',
               borderRadius: '12px',
               padding: '10px 14px',
@@ -285,7 +285,7 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
       {/* Visão Rápida dos Ganhos Acumulados */}
       <div
         style={{
-          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(139, 92, 246, 0.15))',
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(139, 47, 232, 0.15))',
           border: '1px solid rgba(16, 185, 129, 0.3)',
           borderRadius: '18px',
           padding: '16px 18px',

@@ -136,7 +136,7 @@ export const ScreenPinConfirm: React.FC<ScreenPinConfirmProps> = ({
       <div style={{ textAlign: 'center' }}>
         <span
           style={{
-            background: 'rgba(236, 72, 153, 0.15)',
+            background: 'rgba(255, 46, 154, 0.15)',
             color: 'var(--nw-pink)',
             border: '1px solid var(--border-strong)',
             fontSize: '12px',
@@ -209,7 +209,7 @@ export const ScreenPinConfirm: React.FC<ScreenPinConfirmProps> = ({
       {errorMessage && (
         <div
           style={{
-            background: 'rgba(239, 68, 68, 0.15)',
+            background: 'rgba(255, 61, 110, 0.15)',
             border: '1px solid var(--nw-red)',
             borderRadius: '12px',
             padding: '10px 14px',

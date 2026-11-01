@@ -197,7 +197,7 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
                   style={{
                     background: 'var(--bg-elevated)',
                     border: '1px solid var(--border-subtle)',
-                    color: '#c084fc',
+                    color: '#FFB3E0',
                     padding: '6px 12px',
                     borderRadius: '10px',
                     fontSize: '12px',

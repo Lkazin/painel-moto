@@ -109,7 +109,7 @@ export const ModalRouteCompleted: React.FC<ModalRouteCompletedProps> = ({
         {isAccessExpired && (
           <div
             style={{
-              background: 'rgba(239, 68, 68, 0.15)',
+              background: 'rgba(255, 61, 110, 0.15)',
               border: '1px solid var(--nw-red)',
               borderRadius: '14px',
               padding: '12px 14px',
@@ -140,7 +140,7 @@ export const ModalRouteCompleted: React.FC<ModalRouteCompletedProps> = ({
             display: 'flex',
             alignItems: 'flex-start',
             gap: '8px',
-            background: 'rgba(139, 92, 246, 0.08)',
+            background: 'rgba(139, 47, 232, 0.08)',
             border: '1px solid var(--border-subtle)',
             borderRadius: '12px',
             padding: '10px 12px',

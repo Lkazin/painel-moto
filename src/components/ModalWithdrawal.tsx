@@ -116,7 +116,7 @@ export const ModalWithdrawal: React.FC<ModalWithdrawalProps> = ({
         {!isExceptionMode && (
           <div
             style={{
-              background: 'rgba(239, 68, 68, 0.15)',
+              background: 'rgba(255, 61, 110, 0.15)',
               border: '1px solid var(--nw-red)',
               borderRadius: '12px',
               padding: '12px',

@@ -185,7 +185,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
             <button
               onClick={handleOptimizeRoute}
               style={{
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)',
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(139, 47, 232, 0.2) 100%)',
                 border: '1px solid var(--nw-emerald)',
                 color: 'var(--nw-emerald)',
                 padding: '6px 12px',
@@ -242,7 +242,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
           {hasChanges && (
             <div
               style={{
-                background: 'rgba(236, 72, 153, 0.15)',
+                background: 'rgba(255, 46, 154, 0.15)',
                 border: '1px solid var(--nw-pink)',
                 borderRadius: '14px',
                 padding: '12px 14px',
@@ -252,7 +252,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                 gap: '8px'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#fbcfe8' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 700, color: '#FFB3E0' }}>
                 <AlertCircle size={18} color="var(--nw-pink)" />
                 <span>Sequência alterada</span>
               </div>

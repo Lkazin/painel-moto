@@ -264,7 +264,7 @@ export const ScreenHistory: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  background: 'rgba(139, 92, 246, 0.08)',
+                  background: 'rgba(139, 47, 232, 0.08)',
                   padding: '12px',
                   borderRadius: '12px',
                   fontSize: '11px',

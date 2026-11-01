@@ -126,7 +126,7 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({
                 {assignment.address}, {assignment.addressNumber}
               </p>
               {assignment.addressComplement && (
-                <p style={{ fontSize: '15px', fontWeight: 800, color: '#c084fc', marginTop: '4px' }}>
+                <p style={{ fontSize: '15px', fontWeight: 800, color: '#FFB3E0', marginTop: '4px' }}>
                   {assignment.addressComplement}
                 </p>
               )}
@@ -142,7 +142,7 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({
           <div
             style={{
               marginTop: '12px',
-              background: 'rgba(139, 92, 246, 0.1)',
+              background: 'rgba(139, 47, 232, 0.1)',
               border: '1px solid var(--border-subtle)',
               borderRadius: '12px',
               padding: '12px',
@@ -154,7 +154,7 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({
           >
             <FileText size={18} color="var(--nw-purple)" style={{ flexShrink: 0, marginTop: '1px' }} />
             <div>
-              <strong style={{ color: '#d8b4fe', display: 'block', fontSize: '11px', textTransform: 'uppercase' }}>
+              <strong style={{ color: '#FFB3E0', display: 'block', fontSize: '11px', textTransform: 'uppercase' }}>
                 Observação do Cliente:
               </strong>
               <span style={{ color: '#ffffff' }}>{assignment.instructions}</span>

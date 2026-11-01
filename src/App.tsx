@@ -518,7 +518,7 @@ export const App: React.FC = () => {
               className="store-context-pill"
               title="Ver detalhes da loja ativa e configurações"
             >
-              <Store size={14} color="#d8b4fe" />
+              <Store size={14} color="#FFB3E0" />
               <span>{session.storeName}</span>
             </button>
 

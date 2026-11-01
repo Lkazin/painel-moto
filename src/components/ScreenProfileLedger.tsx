@@ -180,7 +180,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
         {activeSession && (
           <div
             style={{
-              background: 'rgba(236, 72, 153, 0.12)',
+              background: 'rgba(255, 46, 154, 0.12)',
               border: '1.5px solid var(--nw-pink)',
               borderRadius: '16px',
               padding: '14px',
@@ -216,7 +216,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
         {/* Resumo Consolidado de Ganhos */}
         <div
           style={{
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(139, 92, 246, 0.12))',
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(139, 47, 232, 0.12))',
             border: '1px solid rgba(16, 185, 129, 0.3)',
             borderRadius: '16px',
             padding: '16px',

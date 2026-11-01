@@ -71,7 +71,7 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
           style={{
             height: '76px',
             fontSize: '18px',
-            border: isAvailable ? 'none' : '2px solid rgba(239, 68, 68, 0.4)',
+            border: isAvailable ? 'none' : '2px solid rgba(255, 61, 110, 0.4)',
             boxShadow: isAvailable ? '0 8px 30px var(--nw-emerald-glow)' : 'none'
           }}
         >
@@ -105,7 +105,7 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
           className="card-surface card-highlight"
           style={{
             borderLeft: '4px solid var(--nw-pink)',
-            background: 'linear-gradient(135deg, rgba(236,72,153,0.15), var(--bg-card))'
+            background: 'linear-gradient(135deg, rgba(255, 46, 154,0.15), var(--bg-card))'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -224,7 +224,7 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
           display: 'flex',
           alignItems: 'flex-start',
           gap: '8px',
-          background: 'rgba(139, 92, 246, 0.08)',
+          background: 'rgba(139, 47, 232, 0.08)',
           border: '1px solid var(--border-subtle)',
           borderRadius: '12px',
           padding: '10px 12px',
@@ -392,7 +392,7 @@ const DriverPermissionsCard: React.FC<{ driverId: string; hasActiveRoute: boolea
           background: 'var(--bg-app)',
           padding: '10px 12px',
           borderRadius: '12px',
-          border: isGpsOk ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(236, 72, 153, 0.4)'
+          border: isGpsOk ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(255, 46, 154, 0.4)'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -415,7 +415,7 @@ const DriverPermissionsCard: React.FC<{ driverId: string; hasActiveRoute: boolea
             <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff', margin: 0 }}>
               2. Localização GPS em Tempo Real
             </h4>
-            <p style={{ fontSize: '11px', color: isGpsOk ? 'var(--nw-emerald)' : '#fbcfe8', margin: '2px 0 0 0' }}>
+            <p style={{ fontSize: '11px', color: isGpsOk ? 'var(--nw-emerald)' : '#FFB3E0', margin: '2px 0 0 0' }}>
               {trackingState.lastLocation
                 ? `GPS Real Ativo (±${Math.round(trackingState.lastLocation.accuracy || 10)}m) • Posição sincronizada`
                 : isGpsOk
@@ -499,8 +499,8 @@ const PwaInstallCard: React.FC = () => {
       className="card-surface"
       style={{
         padding: '16px',
-        border: '1px solid rgba(236, 72, 153, 0.35)',
-        background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)',
+        border: '1px solid rgba(255, 46, 154, 0.35)',
+        background: 'linear-gradient(135deg, rgba(255, 46, 154, 0.08) 0%, rgba(139, 47, 232, 0.08) 100%)',
         borderRadius: '16px'
       }}
     >
@@ -543,7 +543,7 @@ const PwaInstallCard: React.FC = () => {
             fontWeight: 800,
             cursor: 'pointer',
             flexShrink: 0,
-            boxShadow: '0 4px 14px rgba(236, 72, 153, 0.4)'
+            boxShadow: '0 4px 14px rgba(255, 46, 154, 0.4)'
           }}
         >
           {isIos ? (showIosInstructions ? 'Fechar' : 'Como Instalar') : 'Instalar'}

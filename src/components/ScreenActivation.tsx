@@ -91,7 +91,7 @@ export const ScreenActivation: React.FC<ScreenActivationProps> = ({ onActivated 
       <div className="card-surface card-highlight" style={{ padding: '24px' }}>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: '#c084fc', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: '#FFB3E0', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Código de Ativação da Loja
             </label>
             <div style={{ position: 'relative' }}>
@@ -126,7 +126,7 @@ export const ScreenActivation: React.FC<ScreenActivationProps> = ({ onActivated 
           {errorMessage && (
             <div
               style={{
-                background: 'rgba(239, 68, 68, 0.15)',
+                background: 'rgba(255, 61, 110, 0.15)',
                 border: '1px solid var(--nw-red)',
                 borderRadius: '12px',
                 padding: '12px 14px',
