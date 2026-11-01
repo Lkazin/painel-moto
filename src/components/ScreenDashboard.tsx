@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Power,
   Navigation,
@@ -9,11 +9,13 @@ import {
   Info,
   Smartphone,
   BellRing,
-  ShieldCheck
+  MapPin,
+  CheckCircle2
 } from 'lucide-react';
-import { DriverSession, DriverPresence, Assignment } from '../types';
+import { DriverSession, DriverPresence, Assignment, TrackingSessionState } from '../types';
 import { audioAlert } from '../utils/audioAlert';
 import { requestNotificationPermission, getNotificationPermission } from '../utils/mobileWake';
+import { trackingService } from '../services/trackingService';
 
 interface ScreenDashboardProps {
   session: DriverSession;
@@ -93,6 +95,9 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
           </div>
         )}
       </div>
+
+      {/* Painel de Permissões Essenciais: Notificações + Localização GPS Real */}
+      <DriverPermissionsCard driverId={session.driverId} hasActiveRoute={activeDeliveries.length > 0} />
 
       {/* Rota Ativa em Andamento (Aparece se houver entregas retiradas) */}
       {activeDeliveries.length > 0 && (
@@ -210,9 +215,6 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
         </div>
       </div>
 
-      {/* Card de Ativação de Notificações com Tela Bloqueada */}
-      <NotificationPermissionCard />
-
       {/* Banner de Instalação do Aplicativo (PWA) no Celular */}
       <PwaInstallCard />
 
@@ -240,83 +242,211 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
   );
 };
 
-// Componente de Permissão de Notificações com Celular Bloqueado
-const NotificationPermissionCard: React.FC = () => {
-  const [permission, setPermission] = React.useState<'granted' | 'denied' | 'default' | 'unsupported'>('default');
+// Card Duplo de Permissões: 1. Notificações (Tela Bloqueada) + 2. Localização Real (GPS)
+const DriverPermissionsCard: React.FC<{ driverId: string; hasActiveRoute: boolean }> = ({ driverId, hasActiveRoute }) => {
+  const [notifPerm, setNotifPerm] = useState<'granted' | 'denied' | 'default' | 'unsupported'>('default');
+  const [trackingState, setTrackingState] = useState<TrackingSessionState>(trackingService.getState());
+  const [gpsPermStatus, setGpsPermStatus] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>(
+    trackingService.getPermissionStatus()
+  );
+  const [isRequestingGps, setIsRequestingGps] = useState(false);
 
-  React.useEffect(() => {
-    setPermission(getNotificationPermission());
+  useEffect(() => {
+    setNotifPerm(getNotificationPermission());
+    const unsub = trackingService.subscribe((st) => {
+      setTrackingState(st);
+      setGpsPermStatus(trackingService.getPermissionStatus());
+    });
+    return () => unsub();
   }, []);
 
-  if (permission === 'unsupported' || permission === 'granted') {
-    return null;
-  }
-
-  const handleEnable = async () => {
+  const handleEnableNotif = async () => {
     audioAlert.playClickSound();
     const granted = await requestNotificationPermission();
-    setPermission(granted ? 'granted' : 'denied');
+    setNotifPerm(granted ? 'granted' : 'denied');
+    if (granted) audioAlert.playSuccessSound();
   };
+
+  const handleEnableGps = async () => {
+    audioAlert.playClickSound();
+    setIsRequestingGps(true);
+    const res = await trackingService.requestLocationPermission({ onlyCheckPermission: !hasActiveRoute });
+    setIsRequestingGps(false);
+    setGpsPermStatus(trackingService.getPermissionStatus());
+    if (res.granted) {
+      if (hasActiveRoute) {
+        trackingService.start(driverId);
+      }
+      audioAlert.playSuccessSound();
+    } else {
+      audioAlert.playErrorSound();
+    }
+  };
+
+  const isNotifOk = notifPerm === 'granted';
+  const isGpsOk = gpsPermStatus === 'granted' || Boolean(trackingState.lastLocation);
 
   return (
     <div
       className="card-surface"
       style={{
-        padding: '14px 16px',
-        border: '1px solid rgba(245, 158, 11, 0.45)',
-        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.05) 100%)',
-        borderRadius: '16px'
+        padding: '16px',
+        border: isNotifOk && isGpsOk ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(245, 158, 11, 0.5)',
+        background:
+          isNotifOk && isGpsOk
+            ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, var(--bg-card) 100%)'
+            : 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, var(--bg-card) 100%)',
+        borderRadius: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px'
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: '12px', fontWeight: 900, color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          Permissões do Aparelho (Notificação & GPS)
+        </span>
+        {isNotifOk && isGpsOk ? (
+          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--nw-emerald)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <CheckCircle2 size={14} /> Tudo Ativo
+          </span>
+        ) : (
+          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--nw-amber)' }}>
+            Ação Necessária
+          </span>
+        )}
+      </div>
+
+      {/* 1. Permissão de Notificações */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '10px',
+          background: 'var(--bg-app)',
+          padding: '10px 12px',
+          borderRadius: '12px',
+          border: isNotifOk ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(245, 158, 11, 0.3)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div
             style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '12px',
-              backgroundColor: '#d97706',
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              backgroundColor: isNotifOk ? 'rgba(16, 185, 129, 0.2)' : '#d97706',
+              color: isNotifOk ? 'var(--nw-emerald)' : '#ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#ffffff',
               flexShrink: 0
             }}
           >
-            <BellRing size={20} />
+            <BellRing size={18} />
           </div>
           <div>
-            <h4 style={{ fontSize: '13px', fontWeight: 900, color: '#ffffff', margin: 0 }}>
-              Alertas na Tela Bloqueada
+            <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+              1. Notificações de Corrida
             </h4>
-            <p style={{ fontSize: '11px', color: '#fde68a', margin: '2px 0 0 0' }}>
-              Ative para o celular vibrar e tocar sirene mesmo no bolso ou bloqueado
+            <p style={{ fontSize: '11px', color: isNotifOk ? 'var(--nw-emerald)' : '#fde68a', margin: '2px 0 0 0' }}>
+              {isNotifOk
+                ? 'Ativado • Toca sirene mesmo com tela bloqueada'
+                : 'Toque para permitir avisos de novas entregas'}
+            </p>
+          </div>
+        </div>
+
+        {!isNotifOk ? (
+          <button
+            onClick={handleEnableNotif}
+            style={{
+              background: '#d97706',
+              color: '#ffffff',
+              border: 'none',
+              padding: '8px 12px',
+              borderRadius: '10px',
+              fontSize: '12px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              flexShrink: 0
+            }}
+          >
+            Aceitar
+          </button>
+        ) : (
+          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--nw-emerald)', flexShrink: 0 }}>
+            ✓ Permitido
+          </span>
+        )}
+      </div>
+
+      {/* 2. Permissão de Localização GPS Real */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '10px',
+          background: 'var(--bg-app)',
+          padding: '10px 12px',
+          borderRadius: '12px',
+          border: isGpsOk ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(236, 72, 153, 0.4)'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              backgroundColor: isGpsOk ? 'rgba(16, 185, 129, 0.2)' : 'var(--nw-pink)',
+              color: isGpsOk ? 'var(--nw-emerald)' : '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}
+          >
+            <MapPin size={18} />
+          </div>
+          <div>
+            <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+              2. Localização GPS em Tempo Real
+            </h4>
+            <p style={{ fontSize: '11px', color: isGpsOk ? 'var(--nw-emerald)' : '#fbcfe8', margin: '2px 0 0 0' }}>
+              {trackingState.lastLocation
+                ? `GPS Real Ativo (±${Math.round(trackingState.lastLocation.accuracy || 10)}m) • Posição sincronizada`
+                : isGpsOk
+                ? 'Permissão concedida • Toque para atualizar sua posição'
+                : 'Permita o GPS para mostrar sua localização correta no mapa'}
             </p>
           </div>
         </div>
 
         <button
-          onClick={handleEnable}
+          onClick={handleEnableGps}
+          disabled={isRequestingGps}
           style={{
-            background: '#d97706',
-            color: '#ffffff',
-            border: 'none',
-            padding: '10px 14px',
-            borderRadius: '12px',
+            background: isGpsOk ? 'rgba(16, 185, 129, 0.2)' : 'var(--nw-pink)',
+            color: isGpsOk ? 'var(--nw-emerald)' : '#ffffff',
+            border: isGpsOk ? '1px solid rgba(16, 185, 129, 0.4)' : 'none',
+            padding: '8px 12px',
+            borderRadius: '10px',
             fontSize: '12px',
             fontWeight: 800,
             cursor: 'pointer',
-            flexShrink: 0,
-            boxShadow: '0 4px 14px rgba(217, 119, 6, 0.4)'
+            flexShrink: 0
           }}
         >
-          {permission === 'denied' ? 'Ver Como' : 'Ativar'}
+          {isRequestingGps ? 'Buscando GPS...' : isGpsOk ? 'Atualizar GPS' : 'Permitir GPS'}
         </button>
       </div>
 
-      {permission === 'denied' && (
-        <p style={{ fontSize: '11px', color: '#fca5a5', marginTop: '8px', lineHeight: 1.4, margin: '8px 0 0 0' }}>
-          ⚠️ Notificações foram bloqueadas no navegador. Para reativar, clique no cadeado da barra de endereço e marque &quot;Notificações&quot; como Permitir.
+      {(notifPerm === 'denied' || trackingState.error) && (
+        <p style={{ fontSize: '11px', color: '#fca5a5', margin: 0, lineHeight: 1.4 }}>
+          ⚠️ {trackingState.error || 'Se você bloqueou antes, toque no ícone de cadeado ao lado do endereço do site no navegador e marque Localização e Notificações como "Permitir".'}
         </p>
       )}
     </div>
@@ -331,13 +461,11 @@ const PwaInstallCard: React.FC = () => {
   const [showIosInstructions, setShowIosInstructions] = React.useState<boolean>(false);
 
   React.useEffect(() => {
-    // Detectar se já está rodando instalado como standalone PWA
     if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
       setIsInstalled(true);
       return;
     }
 
-    // Detectar iOS Safari
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isAppleDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIos(isAppleDevice);

@@ -13,7 +13,8 @@ import {
   LogOut,
   Power,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  MessageCircle
 } from 'lucide-react';
 import { DriverAccount, DriverSession, StoreShiftSummary } from '../types';
 import { api } from '../services/api';
@@ -60,6 +61,29 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
     } finally {
       setClosingShift(false);
     }
+  };
+
+  const handleShareWhatsApp = () => {
+    audioAlert.playClickSound();
+    const storeName = activeSession?.storeName || 'Pizzaria';
+    const nowStr = new Date().toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const text = `📋 *FECHAMENTO DE PLANTÃO - ${account.name.toUpperCase()}*\n` +
+      `🏍️ Veículo: ${account.vehicleModel || 'Moto'} (Placa ${account.vehiclePlate})\n` +
+      `🏪 Estabelecimento: ${storeName}\n` +
+      `📅 Data/Hora: ${nowStr}\n\n` +
+      `✅ *Entregas concluídas com PIN:* ${totalCompleted}\n` +
+      `💵 *Total de Taxas a Receber:* R$ ${totalToReceive.toFixed(2).replace('.', ',')}\n\n` +
+      `_Enviado pelo App do Entregador_`;
+
+    const encoded = encodeURIComponent(text);
+    window.open(`https://wa.me/?text=${encoded}`, '_blank');
   };
 
   return (
@@ -219,6 +243,30 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
               </span>
             )}
           </div>
+
+          <button
+            type="button"
+            onClick={handleShareWhatsApp}
+            style={{
+              marginTop: '6px',
+              height: '42px',
+              borderRadius: '12px',
+              background: 'rgba(16, 185, 129, 0.2)',
+              border: '1px solid var(--nw-emerald)',
+              color: 'var(--nw-emerald)',
+              fontSize: '12px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              width: '100%'
+            }}
+          >
+            <MessageCircle size={16} />
+            <span>Enviar Fechamento no WhatsApp da Loja</span>
+          </button>
         </div>
 
         {/* Lista Individual por Loja */}

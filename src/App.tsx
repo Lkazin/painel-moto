@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Home,
   Package,
@@ -23,6 +23,7 @@ import {
 
 import { api } from './services/api';
 import { offlineQueue } from './services/offlineQueue';
+import { trackingService } from './services/trackingService';
 import { audioAlert } from './utils/audioAlert';
 import { triggerOfferNotification, requestScreenWakeLock, releaseScreenWakeLock } from './utils/mobileWake';
 
@@ -56,6 +57,7 @@ export const App: React.FC = () => {
   // Estados de Dados
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [currentOffer, setCurrentOffer] = useState<Offer | null>(null);
+  const handledOfferIdsRef = useRef<Set<string>>(new Set());
   const [pendingSyncCount, setPendingSyncCount] = useState<number>(offlineQueue.getPendingCount());
   const [historySummary, setHistorySummary] = useState({ totalEarnings: 0, itemsCount: 0 });
 
@@ -113,6 +115,18 @@ export const App: React.FC = () => {
         totalEarnings: hist.totalEarnings,
         itemsCount: hist.items.length
       });
+
+      // Sincroniza GPS se houver pedidos ativos aceitos ou em rota
+      const activeAsg = data.find(
+        (a) =>
+          a.status === 'picked_up' ||
+          a.status === 'in_transit' ||
+          a.status === 'waiting_pickup' ||
+          (a as any).status === 'accepted'
+      );
+      if (activeAsg && !trackingService.getState().isActive) {
+        trackingService.start(session?.driverId, activeAsg.assignmentId || activeAsg.id);
+      }
     } catch {}
   }, [session]);
 
@@ -120,23 +134,44 @@ export const App: React.FC = () => {
     refreshAssignments();
   }, [refreshAssignments]);
 
-  // Polling em tempo real para verificar novas ofertas disparadas pela loja (a cada 5 segundos)
+  // Polling periódico das atribuições em segundo plano a cada 3.5s para manter balcão e rotas sempre sincronizados
+  useEffect(() => {
+    if (!session) return;
+    const interval = setInterval(() => {
+      refreshAssignments();
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [session, refreshAssignments]);
+
+  // Polling em tempo real para verificar novas ofertas disparadas pela loja e retirar imediatamente ofertas já aceitas por outro motoboy
   useEffect(() => {
     if (!session || !presence.manualEnabled) return;
 
     const interval = setInterval(async () => {
       try {
         const offers = await api.getOffers();
-        if (offers.length > 0 && !currentOffer) {
-          const offer = offers[0];
+        const availableOffers = (offers || []).filter(
+          (o) => !handledOfferIdsRef.current.has(o.offerId || o.id || '')
+        );
+
+        if (currentOffer) {
+          const currentId = currentOffer.offerId || currentOffer.id;
+          const stillAvailable = availableOffers.some((o) => (o.offerId || o.id) === currentId);
+          if (!stillAvailable) {
+            audioAlert.stopOfferAlert();
+            setCurrentOffer(null);
+            showToast('Esta oferta já foi aceita ou retirada.', 'info');
+          }
+        } else if (availableOffers.length > 0) {
+          const offer = availableOffers[0];
           setCurrentOffer(offer);
           triggerOfferNotification(offer);
         }
       } catch {}
-    }, 5000);
+    }, 2500);
 
     return () => clearInterval(interval);
-  }, [session, presence.manualEnabled, currentOffer]);
+  }, [session, presence.manualEnabled, currentOffer, showToast]);
 
   // Modo Manter Tela Acesa (Screen Wake Lock) enquanto o entregador estiver ligado no suporte
   useEffect(() => {
@@ -193,12 +228,34 @@ export const App: React.FC = () => {
   // Aceitar Oferta
   const handleAcceptOffer = async (offerId: string) => {
     try {
-      await api.respondOffer(offerId, 'accepted');
+      audioAlert.stopOfferAlert();
+      handledOfferIdsRef.current.add(offerId);
+      const res = await api.respondOffer(offerId, 'accepted');
       setCurrentOffer(null);
+      if (res && (res.assignment || (res as any).assignments)) {
+        const newItems: Assignment[] = (res as any).assignments || (res.assignment ? [res.assignment] : []);
+        setAssignments((prev) => {
+          const map = new Map(prev.map((a) => [a.assignmentId || a.id, a]));
+          for (const it of newItems) {
+            map.set(it.assignmentId || it.id, it);
+          }
+          return Array.from(map.values());
+        });
+      }
+      const acceptedAsgId =
+        (res as any)?.assignment?.assignmentId ||
+        (res as any)?.assignment?.id ||
+        (res as any)?.assignments?.[0]?.assignmentId ||
+        (res as any)?.assignments?.[0]?.id ||
+        `asg_${offerId}`;
+      trackingService.start(session?.driverId, acceptedAsgId);
+
       await refreshAssignments();
       showToast('Corrida aceita! O pedido está aguardando retirada no balcão da pizzaria.', 'success');
       setActiveTab('orders');
     } catch (err: any) {
+      audioAlert.stopOfferAlert();
+      handledOfferIdsRef.current.add(offerId);
       setCurrentOffer(null);
       showToast(err.message || 'Erro ao aceitar oferta.', 'error');
     }
@@ -207,25 +264,42 @@ export const App: React.FC = () => {
   // Recusar Oferta
   const handleRejectOffer = async (offerId: string) => {
     try {
+      audioAlert.stopOfferAlert();
+      handledOfferIdsRef.current.add(offerId);
       await api.respondOffer(offerId, 'rejected');
       setCurrentOffer(null);
       showToast('Oferta recusada e devolvida ao despacho da loja.', 'info');
     } catch {
+      audioAlert.stopOfferAlert();
+      handledOfferIdsRef.current.add(offerId);
       setCurrentOffer(null);
     }
   };
 
   // Oferta Expirada pelos 60s
-  const handleOfferExpired = (_offerId: string) => {
+  const handleOfferExpired = (offerId: string) => {
+    audioAlert.stopOfferAlert();
+    handledOfferIdsRef.current.add(offerId);
     setCurrentOffer(null);
     showToast('Tempo limite de 60s esgotado. Oferta devolvida ao lojista.', 'info');
   };
 
   // Confirmar Retirada de Pedidos
   const handleConfirmPickup = async (assignmentIds: string[]) => {
+    setAssignments((prev) =>
+      prev.map((a) =>
+        assignmentIds.includes(a.assignmentId || a.id || '')
+          ? { ...a, status: 'picked_up' as const }
+          : a
+      )
+    );
     const res = await api.confirmPickup(assignmentIds);
+    if (assignmentIds[0]) {
+      trackingService.start(session?.driverId, assignmentIds[0]);
+    }
     await refreshAssignments();
     showToast(`Retirada confirmada de ${res.confirmed.length} pedido(s)! Adicionados à sua rota.`, 'success');
+    setActiveTab('route');
   };
 
   // Reordenar Rota
@@ -255,8 +329,9 @@ export const App: React.FC = () => {
       showToast('Entrega validada com sucesso pelo servidor da loja!', 'success');
     }
 
-    // Se concluiu a última entrega da rota, abre a tela de Resumo de Rota
+    // Se concluiu a última entrega da rota, encerra sessão de GPS e abre a tela de Resumo de Rota
     if (remainingInRoute.length === 0) {
+      trackingService.stop();
       setRouteCompletedStats({
         count: 1,
         fees: completedAssignment?.deliveryFee || 0,
@@ -271,6 +346,7 @@ export const App: React.FC = () => {
   // Encerrar Plantão nesta loja e salvar ganhos no extrato
   const handleCloseStoreShift = async () => {
     try {
+      trackingService.stop();
       const res = await api.closeStoreShift();
       setSession(null);
       setIsStoreModalOpen(false);

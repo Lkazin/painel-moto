@@ -28,6 +28,17 @@ class AudioAlertManager {
     }
   }
 
+  // Desbloqueia o AudioContext na primeira interação do usuário (toque, clique ou tecla)
+  public setupAutoUnlock(): void {
+    if (typeof window === 'undefined') return;
+    const unlock = () => {
+      this.init();
+    };
+    window.addEventListener('click', unlock, { once: true, passive: true });
+    window.addEventListener('touchstart', unlock, { once: true, passive: true });
+    window.addEventListener('keydown', unlock, { once: true, passive: true });
+  }
+
   public toggleMute(): boolean {
     this.isMuted = !this.isMuted;
     if (this.isMuted && this.isAlertRunning) {
@@ -166,6 +177,11 @@ class AudioAlertManager {
 
   // Som de sucesso (PIN correto / Retirada confirmada)
   public playSuccessSound(): void {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate([80, 50, 120]);
+      } catch {}
+    }
     if (this.isMuted) return;
     const ctx = this.getContext();
     if (!ctx) return;
@@ -188,6 +204,11 @@ class AudioAlertManager {
 
   // Som de erro (PIN incorreto / Expirado)
   public playErrorSound(): void {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate([250, 100, 250]);
+      } catch {}
+    }
     if (this.isMuted) return;
     const ctx = this.getContext();
     if (!ctx) return;

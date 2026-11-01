@@ -16,7 +16,7 @@ const API_BASE_URL =
   (import.meta as any).env?.NEXT_PUBLIC_LOGISTICS_API_URL ||
   'http://localhost:3000/api/v1/logistics';
 
-// Configuração Supabase Cloud Storage (Nuvem em Tempo Real)
+// Configuração Supabase Cloud Storage (Nuvem em Tempo Real - Fallback de Alta Disponibilidade)
 const SUPABASE_PROJECT_URL =
   (import.meta as any).env?.VITE_SUPABASE_URL ||
   'https://nrdbporbyujwtgnpiejz.supabase.co';
@@ -31,6 +31,8 @@ const SUPABASE_SERVICE_KEY =
 
 const STORAGE_BUCKET = 'novaesweb_store';
 const LOGISTICS_FILE = 'logistics.json';
+const SUPABASE_URL = SUPABASE_PROJECT_URL;
+const SUPABASE_BUCKET = STORAGE_BUCKET;
 
 interface CloudLogisticsState {
   drivers: any[];
@@ -77,47 +79,6 @@ async function saveCloudLogistics(state: CloudLogisticsState): Promise<boolean> 
     return res.ok;
   } catch (err) {
     console.warn('[CloudLogistics] Falha ao salvar estado na nuvem:', err);
-    return false;
-  }
-}
-
-const ORDERS_FILE = 'orders.json';
-
-async function fetchCloudOrders(): Promise<any[]> {
-  try {
-    const url = `${SUPABASE_PROJECT_URL}/storage/v1/object/${STORAGE_BUCKET}/${ORDERS_FILE}?t=${Date.now()}`;
-    const res = await fetch(url, {
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return Array.isArray(data) ? data : [];
-    }
-  } catch (err) {
-    console.warn('[CloudOrders] Falha ao carregar pedidos da nuvem:', err);
-  }
-  return [];
-}
-
-async function saveCloudOrders(orders: any[]): Promise<boolean> {
-  try {
-    const url = `${SUPABASE_PROJECT_URL}/storage/v1/object/${STORAGE_BUCKET}/${ORDERS_FILE}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'x-upsert': 'true',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(orders)
-    });
-    return res.ok;
-  } catch (err) {
-    console.warn('[CloudOrders] Falha ao salvar pedidos na nuvem:', err);
     return false;
   }
 }
@@ -198,6 +159,23 @@ class ApiClient {
     localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(this.ledger));
   }
 
+  private getAuthHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    if (this.session?.token) {
+      headers['Authorization'] = `Bearer ${this.session.token}`;
+      headers['x-session-token'] = this.session.token;
+    }
+    if (this.session?.driverId) {
+      headers['x-driver-id'] = this.session.driverId;
+    }
+    if (this.session?.storeId) {
+      headers['x-store-id'] = this.session.storeId;
+    }
+    return headers;
+  }
+
   // ==========================================
   // AUTENTICAÇÃO PRÓPRIA DO ENTREGADOR
   // ==========================================
@@ -239,28 +217,6 @@ class ApiClient {
       throw new Error('A senha deve conter no mínimo 4 dígitos.');
     }
 
-    // Tenta registrar na API Central
-    try {
-      const response = await fetch(`${API_BASE_URL}/driver/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: cleanName,
-          phone: cleanPhone,
-          vehiclePlate: cleanPlate,
-          vehicleModel,
-          password
-        })
-      });
-      if (response.ok) {
-        const data = await response.json();
-        this.account = data.account;
-        this.saveAccount();
-        return this.account!;
-      }
-    } catch {}
-
-    // Registro seguro local com persistência
     const newAccount: DriverAccount = {
       id: 'drv_' + Date.now(),
       name: cleanName,
@@ -270,7 +226,6 @@ class ApiClient {
       createdAt: new Date().toISOString()
     };
 
-    // Guarda na lista de contas registradas
     try {
       const existingAccountsStr = localStorage.getItem(ACCOUNTS_DB_KEY);
       const accountsList = existingAccountsStr ? JSON.parse(existingAccountsStr) : [];
@@ -294,22 +249,6 @@ class ApiClient {
       throw new Error('Digite sua senha.');
     }
 
-    // Tenta login na API Central
-    try {
-      const response = await fetch(`${API_BASE_URL}/driver/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: cleanId, password })
-      });
-      if (response.ok) {
-        const data = await response.json();
-        this.account = data.account;
-        this.saveAccount();
-        return this.account!;
-      }
-    } catch {}
-
-    // Validação local no cadastro do aparelho
     try {
       const existingAccountsStr = localStorage.getItem(ACCOUNTS_DB_KEY);
       if (existingAccountsStr) {
@@ -317,7 +256,7 @@ class ApiClient {
         const match = accountsList.find(
           (acc: any) =>
             (acc.phone.replace(/[^0-9]/g, '') === cleanId.replace(/[^0-9]/g, '') ||
-             acc.name.toLowerCase() === cleanId.toLowerCase()) &&
+              acc.name.toLowerCase() === cleanId.toLowerCase()) &&
             acc.password === password
         );
         if (match) {
@@ -329,12 +268,14 @@ class ApiClient {
       }
     } catch {}
 
-    // Se houver uma conta já logada e a senha bater
-    if (this.account && (this.account.phone.includes(cleanId) || this.account.name.toLowerCase().includes(cleanId.toLowerCase()))) {
+    if (
+      this.account &&
+      (this.account.phone.includes(cleanId) ||
+        this.account.name.toLowerCase().includes(cleanId.toLowerCase()))
+    ) {
       return this.account;
     }
 
-    // Cria/autentica conta rápida com os dados informados
     const account: DriverAccount = {
       id: 'drv_' + Date.now().toString(36),
       name: cleanId.includes('@') ? cleanId.split('@')[0] : cleanId,
@@ -360,7 +301,6 @@ class ApiClient {
     this.logoutDriver();
   }
 
-  // Limpa completamente todos os dados e histórico salvos localmente
   public clearAllLocalData(): void {
     this.account = null;
     this.session = null;
@@ -375,17 +315,18 @@ class ApiClient {
     }
   }
 
-  // Compatibilidade com ativação legada
-  public async activateInvite(inviteCode: string, _deviceFingerprint?: string): Promise<DriverSession> {
+  public async activateInvite(
+    inviteCode: string,
+    _deviceFingerprint?: string
+  ): Promise<DriverSession> {
     if (!this.account) {
-      // Cria conta temporária se não houver
       await this.loginDriver('Entregador Novaes', '1234');
     }
     return this.activateStoreShift(inviteCode);
   }
 
   // ==========================================
-  // VÍNCULO DO PLANTÃO DA LOJA (CÓDIGO NW-XXXXXX)
+  // VÍNCULO DO PLANTÃO DA LOJA (VALIDADO NO SERVIDOR)
   // ==========================================
 
   public async activateStoreShift(inviteCode: string): Promise<DriverSession> {
@@ -394,139 +335,58 @@ class ApiClient {
     }
 
     const cleanCode = inviteCode.trim().toUpperCase();
-    let fingerprint = localStorage.getItem('novaesweb_device_fp') || 'fp_' + Date.now();
-
-    // 1. Se API_BASE_URL não for localhost, tenta API Central
-    const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
-    if (!isLocalhost) {
-      try {
-        const response = await fetch(`${API_BASE_URL}/invite-activate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            inviteCode: cleanCode,
-            deviceFingerprint: fingerprint,
-            driverId: this.account.id,
-            driverName: this.account.name,
-            phone: this.account.phone,
-            vehiclePlate: this.account.vehiclePlate
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const storeObj = data.store || {};
-          const driverObj = data.driver || {};
-
-          const newSession: DriverSession = {
-            token: data.sessionToken || data.token || 'jwt_shift_' + Date.now(),
-            driverId: driverObj.driverId || driverObj.id || this.account.id,
-            driverName: driverObj.driverName || driverObj.name || this.account.name,
-            phone: driverObj.phone || this.account.phone,
-            vehiclePlate: driverObj.vehiclePlate || this.account.vehiclePlate,
-            deviceFingerprint: fingerprint,
-            storeId: storeObj.id || 'store_' + cleanCode.toLowerCase().replace(/[^a-z0-9]/g, '_'),
-            storeName: storeObj.name || 'Bella Pizza',
-            storeAddress: storeObj.address || 'Rua das Camélias, 412 - Jardins, SP',
-            membershipId: data.membershipId || 'mem_' + cleanCode,
-            role: 'entregador_plantao',
-            expiresAt: data.expiresAt || new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-            isActivated: true,
-            shiftStartedAt: new Date().toISOString()
-          };
-
-          this.session = newSession;
-          this.presence.manualEnabled = true;
-          this.saveSession();
-          this.savePresence();
-          this.updateLedgerForStore(newSession.storeId, newSession.storeName, newSession.storeAddress);
-          return this.session;
-        }
-      } catch (e) {
-        console.warn('Tentativa API central falhou, conectando via Supabase Cloud Storage:', e);
-      }
+    const fingerprint = localStorage.getItem('novaesweb_device_fp') || 'fp_' + Date.now();
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('novaesweb_device_fp', fingerprint);
     }
 
-    // 2. Sincronização Direta em Nuvem via Supabase Cloud Storage
-    try {
-      const cloudState = await fetchCloudLogistics();
-      
-      let shift = cloudState.drivers.find((d: any) =>
-        d.inviteCode && d.inviteCode.toString().trim().toUpperCase() === cleanCode
-      );
-
-      // Se não encontrou pelo código exato mas começa com NW-, procura algum plantão aguardando
-      if (!shift && cleanCode.startsWith('NW-')) {
-        shift = cloudState.drivers.find((d: any) => d.status === 'aguardando_motoboy');
-      }
-
-      // Se ainda não existir registro desse código, registra o plantão na nuvem
-      if (!shift) {
-        shift = {
-          id: 'shift_' + Date.now(),
-          inviteCode: cleanCode,
-          storeId: 'store_bella_pizza',
-          storeName: 'Bella Pizza',
-          storeAddress: 'Rua das Camélias, 412 - Jardins, SP',
-          status: 'aguardando_motoboy',
-          shiftStatus: 'aguardando_motoboy',
-          presence: 'indisponivel',
-          activeDeliveries: 0,
-          maxDeliveries: 3,
-          validityDays: 1,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          createdAt: new Date().toISOString()
-        };
-        cloudState.drivers.unshift(shift);
-      }
-
-      if (shift.status === 'bloqueado') {
-        throw new Error('Este código de plantão ou entregador foi bloqueado pela loja.');
-      }
-
-      // Ativa o entregador no plantão da nuvem
-      shift.driverId = this.account.id;
-      shift.driverName = this.account.name;
-      shift.name = this.account.name;
-      shift.phone = this.account.phone;
-      shift.vehiclePlate = this.account.vehiclePlate;
-      shift.deviceFingerprint = fingerprint;
-      shift.status = 'ativo';
-      shift.shiftStatus = 'em_plantao';
-      shift.presence = 'disponivel';
-      shift.activatedAt = new Date().toISOString();
-
-      await saveCloudLogistics(cloudState);
-
-      const newSession: DriverSession = {
-        token: 'jwt_cloud_' + Date.now(),
+    const response = await fetch(`${API_BASE_URL}/invite-activate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inviteCode: cleanCode,
+        deviceFingerprint: fingerprint,
         driverId: this.account.id,
         driverName: this.account.name,
         phone: this.account.phone,
-        vehiclePlate: this.account.vehiclePlate,
-        deviceFingerprint: fingerprint,
-        storeId: shift.storeId || 'store_bella_pizza',
-        storeName: shift.storeName || 'Bella Pizza',
-        storeAddress: shift.storeAddress || 'Rua das Camélias, 412 - Jardins, SP',
-        membershipId: shift.id,
-        role: 'entregador_plantao',
-        expiresAt: shift.expiresAt || new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-        isActivated: true,
-        shiftStartedAt: new Date().toISOString()
-      };
+        vehiclePlate: this.account.vehiclePlate
+      })
+    });
 
-      this.session = newSession;
-      this.presence.manualEnabled = true;
-      this.saveSession();
-      this.savePresence();
-      this.updateLedgerForStore(newSession.storeId, newSession.storeName, newSession.storeAddress);
-      return this.session;
-    } catch (err: any) {
-      if (err.message && !err.message.includes('fetch')) {
-        throw err;
-      }
-      throw new Error(`Não foi possível ativar o plantão com o código "${cleanCode}". Verifique sua conexão com a internet.`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.error ||
+          `Não foi possível ativar o plantão com o código "${cleanCode}". Solicite um código válido ao lojista.`
+      );
     }
+
+    const storeObj = data.store || {};
+    const driverObj = data.driver || {};
+
+    const newSession: DriverSession = {
+      token: data.sessionToken || data.token,
+      driverId: driverObj.driverId || driverObj.id || this.account.id,
+      driverName: driverObj.driverName || driverObj.name || this.account.name,
+      phone: driverObj.phone || this.account.phone,
+      vehiclePlate: driverObj.vehiclePlate || this.account.vehiclePlate,
+      deviceFingerprint: fingerprint,
+      storeId: storeObj.id || 'store_bella_pizza',
+      storeName: storeObj.name || 'Bella Pizza',
+      storeAddress: storeObj.address || 'Rua Principal, 100 - Centro, São Paulo / SP',
+      membershipId: data.membershipId || 'mem_' + cleanCode,
+      role: 'entregador_plantao',
+      expiresAt: data.expiresAt || new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+      isActivated: true,
+      shiftStartedAt: new Date().toISOString()
+    };
+
+    this.session = newSession;
+    this.presence.manualEnabled = true;
+    this.saveSession();
+    this.savePresence();
+    this.updateLedgerForStore(newSession.storeId, newSession.storeName, newSession.storeAddress);
+    return this.session;
   }
 
   // Encerrar Plantão na Loja e liberar o motoboy
@@ -538,36 +398,21 @@ class ApiClient {
     const currentStoreId = this.session.storeId;
     const storeName = this.session.storeName;
 
-    // Atualiza na Nuvem Supabase
-    try {
-      const cloudState = await fetchCloudLogistics();
-      const driver = cloudState.drivers.find((d: any) =>
-        d.driverId === this.session?.driverId || d.driverName === this.session?.driverName || d.id === this.session?.membershipId
-      );
-      if (driver) {
-        driver.presence = 'indisponivel';
-        driver.shiftStatus = 'plantao_encerrado';
-        await saveCloudLogistics(cloudState);
-      }
-    } catch {}
-
-    // Notifica backend se online e não-localhost
-    const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
-    if (!isLocalhost && offlineQueue.getIsOnline()) {
+    if (offlineQueue.getIsOnline()) {
       try {
         await fetch(`${API_BASE_URL}/shift-close`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.session.token}`
-          },
-          body: JSON.stringify({ storeId: currentStoreId })
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify({
+            storeId: currentStoreId,
+            driverId: this.session.driverId,
+            membershipId: this.session.membershipId
+          })
         });
       } catch {}
     }
 
-    // Busca resumo no ledger
-    let summary = this.ledger.find(s => s.storeId === currentStoreId);
+    let summary = this.ledger.find((s) => s.storeId === currentStoreId);
     if (!summary) {
       summary = {
         storeId: currentStoreId,
@@ -585,20 +430,19 @@ class ApiClient {
     }
     this.saveLedger();
 
-    // Limpa a sessão da loja ativa, mas MANTÉM a conta do entregador logada
+    // Limpa a sessão da loja ativa, mas MANTÉM a conta pessoal e o histórico do entregador
     this.session = null;
     this.saveSession();
 
     return { shiftSummary: summary };
   }
 
-  // Extrato de todas as lojas trabalhadas pelo motoboy
   public getStoresLedger(): StoreShiftSummary[] {
     return [...this.ledger];
   }
 
   private updateLedgerForStore(storeId: string, storeName: string, storeAddress?: string): void {
-    const existing = this.ledger.find(s => s.storeId === storeId);
+    const existing = this.ledger.find((s) => s.storeId === storeId);
     if (!existing) {
       this.ledger.push({
         storeId,
@@ -617,9 +461,8 @@ class ApiClient {
     this.saveLedger();
   }
 
-  // Registra entrega confirmada no extrato da loja
   public recordDeliveryInLedger(storeId: string, deliveryFee: number | null): void {
-    const summary = this.ledger.find(s => s.storeId === storeId);
+    const summary = this.ledger.find((s) => s.storeId === storeId);
     if (summary) {
       summary.completedCount++;
       if (deliveryFee) {
@@ -629,9 +472,8 @@ class ApiClient {
     }
   }
 
-  // Registra cancelamento no extrato da loja
   public recordCancellationInLedger(storeId: string): void {
-    const summary = this.ledger.find(s => s.storeId === storeId);
+    const summary = this.ledger.find((s) => s.storeId === storeId);
     if (summary) {
       summary.canceledCount++;
       this.saveLedger();
@@ -639,7 +481,7 @@ class ApiClient {
   }
 
   // ==========================================
-  // OPERAÇÕES LOGÍSTICAS DA LOJA ATIVA
+  // OPERAÇÕES LOGÍSTICAS DA LOJA ATIVA (SERVIDOR AUTORITATIVO)
   // ==========================================
 
   public async validateSession(): Promise<{ valid: boolean; session?: DriverSession }> {
@@ -649,9 +491,14 @@ class ApiClient {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/session-validate`, {
-        headers: { Authorization: `Bearer ${currentSession.token}` }
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/session-validate?driverId=${encodeURIComponent(
+          currentSession.driverId
+        )}&membershipId=${encodeURIComponent(currentSession.membershipId)}`,
+        {
+          headers: this.getAuthHeaders()
+        }
+      );
       if (response.ok) {
         const data = await response.json();
         if (data.session) {
@@ -681,33 +528,17 @@ class ApiClient {
     this.savePresence();
 
     if (this.session && offlineQueue.getIsOnline()) {
-      // 1. Atualiza na nuvem Supabase Storage
       try {
-        const cloudState = await fetchCloudLogistics();
-        const driver = cloudState.drivers.find((d: any) =>
-          d.driverId === this.session?.driverId || d.driverName === this.session?.driverName || d.id === this.session?.membershipId
-        );
-        if (driver) {
-          driver.presence = manualEnabled ? 'disponivel' : 'indisponivel';
-          driver.shiftStatus = manualEnabled ? 'em_plantao' : 'plantao_encerrado';
-          await saveCloudLogistics(cloudState);
-        }
+        await fetch(`${API_BASE_URL}/driver-presence`, {
+          method: 'POST',
+          headers: this.getAuthHeaders(),
+          body: JSON.stringify({
+            manualEnabled,
+            driverId: this.session.driverId,
+            membershipId: this.session.membershipId
+          })
+        });
       } catch {}
-
-      // 2. Se configurado e não-localhost, notifica API Central
-      const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
-      if (!isLocalhost) {
-        try {
-          await fetch(`${API_BASE_URL}/driver-presence`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${this.session.token}`
-            },
-            body: JSON.stringify({ manualEnabled })
-          });
-        } catch {}
-      }
     }
 
     return this.getPresence();
@@ -718,39 +549,60 @@ class ApiClient {
       return [];
     }
 
-    // 1. Tenta API Central se não for localhost
-    const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
-    if (!isLocalhost) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/offers`, {
-          headers: { Authorization: `Bearer ${this.session.token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const list = Array.isArray(data) ? data : data.offers || [];
-          const now = Date.now();
-          return list.filter((o: Offer) => new Date(o.expiresAt).getTime() > now);
+    // 1. Tenta API Central (Next.js)
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/offers?driverId=${encodeURIComponent(
+          this.session.driverId
+        )}&membershipId=${encodeURIComponent(this.session.membershipId)}`,
+        {
+          headers: this.getAuthHeaders()
         }
-      } catch {}
-    }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data.offers || [];
+        const now = Date.now();
+        const valid = list.filter((o: Offer) => !o.expiresAt || new Date(o.expiresAt).getTime() > now);
+        return valid;
+      }
+    } catch {}
 
-    // 2. Sincronização direta na nuvem Supabase
+    // 2. Fallback de Alta Disponibilidade: consulta direta na Nuvem Supabase Storage
     try {
       const cloudState = await fetchCloudLogistics();
       const now = Date.now();
-      const myOffers: Offer[] = cloudState.offers
+      const currentDriverId = this.session?.driverId || this.account?.id;
+      const currentMembershipId = this.session?.membershipId;
+
+      const myOffers: Offer[] = (cloudState.offers || [])
         .filter((o: any) => {
           const notExpired = !o.expiresAt || new Date(o.expiresAt).getTime() > now;
           const isPending = o.status === 'pendente';
-          const isForMe = !o.targetDriverId || !o.driverId || o.targetDriverId === this.session?.driverId || o.driverId === this.session?.driverId;
-          return notExpired && isPending && isForMe;
+          if (!notExpired || !isPending || o.acceptedByDriverId) return false;
+
+          // Oferta broadcast para todos os motoboys da loja
+          if (o.distributionMode === 'broadcast_enabled' || (!o.targetDriverId && !o.driverId)) {
+            if (Array.isArray(o.rejectedByDriverIds) && currentDriverId && o.rejectedByDriverIds.includes(currentDriverId)) {
+              return false;
+            }
+            return true;
+          }
+
+          // Oferta direcionada para entregador fixo
+          const isForMe =
+            (currentDriverId && (o.targetDriverId === currentDriverId || o.driverId === currentDriverId)) ||
+            (currentMembershipId && (o.targetDriverId === currentMembershipId || o.driverId === currentMembershipId)) ||
+            (Array.isArray(o.eligibleDriverIds) && ((currentDriverId && o.eligibleDriverIds.includes(currentDriverId)) || (currentMembershipId && o.eligibleDriverIds.includes(currentMembershipId))));
+
+          return Boolean(isForMe);
         })
         .map((o: any) => {
           const offId = o.offerId || o.id || o.orderId || ('off_' + Date.now());
           const groupedOrders = Array.isArray(o.orders) && o.orders.length > 0
             ? o.orders.map((ord: any) => ({
                 id: ord.id || ord.orderId,
-                orderNumber: ord.orderNumber ? String(ord.orderNumber) : ('#' + Math.floor(100 + Math.random() * 900)),
+                orderNumber: ord.orderNumber ? String(ord.orderNumber) : '#000',
                 customerName: ord.customerName || 'Cliente',
                 customerAddress: ord.deliveryAddress || ord.customerAddress || ord.address || 'Endereço',
                 customerNeighborhood: ord.customerNeighborhood || ord.region || 'Bairro',
@@ -766,208 +618,125 @@ class ApiClient {
           return {
             offerId: offId,
             orderId: o.orderId || (groupedOrders ? groupedOrders[0]?.id : offId),
-            orderNumber: o.orderNumber ? String(o.orderNumber) : (groupedOrders ? groupedOrders.map((g: any) => '#' + g.orderNumber.replace('#','')).join(', ') : ('#' + Math.floor(100 + Math.random() * 900))),
+            orderNumber: o.orderNumber ? String(o.orderNumber) : (groupedOrders ? groupedOrders.map((g: any) => '#' + String(g.orderNumber).replace('#','')).join(', ') : '#000'),
             storeId: o.storeId || this.session?.storeId || 'store_bella_pizza',
             storeName: o.storeName || this.session?.storeName || 'Bella Pizza',
-            storeAddress: o.storeAddress || this.session?.storeAddress || 'Rua das Camélias, 412 - Jardins, SP',
+            storeAddress: o.storeAddress || this.session?.storeAddress || 'Rua Quinze de Janeiro, 150 - Centro, Canoas / RS',
             customerAddress: o.deliveryAddress || o.customerAddress || o.address || (groupedOrders ? `${groupedOrders.length} endereços de entrega` : 'Endereço da Entrega'),
-            customerNeighborhood: o.customerNeighborhood || o.neighborhood || o.region || (groupedOrders ? groupedOrders[0]?.customerNeighborhood : 'Bairro Próximo'),
-            customerCity: o.customerCity || o.city || 'São Paulo',
+            customerNeighborhood: o.customerNeighborhood || o.neighborhood || o.region || (groupedOrders ? groupedOrders[0]?.customerNeighborhood : 'Bairro'),
+            customerCity: o.customerCity || o.city || 'Canoas',
             estimatedDistanceKm: o.estimatedDistanceKm || 2.5,
             deliveryFee: (o.deliveryFee !== undefined && o.deliveryFee !== null) ? Number(o.deliveryFee) : ((o.feeOffered !== undefined && o.feeOffered !== null) ? Number(o.feeOffered) : 12.00),
             itemsSummary: o.itemsSummary || (groupedOrders ? groupedOrders.map((g: any) => g.itemsSummary).join(' • ') : '1x Pedido Delivery'),
             totalOrdersGrouped: totalOrders,
             orders: groupedOrders,
             createdAt: o.createdAt || new Date().toISOString(),
-            expiresAt: o.expiresAt || new Date(Date.now() + 60000).toISOString(),
-            totalSeconds: o.totalSeconds || 60
+            expiresAt: o.expiresAt || new Date(Date.now() + 600000).toISOString(),
+            totalSeconds: o.timeoutSeconds || 600
           };
         });
+
       return myOffers;
     } catch {}
 
     return [];
   }
 
-  public async respondOffer(offerId: string, decision: 'accepted' | 'rejected'): Promise<{ success: boolean; assignment?: Assignment }> {
+  public async respondOffer(
+    offerId: string,
+    decision: 'accepted' | 'rejected'
+  ): Promise<{ success: boolean; assignment?: Assignment }> {
     if (!this.session) {
       throw new Error('Sessão não autorizada.');
     }
 
-    // 1. Tenta API se não for localhost
-    const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
-    if (!isLocalhost) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/offer-respond`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.session.token}`
-          },
-          body: JSON.stringify({ offerId, decision })
-        });
-        if (res.ok) {
-          return await res.json();
-        }
-      } catch {}
+    // 1. Tenta API Central
+    try {
+      const res = await fetch(`${API_BASE_URL}/offer-respond`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          offerId,
+          decision,
+          driverId: this.session.driverId,
+          membershipId: this.session.membershipId,
+          storeId: this.session.storeId
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 409) {
+        throw new Error(data.error || data.message || 'Esta oferta já foi aceita');
+      }
+
+      if (res.ok && data.success) {
+        return data;
+      }
+    } catch (err: any) {
+      if (err.message && err.message.includes('já foi aceita')) throw err;
     }
 
-    // 2. Sincronização direta na nuvem Supabase
+    // 2. Fallback de Alta Disponibilidade: gravação direta na Nuvem Supabase Storage
     try {
       const cloudState = await fetchCloudLogistics();
-      
-      // Encontra a oferta correspondente na nuvem por offerId, id, orderId ou primeira pendente
-      const offerIdx = cloudState.offers.findIndex((o: any) =>
+      const offerIdx = (cloudState.offers || []).findIndex((o: any) =>
         (offerId && (o.offerId === offerId || o.id === offerId || o.orderId === offerId)) ||
         (o.status === 'pendente')
       );
 
-      const offer = offerIdx !== -1 ? cloudState.offers[offerIdx] : null;
+      if (offerIdx === -1) {
+        throw new Error('Esta oferta não está mais disponível.');
+      }
 
-      if (decision === 'accepted') {
-        if (offer) {
-          offer.status = 'atribuida';
-          offer.driverId = this.session.driverId;
-          offer.driverName = this.session.driverName;
-        }
-
-        // Se a oferta tiver pedidos agrupados
-        const offerOrders = Array.isArray(offer?.orders) && offer.orders.length > 0
-          ? offer.orders
-          : [{
-              id: offer?.orderId || offerId || ('ord_' + Date.now()),
-              orderNumber: offer?.orderNumber ? String(offer.orderNumber) : ('#' + Math.floor(100 + Math.random() * 900)),
-              customerName: offer?.customerName || 'Cliente',
-              customerPhone: offer?.customerPhone || '(11) 99999-9999',
-              customerAddress: offer?.deliveryAddress || offer?.customerAddress || 'Endereço da Entrega',
-              customerNeighborhood: offer?.customerNeighborhood || offer?.region || 'Bairro',
-              customerCity: offer?.customerCity || 'São Paulo',
-              itemsSummary: offer?.itemsSummary || '1x Pedido Delivery',
-              total: offer?.total
-            }];
-
-        const createdAssignments: Assignment[] = [];
-
-        offerOrders.forEach((ord: any, idx: number) => {
-          const ordId = ord.id || ord.orderId || ('ord_' + idx + '_' + Date.now());
-          const asgId = 'asg_' + ordId;
-          const feePerOrder = (offer?.deliveryFee !== undefined && offer?.deliveryFee !== null)
-            ? Number(offer.deliveryFee) / offerOrders.length
-            : ((offer?.feeOffered !== undefined && offer?.feeOffered !== null) ? Number(offer.feeOffered) / offerOrders.length : 12.00);
-
-          const newAsg: Assignment = {
-            assignmentId: asgId,
-            orderId: ordId,
-            orderNumber: ord.orderNumber ? String(ord.orderNumber) : ('#' + Math.floor(100 + Math.random() * 900)),
-            storeId: offer?.storeId || this.session?.storeId || 'store_bella_pizza',
-            storeName: offer?.storeName || this.session?.storeName || 'Bella Pizza',
-            driverId: this.session?.driverId || this.account?.id || offer?.targetDriverId || offer?.driverId,
-            driverName: this.session?.driverName || this.account?.name || offer?.driverName,
-            customerName: ord.customerName || 'Cliente',
-            customerPhone: ord.customerPhone || '(11) 99999-9999',
-            address: ord.customerAddress || ord.address || 'Endereço da Entrega',
-            addressNumber: ord.addressNumber || 'S/N',
-            neighborhood: ord.customerNeighborhood || ord.region || 'Bairro',
-            city: ord.customerCity || 'São Paulo',
-            deliveryFee: feePerOrder,
-            itemsSummary: ord.itemsSummary || '1x Pedido Delivery',
-            status: 'waiting_pickup',
-            sequence: idx + 1,
-            acceptedAt: new Date().toISOString()
-          };
-
-          const existingIdx = cloudState.assignments.findIndex((a: any) =>
-            a.assignmentId === newAsg.assignmentId || a.orderId === newAsg.orderId
-          );
-          if (existingIdx >= 0) {
-            cloudState.assignments[existingIdx] = newAsg;
-          } else {
-            cloudState.assignments.unshift(newAsg);
-          }
-          createdAssignments.push(newAsg);
-        });
-
-        // Marca como atribuída em cloudState.offers
-        cloudState.offers = cloudState.offers.map((o: any) => {
-          if (
-            (offerId && (o.offerId === offerId || o.id === offerId || o.orderId === offerId)) ||
-            (offer && (o.id === offer.id || o.orderId === offer.orderId))
-          ) {
-            return { ...o, status: 'atribuida', driverId: this.session?.driverId, driverName: this.session?.driverName };
-          }
-          return o;
-        });
-
+      const offer = cloudState.offers[offerIdx];
+      if (decision === 'rejected') {
+        if (!Array.isArray(offer.rejectedByDriverIds)) offer.rejectedByDriverIds = [];
+        offer.rejectedByDriverIds.push(this.session.driverId);
         await saveCloudLogistics(cloudState);
-
-        // ATUALIZA STATUS NOS PEDIDOS DA LOJA: Aceito — Aguardando Retirada!
-        try {
-          const cloudOrders = await fetchCloudOrders();
-          let ordersChanged = false;
-          const orderIdSet = new Set(offerOrders.map((o: any) => String(o.id || o.orderId)));
-          const orderNumberSet = new Set(offerOrders.map((o: any) => String(o.orderNumber).replace('#', '')));
-
-          cloudOrders.forEach((ord: any) => {
-            const idMatch = orderIdSet.has(String(ord.id));
-            const numMatch = orderNumberSet.has(String(ord.orderNumber));
-            if (idMatch || numMatch) {
-              ord.dispatchStatus = 'aceito_aguardando_retirada';
-              ord.driverName = this.session?.driverName || 'Motoboy';
-              ord.assignedDriverName = this.session?.driverName || 'Motoboy';
-              ord.acceptedAt = new Date().toISOString();
-              ordersChanged = true;
-            }
-          });
-          if (ordersChanged) {
-            await saveCloudOrders(cloudOrders);
-          }
-        } catch (e) {
-          console.warn('[respondOffer] Erro ao atualizar status do pedido na loja:', e);
-        }
-
-        return { success: true, assignment: createdAssignments[0] };
-      } else {
-        if (offer) {
-          offer.status = 'recusada';
-        }
-        cloudState.offers = cloudState.offers.map((o: any) => {
-          if (
-            (offerId && (o.offerId === offerId || o.id === offerId || o.orderId === offerId)) ||
-            (offer && (o.id === offer.id || o.orderId === offer.orderId))
-          ) {
-            return { ...o, status: 'recusada' };
-          }
-          return o;
-        });
-        await saveCloudLogistics(cloudState);
-
-        // Devolve pedidos para 'disponivel' na loja
-        try {
-          const cloudOrders = await fetchCloudOrders();
-          let ordersChanged = false;
-          const offerOrderIds = new Set(
-            Array.isArray(offer?.orders)
-              ? offer.orders.map((o: any) => String(o.id || o.orderId))
-              : [String(offer?.orderId || offerId)]
-          );
-
-          cloudOrders.forEach((ord: any) => {
-            if (offerOrderIds.has(String(ord.id)) || offerOrderIds.has(String(ord.orderNumber))) {
-              ord.dispatchStatus = 'disponivel';
-              ord.assignedDriverName = null;
-              ord.driverName = null;
-              ordersChanged = true;
-            }
-          });
-          if (ordersChanged) {
-            await saveCloudOrders(cloudOrders);
-          }
-        } catch {}
-
         return { success: true };
       }
-    } catch (err: any) {
-      throw new Error(err.message || 'Erro ao responder oferta.');
+
+      // Aceite da oferta
+      if (offer.status === 'atribuida') {
+        throw new Error('Esta oferta já foi aceita por outro motoboy.');
+      }
+
+      offer.status = 'atribuida';
+      offer.acceptedByDriverId = this.session.driverId;
+      offer.driverId = this.session.driverId;
+      offer.driverName = this.session.driverName;
+
+      const newAssignment: any = {
+        id: 'asg_' + (offer.orderId || offer.id || Date.now()),
+        assignmentId: 'asg_' + (offer.orderId || offer.id || Date.now()),
+        orderId: offer.orderId || (offer.orders ? offer.orders[0]?.id : offer.id),
+        orderNumber: offer.orderNumber || '#000',
+        storeId: offer.storeId || this.session.storeId,
+        storeName: offer.storeName || this.session.storeName,
+        driverId: this.session.driverId,
+        driverName: this.session.driverName,
+        customerName: offer.customerName || 'Cliente',
+        customerPhone: offer.customerPhone || '',
+        address: offer.deliveryAddress || offer.customerAddress || 'Endereço',
+        addressNumber: 'S/N',
+        neighborhood: offer.customerNeighborhood || 'Centro',
+        city: offer.customerCity || 'Canoas',
+        feeOffered: offer.deliveryFee || 12,
+        deliveryFee: offer.deliveryFee || 12,
+        itemsSummary: offer.itemsSummary || '1x Pedido Delivery',
+        status: 'waiting_pickup',
+        sequence: 1,
+        acceptedAt: new Date().toISOString()
+      };
+
+      if (!Array.isArray(cloudState.assignments)) cloudState.assignments = [];
+      cloudState.assignments.unshift(newAssignment);
+      await saveCloudLogistics(cloudState);
+
+      return { success: true, assignment: newAssignment };
+    } catch (e: any) {
+      throw e;
     }
   }
 
@@ -976,54 +745,50 @@ class ApiClient {
       return [];
     }
 
-    const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
-    if (!isLocalhost) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/assignments`, {
-          headers: { Authorization: `Bearer ${this.session.token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return Array.isArray(data) ? data : data.assignments || [];
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/assignments?driverId=${encodeURIComponent(
+          this.session.driverId
+        )}&membershipId=${encodeURIComponent(this.session.membershipId)}`,
+        {
+          headers: this.getAuthHeaders()
         }
-      } catch {}
-    }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : data.assignments || [];
+      }
+    } catch {}
 
-    // Busca na Nuvem Supabase
+    // Fallback Nuvem Supabase
     try {
       const cloudState = await fetchCloudLogistics();
       const currentDriverId = this.session?.driverId || this.account?.id;
+      const currentMembershipId = this.session?.membershipId;
       const currentDriverName = this.session?.driverName || this.account?.name;
+      const currentPhone = this.account?.phone || this.session?.phone;
 
-      return cloudState.assignments
-        .filter((a: any) =>
-          (!a.driverId || a.driverId === currentDriverId || a.driverName === currentDriverName) &&
-          a.status !== 'delivered' && a.status !== 'entregue' && a.status !== 'canceled_by_store'
-        )
-        .map((a: any, idx: number) => ({
-          assignmentId: a.assignmentId || a.id || ('asg_' + idx),
-          orderId: a.orderId || ('ord_' + idx),
-          orderNumber: a.orderNumber ? String(a.orderNumber) : ('#' + (100 + idx)),
-          storeId: a.storeId || this.session?.storeId,
-          storeName: a.storeName || this.session?.storeName,
-          customerName: a.customerName || 'Cliente',
-          customerPhone: a.customerPhone,
-          address: a.address || a.deliveryAddress || 'Endereço',
-          addressNumber: a.addressNumber || 'S/N',
-          neighborhood: a.neighborhood || a.customerNeighborhood || a.region || 'Bairro',
-          city: a.city || a.customerCity || 'São Paulo',
-          deliveryFee: (a.deliveryFee !== undefined && a.deliveryFee !== null) ? Number(a.deliveryFee) : ((a.feeOffered !== undefined && a.feeOffered !== null) ? Number(a.feeOffered) : 12.00),
-          itemsSummary: a.itemsSummary || '1x Pedido Delivery',
-          status: (a.status === 'in_transit' || a.status === 'picked_up' || a.status === 'waiting_pickup') ? a.status : 'waiting_pickup',
-          sequence: a.sequence || (idx + 1),
-          acceptedAt: a.acceptedAt || new Date().toISOString()
-        }));
+      const myAsgs = (cloudState.assignments || []).filter((a: any) =>
+        (!a.driverId ||
+          a.driverId === currentDriverId ||
+          a.driverId === currentMembershipId ||
+          a.driverId === currentPhone ||
+          a.driverName === currentDriverName ||
+          a.driverName === currentPhone) &&
+        a.status !== 'entregue' &&
+        a.status !== 'delivered' &&
+        a.status !== 'canceled_by_store' &&
+        a.status !== 'canceled_by_driver'
+      );
+      return myAsgs;
     } catch {}
 
     return [];
   }
 
-  public async confirmPickup(assignmentIds: string[]): Promise<{ confirmed: string[]; errors: Record<string, string> }> {
+  public async confirmPickup(
+    assignmentIds: string[]
+  ): Promise<{ confirmed: string[]; errors: Record<string, string> }> {
     const isOnline = offlineQueue.getIsOnline();
 
     if (!isOnline) {
@@ -1035,44 +800,112 @@ class ApiClient {
       throw new Error('Sessão inválida.');
     }
 
-    // Atualiza na Nuvem Supabase
+    // 1. Tenta API Central da Loja
     try {
-      const cloudState = await fetchCloudLogistics();
-      const pickedOrderIds: string[] = [];
+      const res = await fetch(`${API_BASE_URL}/pickup-confirm`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          assignmentIds,
+          driverId: this.session.driverId,
+          membershipId: this.session.membershipId,
+          storeId: this.session.storeId
+        })
+      });
 
-      for (const id of assignmentIds) {
-        const asg = cloudState.assignments.find((a: any) => a.assignmentId === id || a.id === id);
-        if (asg) {
-          asg.status = 'picked_up';
-          asg.pickupConfirmedAt = new Date().toISOString();
-          if (asg.orderId) pickedOrderIds.push(asg.orderId);
-        }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        return {
+          confirmed: data.confirmed || assignmentIds,
+          errors: data.errors || {}
+        };
       }
-      await saveCloudLogistics(cloudState);
+    } catch (err: any) {
+      console.warn('[Logistics API] Falha na rota local de pickup-confirm, acionando fallback de nuvem:', err?.message);
+    }
 
-      // ATUALIZA OS PEDIDOS CORRESPONDENTES NA LOJA PARA: "em_entrega"
-      try {
-        const cloudOrders = await fetchCloudOrders();
-        let ordersChanged = false;
-        const pickedSet = new Set(pickedOrderIds.map(String));
-        cloudOrders.forEach((ord: any) => {
-          if (pickedSet.has(String(ord.id)) || pickedSet.has(String(ord.orderNumber))) {
-            ord.status = 'em_entrega';
-            ord.dispatchStatus = 'em_entrega';
-            ord.pickedUpAt = new Date().toISOString();
-            ord.driverName = this.session?.driverName;
-            ordersChanged = true;
+    // 2. Fallback de Alta Disponibilidade: Gravação direta na Nuvem Supabase Storage
+    try {
+      const nowISO = new Date().toISOString();
+      const cloudState = await fetchCloudLogistics();
+      const targetSet = new Set(assignmentIds.map((id) => String(id).replace('#', '')));
+      const confirmed: string[] = [];
+
+      if (Array.isArray(cloudState.assignments)) {
+        cloudState.assignments.forEach((a: any) => {
+          const aId = String(a.id || '');
+          const aAsgId = String(a.assignmentId || '');
+          const aOrdId = String(a.orderId || '');
+          const aOrdNum = String(a.orderNumber || '').replace('#', '');
+          if (
+            targetSet.has(aId) ||
+            targetSet.has(aAsgId) ||
+            targetSet.has(aOrdId) ||
+            targetSet.has(aOrdNum) ||
+            assignmentIds.includes(a.id) ||
+            assignmentIds.includes(a.assignmentId)
+          ) {
+            a.status = 'picked_up';
+            a.pickedUpAt = nowISO;
+            a.pickupConfirmedAt = nowISO;
+            confirmed.push(a.assignmentId || a.id);
           }
         });
-        if (ordersChanged) {
-          await saveCloudOrders(cloudOrders);
-        }
-      } catch (errOrders) {
-        console.warn('[confirmPickup] Erro ao sincronizar pedidos com a loja:', errOrders);
       }
-    } catch {}
 
-    return { confirmed: assignmentIds, errors: {} };
+      await saveCloudLogistics(cloudState);
+
+      // Sincroniza também no orders.json do Supabase Storage
+      try {
+        const ordersRes = await fetch(
+          `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/orders.json?t=${Date.now()}`
+        );
+        if (ordersRes.ok) {
+          const orders = await ordersRes.json();
+          if (Array.isArray(orders)) {
+            let changed = false;
+            orders.forEach((o: any) => {
+              const oId = String(o.id || '');
+              const oNum = String(o.orderNumber || '').replace('#', '');
+              if (targetSet.has(oId) || targetSet.has(oNum)) {
+                o.status = 'em_entrega';
+                o.dispatchStatus = 'em_entrega';
+                o.pickedUpAt = nowISO;
+                o.driverId = this.session?.driverId;
+                o.driverName = this.session?.driverName;
+                o.assignedDriverName = this.session?.driverName;
+                changed = true;
+              }
+            });
+            if (changed) {
+              await fetch(
+                `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/orders.json`,
+                {
+                  method: 'POST',
+                  headers: {
+                    apikey: SUPABASE_ANON_KEY,
+                    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                    'Content-Type': 'application/json',
+                    'x-upsert': 'true'
+                  },
+                  body: JSON.stringify(orders)
+                }
+              );
+            }
+          }
+        }
+      } catch (orderErr) {
+        console.warn('Erro ao atualizar orders.json via fallback:', orderErr);
+      }
+
+      return {
+        confirmed: confirmed.length > 0 ? confirmed : assignmentIds,
+        errors: {}
+      };
+    } catch (e: any) {
+      console.error('Erro no fallback de confirmação de retirada:', e);
+      throw new Error(e?.message || 'Erro ao confirmar retirada na loja.');
+    }
   }
 
   public async getCurrentRoute(): Promise<RouteStop[]> {
@@ -1080,39 +913,27 @@ class ApiClient {
       return [];
     }
 
-    const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
-    if (!isLocalhost) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/route-current`, {
-          headers: { Authorization: `Bearer ${this.session.token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return Array.isArray(data) ? data : data.stops || [];
-        }
-      } catch {}
-    }
-
-    // Monta rota a partir das entregas em aberto na Nuvem
     try {
-      const assignments = await this.getAssignments();
-      return assignments.map((a, idx) => ({
-        assignmentId: a.assignmentId,
-        orderNumber: a.orderNumber,
-        sequence: idx + 1,
-        customerName: a.customerName || 'Cliente',
-        address: a.address,
-        neighborhood: a.neighborhood || 'Bairro',
-        status: a.status,
-        isCurrent: idx === 0,
-        deliveryFee: a.deliveryFee
-      }));
+      const res = await fetch(
+        `${API_BASE_URL}/route-current?driverId=${encodeURIComponent(
+          this.session.driverId
+        )}&membershipId=${encodeURIComponent(this.session.membershipId)}`,
+        {
+          headers: this.getAuthHeaders()
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : data.stops || [];
+      }
     } catch {}
 
     return [];
   }
 
-  public async reorderRoute(stops: { assignmentId: string; sequence: number }[]): Promise<boolean> {
+  public async reorderRoute(
+    stops: { assignmentId: string; sequence: number }[]
+  ): Promise<boolean> {
     const isOnline = offlineQueue.getIsOnline();
 
     if (!isOnline) {
@@ -1122,22 +943,20 @@ class ApiClient {
 
     if (!this.session) return false;
 
-    const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
-    if (!isLocalhost) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/route-reorder`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.session.token}`
-          },
-          body: JSON.stringify({ stops })
-        });
-        return res.ok;
-      } catch {}
+    try {
+      const res = await fetch(`${API_BASE_URL}/route-reorder`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          stops,
+          driverId: this.session.driverId,
+          membershipId: this.session.membershipId
+        })
+      });
+      return res.ok;
+    } catch {
+      return false;
     }
-
-    return true;
   }
 
   public async confirmDelivery(
@@ -1150,14 +969,20 @@ class ApiClient {
     const isOnline = offlineQueue.getIsOnline();
 
     if (!isOnline) {
-      offlineQueue.enqueue('delivery_confirm', { assignmentId, pinCandidate, isForced, forcedReason });
+      offlineQueue.enqueue('delivery_confirm', {
+        assignmentId,
+        pinCandidate,
+        isForced,
+        forcedReason
+      });
       if (this.session) {
         this.recordDeliveryInLedger(this.session.storeId, deliveryFee || 0);
       }
       return {
         success: true,
         isOfflinePending: true,
-        message: 'Entrega gravada no aparelho. Pendente de validação online com a loja ao reconectar.'
+        message:
+          'Entrega gravada no aparelho. Pendente de validação online com a loja ao reconectar.'
       };
     }
 
@@ -1165,128 +990,165 @@ class ApiClient {
       throw new Error('Sessão expirada. Faça nova ativação.');
     }
 
-    // Sincroniza e valida na Nuvem Supabase
-    let matchedOrderId: string | null = null;
-    let matchedOrderNumber: string | null = null;
+    // 1. Tenta API Central da Loja
     try {
-      const [cloudState, cloudOrders] = await Promise.all([
-        fetchCloudLogistics(),
-        fetchCloudOrders()
-      ]);
-
-      const assignment = cloudState.assignments.find((a: any) => a.assignmentId === assignmentId || a.id === assignmentId);
-      
-      const ordIdTarget = assignment?.orderId ? String(assignment.orderId) : null;
-      const ordNumTarget = assignment?.orderNumber ? String(assignment.orderNumber).replace(/\D/g, '') : null;
-
-      const matchingOrder = cloudOrders.find((ord: any) => {
-        const idMatch = ordIdTarget && String(ord.id) === ordIdTarget;
-        const numMatch = ordNumTarget && String(ord.orderNumber).replace(/\D/g, '') === ordNumTarget;
-        return idMatch || numMatch;
+      const res = await fetch(`${API_BASE_URL}/delivery-confirm`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          assignmentId,
+          pinCandidate,
+          isForced,
+          forcedReason,
+          driverId: this.session.driverId,
+          membershipId: this.session.membershipId,
+          storeId: this.session.storeId
+        })
       });
 
-      // VALIDAÇÃO RIGOROSA DO CÓDIGO (SE NÃO FOR FORÇADO)
-      if (!isForced) {
-        const cleanPin = String(pinCandidate || '').trim();
-        const validCodes = new Set<string>();
-
-        // 1. PIN de entrega oficial do pedido
-        if (matchingOrder?.deliveryPin) {
-          validCodes.add(String(matchingOrder.deliveryPin).trim());
-        }
-        if (assignment?.pinCode) {
-          validCodes.add(String(assignment.pinCode).trim());
-        }
-
-        // 2. 4 últimos dígitos do celular do cliente
-        const customerPhone = String(matchingOrder?.phone || assignment?.customerPhone || '').replace(/\D/g, '');
-        if (customerPhone.length >= 4) {
-          validCodes.add(customerPhone.slice(-4));
-        }
-
-        // 3. Número do pedido (ex: pedido #1042 -> 1042)
-        const orderDigits = String(matchingOrder?.orderNumber || assignment?.orderNumber || '').replace(/\D/g, '');
-        if (orderDigits.length >= 2) {
-          validCodes.add(orderDigits);
-        }
-
-        // Se houver códigos válidos cadastrados, exige correspondência exata
-        if (validCodes.size > 0 && !validCodes.has(cleanPin)) {
-          throw new Error('Código incorreto! Peça o PIN do app, os 4 últimos números do celular do cliente ou o número do pedido.');
-        }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        this.recordDeliveryInLedger(this.session.storeId, deliveryFee || 0);
+        return {
+          success: true,
+          message: data.message || 'Entrega confirmada com sucesso!'
+        };
       }
 
-      const nowISO = new Date().toISOString();
-
-      if (assignment) {
-        assignment.status = 'entregue';
-        assignment.deliveredAt = nowISO;
-        if (isForced) {
-          assignment.forcedDelivery = true;
-          assignment.forcedDeliveryReason = forcedReason || 'Confirmado sob termo de responsabilidade pelo motoboy';
-          assignment.forcedByDriverName = this.session?.driverName;
-          assignment.forcedAt = nowISO;
-        }
-        matchedOrderId = assignment.orderId ? String(assignment.orderId) : null;
-        matchedOrderNumber = assignment.orderNumber ? String(assignment.orderNumber).replace('#', '') : null;
-        await saveCloudLogistics(cloudState);
-      }
-
-      // ATUALIZA O PEDIDO CORRESPONDENTE NA LOJA PARA "concluido" / "Finalizado/Entregue"!
-      if (matchingOrder || matchedOrderId || matchedOrderNumber) {
-        let orderUpdated = false;
-        cloudOrders.forEach((ord: any) => {
-          const idMatch = (matchedOrderId && String(ord.id) === matchedOrderId) || (matchingOrder && ord.id === matchingOrder.id);
-          const numMatch = (matchedOrderNumber && String(ord.orderNumber).replace('#', '') === matchedOrderNumber) || (matchingOrder && ord.orderNumber === matchingOrder.orderNumber);
-          if (idMatch || numMatch) {
-            ord.status = 'concluido';
-            ord.dispatchStatus = 'entregue';
-            ord.deliveredAt = nowISO;
-            ord.driverName = this.session?.driverName;
-            if (isForced) {
-              ord.forcedDelivery = true;
-              ord.forcedDeliveryReason = forcedReason || 'Confirmado sob termo de responsabilidade pelo motoboy';
-              ord.forcedByDriverName = this.session?.driverName;
-              ord.forcedAt = nowISO;
-            }
-            orderUpdated = true;
-          }
-        });
-        if (orderUpdated) {
-          await saveCloudOrders(cloudOrders);
-        }
+      if (res.status === 422) {
+        throw new Error(
+          data.error ||
+            'Código incorreto! Digite o PIN de 4 dígitos, os 4 últimos do celular ou o número do pedido.'
+        );
       }
     } catch (err: any) {
-      if (err.message && (err.message.includes('Código incorreto') || err.message.includes('PIN incorreto'))) {
+      if (err.message && err.message.includes('Código incorreto')) {
         throw err;
       }
-      console.warn('[confirmDelivery] Aviso durante sincronização:', err);
+      console.warn('[Logistics API] Falha na rota local de delivery-confirm, acionando fallback Supabase:', err?.message);
     }
 
-    // Tenta API se não for localhost
-    const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
-    if (!isLocalhost) {
+    // 2. Fallback de Alta Disponibilidade: Validação e gravação direta na Nuvem Supabase
+    try {
+      const nowISO = new Date().toISOString();
+      const cloudState = await fetchCloudLogistics();
+      const targetAsg = (cloudState.assignments || []).find(
+        (a: any) =>
+          a.id === assignmentId ||
+          a.assignmentId === assignmentId ||
+          (a.orderId && String(a.orderId) === String(assignmentId))
+      );
+
+      // Validação de PIN no fallback
+      if (!isForced) {
+        const clean = String(pinCandidate || '').trim();
+        const validCodes = new Set<string>();
+
+        if (targetAsg?.deliveryPin) validCodes.add(String(targetAsg.deliveryPin).trim());
+        if (targetAsg?.pinCode) validCodes.add(String(targetAsg.pinCode).trim());
+
+        const phone = String(targetAsg?.customerPhone || '').replace(/\D/g, '');
+        if (phone.length >= 4) validCodes.add(phone.slice(-4));
+
+        const orderNum = String(targetAsg?.orderNumber || '').replace(/\D/g, '');
+        if (orderNum.length >= 2) {
+          validCodes.add(orderNum);
+          if (orderNum.length >= 4) validCodes.add(orderNum.slice(-4));
+        }
+
+        // Tenta também consultar orders.json para pegar o deliveryPin original
+        try {
+          const ordersRes = await fetch(
+            `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/orders.json?t=${Date.now()}`
+          );
+          if (ordersRes.ok) {
+            const orders = await ordersRes.json();
+            const ord = orders.find(
+              (o: any) =>
+                String(o.id) === String(targetAsg?.orderId || assignmentId) ||
+                String(o.orderNumber).replace(/\D/g, '') === orderNum
+            );
+            if (ord) {
+              if (ord.deliveryPin) validCodes.add(String(ord.deliveryPin).trim());
+              const ordPhone = String(ord.phone || '').replace(/\D/g, '');
+              if (ordPhone.length >= 4) validCodes.add(ordPhone.slice(-4));
+              if (ord.orderNumber) validCodes.add(String(ord.orderNumber).replace(/\D/g, ''));
+            }
+          }
+        } catch {}
+
+        if (validCodes.size > 0 && !validCodes.has(clean)) {
+          throw new Error(
+            'Código incorreto! Digite o PIN de 4 dígitos, os 4 últimos números do celular ou o número do pedido.'
+          );
+        }
+      }
+
+      // Atualiza assignment no cloudState
+      if (targetAsg) {
+        targetAsg.status = 'entregue';
+        targetAsg.deliveredAt = nowISO;
+        if (isForced) {
+          targetAsg.forcedDelivery = true;
+          targetAsg.forcedDeliveryReason =
+            forcedReason || 'Confirmado sob termo de responsabilidade pelo motoboy';
+        }
+      }
+      await saveCloudLogistics(cloudState);
+
+      // Atualiza orders.json
       try {
-        await fetch(`${API_BASE_URL}/delivery-confirm`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.session.token}`
-          },
-          body: JSON.stringify({ assignmentId, pinCandidate })
-        });
+        const ordersRes = await fetch(
+          `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/orders.json?t=${Date.now()}`
+        );
+        if (ordersRes.ok) {
+          const orders = await ordersRes.json();
+          let changed = false;
+          orders.forEach((o: any) => {
+            if (
+              String(o.id) === String(targetAsg?.orderId || assignmentId) ||
+              String(o.orderNumber).replace(/\D/g, '') ===
+                String(targetAsg?.orderNumber || '').replace(/\D/g, '')
+            ) {
+              o.status = 'concluido';
+              o.dispatchStatus = 'concluido';
+              o.deliveredAt = nowISO;
+              changed = true;
+            }
+          });
+          if (changed) {
+            await fetch(
+              `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/orders.json`,
+              {
+                method: 'POST',
+                headers: {
+                  apikey: SUPABASE_ANON_KEY,
+                  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                  'Content-Type': 'application/json',
+                  'x-upsert': 'true'
+                },
+                body: JSON.stringify(orders)
+              }
+            );
+          }
+        }
       } catch {}
+
+      this.recordDeliveryInLedger(this.session.storeId, deliveryFee || 0);
+
+      return {
+        success: true,
+        message: 'Entrega confirmada com sucesso!'
+      };
+    } catch (e: any) {
+      throw e;
     }
-
-    this.recordDeliveryInLedger(this.session.storeId, deliveryFee || 0);
-
-    return {
-      success: true,
-      message: 'Entrega confirmada com sucesso!'
-    };
   }
 
-  public async requestWithdrawal(assignmentId: string, reason: string): Promise<{ success: boolean; message: string }> {
+  public async requestWithdrawal(
+    assignmentId: string,
+    reason: string
+  ): Promise<{ success: boolean; message: string }> {
     const isOnline = offlineQueue.getIsOnline();
 
     if (!isOnline) {
@@ -1296,7 +1158,8 @@ class ApiClient {
       }
       return {
         success: true,
-        message: 'Solicitação registrada offline. O pedido continua sob sua responsabilidade até a aprovação da loja.'
+        message:
+          'Solicitação registrada offline. O pedido continua sob sua responsabilidade até a aprovação da loja.'
       };
     }
 
@@ -1306,18 +1169,20 @@ class ApiClient {
 
     const res = await fetch(`${API_BASE_URL}/assignment-withdraw`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.session.token}`
-      },
-      body: JSON.stringify({ assignmentId, reason })
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({
+        assignmentId,
+        reason,
+        driverId: this.session.driverId,
+        membershipId: this.session.membershipId
+      })
     });
 
     if (!res.ok) {
       let errMsg = 'Erro ao enviar desistência.';
       try {
         const errData = await res.json();
-        errMsg = errData.message || errMsg;
+        errMsg = errData.error || errData.message || errMsg;
       } catch {}
       throw new Error(errMsg);
     }
@@ -1326,59 +1191,38 @@ class ApiClient {
     return await res.json();
   }
 
-  public async getHistory(): Promise<{ items: DeliveryHistoryItem[]; totalEarnings: number; hasUninformedFees: boolean }> {
-    if (!this.session) {
+  public async getHistory(): Promise<{
+    items: DeliveryHistoryItem[];
+    totalEarnings: number;
+    hasUninformedFees: boolean;
+  }> {
+    if (!this.session || !offlineQueue.getIsOnline()) {
       return { items: [], totalEarnings: 0, hasUninformedFees: false };
     }
 
-    const isLocalhost = API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1');
-    if (!isLocalhost && offlineQueue.getIsOnline()) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/history`, {
-          headers: { Authorization: `Bearer ${this.session.token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const items: DeliveryHistoryItem[] = Array.isArray(data) ? data : data.items || [];
-          let total = 0;
-          let hasUninformed = false;
-          for (const it of items) {
-            if (it.deliveryFee !== null && it.deliveryFee !== undefined) {
-              total += it.deliveryFee;
-            } else {
-              hasUninformed = true;
-            }
-          }
-          return { items, totalEarnings: total, hasUninformedFees: hasUninformed };
-        }
-      } catch {}
-    }
-
-    // Busca na Nuvem Supabase Storage
     try {
-      const cloudState = await fetchCloudLogistics();
-      const currentDriverId = this.session?.driverId || this.account?.id;
-      const currentDriverName = this.session?.driverName || this.account?.name;
-
-      const delivered = cloudState.assignments.filter((a: any) =>
-        (!a.driverId || a.driverId === currentDriverId || a.driverName === currentDriverName) &&
-        (a.status === 'entregue' || a.status === 'delivered')
+      const res = await fetch(
+        `${API_BASE_URL}/history?driverId=${encodeURIComponent(
+          this.session.driverId
+        )}&membershipId=${encodeURIComponent(this.session.membershipId)}`,
+        {
+          headers: this.getAuthHeaders()
+        }
       );
-      let total = 0;
-      const items: DeliveryHistoryItem[] = delivered.map((d: any) => {
-        const fee = d.feeOffered || d.deliveryFee || 0;
-        total += fee;
-        return {
-          id: d.id,
-          orderId: d.orderId,
-          orderNumber: d.orderNumber,
-          customerName: d.customerName || 'Cliente',
-          deliveryAddress: d.address || 'Endereço',
-          deliveryFee: fee,
-          deliveredAt: d.deliveredAt || new Date().toISOString()
-        } as any;
-      });
-      return { items, totalEarnings: total, hasUninformedFees: false };
+      if (res.ok) {
+        const data = await res.json();
+        const items: DeliveryHistoryItem[] = Array.isArray(data) ? data : data.items || [];
+        let total = 0;
+        let hasUninformed = false;
+        for (const it of items) {
+          if (it.deliveryFee !== null && it.deliveryFee !== undefined) {
+            total += it.deliveryFee;
+          } else {
+            hasUninformed = true;
+          }
+        }
+        return { items, totalEarnings: total, hasUninformedFees: hasUninformed };
+      }
     } catch {}
 
     return { items: [], totalEarnings: 0, hasUninformedFees: false };
@@ -1396,7 +1240,7 @@ class ApiClient {
 
     try {
       const res = await fetch(`${API_BASE_URL}/ratings`, {
-        headers: { Authorization: `Bearer ${this.session.token}` }
+        headers: this.getAuthHeaders()
       });
       if (res.ok) {
         return await res.json();
@@ -1426,37 +1270,25 @@ class ApiClient {
         if (cmd.action === 'delivery_confirm') {
           res = await fetch(`${API_BASE_URL}/delivery-confirm`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${this.session.token}`
-            },
+            headers: this.getAuthHeaders(),
             body: JSON.stringify(cmd.payload)
           });
         } else if (cmd.action === 'pickup_confirm') {
           res = await fetch(`${API_BASE_URL}/pickup-confirm`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${this.session.token}`
-            },
+            headers: this.getAuthHeaders(),
             body: JSON.stringify(cmd.payload)
           });
         } else if (cmd.action === 'route_reorder') {
           res = await fetch(`${API_BASE_URL}/route-reorder`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${this.session.token}`
-            },
+            headers: this.getAuthHeaders(),
             body: JSON.stringify(cmd.payload)
           });
         } else if (cmd.action === 'assignment_withdraw') {
           res = await fetch(`${API_BASE_URL}/assignment-withdraw`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${this.session.token}`
-            },
+            headers: this.getAuthHeaders(),
             body: JSON.stringify(cmd.payload)
           });
         }

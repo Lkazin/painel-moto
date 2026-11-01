@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   PackageCheck,
   Package,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Assignment } from '../types';
 import { audioAlert } from '../utils/audioAlert';
+import { trackingService } from '../services/trackingService';
 
 interface ScreenOrdersPickupProps {
   assignments: Assignment[];
@@ -32,10 +33,29 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'waiting' | 'picked'>('waiting');
 
-  const waitingPickup = assignments.filter((a) => a.status === 'waiting_pickup');
-  const pickedUp = assignments.filter(
-    (a) => a.status === 'picked_up' || a.status === 'in_transit'
+  const waitingPickup = assignments.filter(
+    (a) =>
+      a.status === 'waiting_pickup' ||
+      a.status === 'accepted' ||
+      (a as any).status === 'assigned' ||
+      (a as any).status === 'aceito' ||
+      (a as any).status === 'aguardando_retirada'
   );
+  const pickedUp = assignments.filter(
+    (a) =>
+      a.status === 'picked_up' ||
+      a.status === 'in_transit' ||
+      (a as any).status === 'em_rota'
+  );
+
+  // Auto-seleciona todos os pedidos no balcão por padrão para que o motoboy não precise clicar em caixas pequenas
+  useEffect(() => {
+    if (waitingPickup.length > 0) {
+      setSelectedIds(waitingPickup.map((a) => a.assignmentId || a.id || ''));
+    } else {
+      setSelectedIds([]);
+    }
+  }, [assignments]);
 
   const toggleSelect = (id: string) => {
     audioAlert.playClickSound();
@@ -51,21 +71,32 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
     if (selectedIds.length === waitingPickup.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(waitingPickup.map((a) => a.assignmentId));
+      setSelectedIds(waitingPickup.map((a) => a.assignmentId || a.id || ''));
     }
   };
 
   const handleConfirm = async () => {
-    if (selectedIds.length === 0 || isSubmitting) return;
+    const idsToConfirm =
+      selectedIds.length > 0 ? selectedIds : waitingPickup.map((a) => a.assignmentId || a.id || '');
+
+    if (idsToConfirm.length === 0 || isSubmitting) return;
     setIsSubmitting(true);
     audioAlert.playClickSound();
     try {
-      await onConfirmPickup(selectedIds);
+      await onConfirmPickup(idsToConfirm);
+      try {
+        trackingService.start(undefined, idsToConfirm[0]);
+      } catch (trackErr) {
+        console.warn('GPS tracking warning:', trackErr);
+      }
       audioAlert.playSuccessSound();
       setSelectedIds([]);
       setActiveTab('picked');
-    } catch (err) {
+      onNavigateToRoute();
+    } catch (err: any) {
+      console.error('Falha ao confirmar retirada:', err);
       audioAlert.playErrorSound();
+      alert(err?.message || 'Não foi possível confirmar a retirada na loja. Tente novamente.');
     } finally {
       setIsSubmitting(false);
     }
@@ -189,11 +220,12 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
               {/* Lista de Pedidos Aguardando Retirada */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {waitingPickup.map((item) => {
-                  const isSelected = selectedIds.includes(item.assignmentId);
+                  const itemId = item.assignmentId || item.id || '';
+                  const isSelected = selectedIds.includes(itemId);
                   return (
                     <div
-                      key={item.assignmentId}
-                      onClick={() => toggleSelect(item.assignmentId)}
+                      key={itemId}
+                      onClick={() => toggleSelect(itemId)}
                       className={`card-surface ${isSelected ? 'card-highlight' : ''}`}
                       style={{
                         cursor: 'pointer',
@@ -266,8 +298,9 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
               {/* Botão de Confirmação de Retirada no Balcão */}
               <div style={{ position: 'sticky', bottom: 'calc(var(--nav-height) + 10px)', zIndex: 30 }}>
                 <button
+                  type="button"
                   onClick={handleConfirm}
-                  disabled={selectedIds.length === 0 || isSubmitting}
+                  disabled={waitingPickup.length === 0 || isSubmitting}
                   className="btn-glove btn-glove-primary"
                   style={{ height: '62px', fontSize: '17px' }}
                 >
@@ -277,7 +310,7 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
                       ? 'Confirmando com a loja...'
                       : selectedIds.length > 0
                       ? `Confirmar Retirada (${selectedIds.length} selecionados)`
-                      : 'Selecione os pedidos para retirar'}
+                      : `Confirmar Retirada (${waitingPickup.length} pedidos)`}
                   </span>
                 </button>
               </div>
@@ -314,7 +347,7 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
               </div>
 
               {pickedUp.map((item, idx) => (
-                <div key={item.assignmentId} className="card-surface">
+                <div key={item.assignmentId || item.id} className="card-surface">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span

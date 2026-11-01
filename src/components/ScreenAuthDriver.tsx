@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import {
-  User,
   Phone,
   Lock,
   Bike,
-  CreditCard,
   ArrowRight,
-  UserPlus,
   LogIn,
   AlertCircle,
   Eye,
   EyeOff,
-  ShieldCheck
+  Shield,
+  FileText,
+  HelpCircle,
+  X
 } from 'lucide-react';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
@@ -22,40 +22,15 @@ interface ScreenAuthDriverProps {
 }
 
 export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSuccess }) => {
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-
-  // Campos de Login
+  // Campos de Login Único (sem criar conta)
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-
-  // Campos de Cadastro
-  const [regName, setRegName] = useState('');
-  const [regPhone, setRegPhone] = useState('');
-  const [regPlate, setRegPlate] = useState('');
-  const [regModel, setRegModel] = useState('');
-  const [regPassword, setRegPassword] = useState('');
-
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Formatação amigável de telefone brasileiro
-  const formatPhone = (val: string) => {
-    let digits = val.replace(/\D/g, '');
-    if (digits.length > 11) digits = digits.slice(0, 11);
-    if (digits.length > 10) {
-      return digits.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
-    } else if (digits.length > 6) {
-      return digits.replace(/^(\d{2})(\d{4})(\d{0,4})$/, '($1) $2-$3');
-    } else if (digits.length > 2) {
-      return digits.replace(/^(\d{2})(\d{0,5})$/, '($1) $2');
-    }
-    return digits;
-  };
-
-  const formatPlate = (val: string) => {
-    return val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
-  };
+  // Modais de Informações Legais / Rodapé
+  const [activeModal, setActiveModal] = useState<'privacy' | 'terms' | 'support' | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,167 +61,53 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!regName.trim() || regName.trim().length < 3) {
-      setErrorMessage('Informe seu nome completo.');
-      audioAlert.playErrorSound();
-      return;
-    }
-    if (regPhone.replace(/\D/g, '').length < 10) {
-      setErrorMessage('Informe um WhatsApp/celular válido com DDD.');
-      audioAlert.playErrorSound();
-      return;
-    }
-    if (!regPlate.trim() || regPlate.trim().length < 5) {
-      setErrorMessage('Informe a placa da sua moto/veículo (ex: BRA-2E19).');
-      audioAlert.playErrorSound();
-      return;
-    }
-    if (!regPassword || regPassword.length < 4) {
-      setErrorMessage('Crie uma senha de no mínimo 4 dígitos.');
-      audioAlert.playErrorSound();
-      return;
-    }
-
-    setLoading(true);
-    setErrorMessage(null);
-    audioAlert.playClickSound();
-
-    try {
-      const account = await api.registerDriver(
-        regName,
-        regPhone,
-        regPlate,
-        regModel || 'Moto Padrão',
-        regPassword
-      );
-      audioAlert.playSuccessSound();
-      onLoginSuccess(account);
-    } catch (err: any) {
-      audioAlert.playErrorSound();
-      setErrorMessage(err.message || 'Erro ao criar conta. Tente novamente.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div
       style={{
-        padding: '20px 16px',
+        padding: '24px 16px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '20px',
-        minHeight: '92vh',
-        justifyContent: 'center',
-        maxWidth: '460px',
-        margin: '0 auto'
+        gap: '22px',
+        maxWidth: '440px',
+        margin: '0 auto',
+        minHeight: '100vh',
+        justifyContent: 'space-between'
       }}
     >
-      {/* Brand Hero */}
-      <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-        <div
-          style={{
-            width: '80px',
-            height: '80px',
-            borderRadius: '24px',
-            background: 'linear-gradient(135deg, var(--nw-pink), var(--nw-purple))',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 8px 30px var(--nw-pink-glow)'
-          }}
-        >
-          <Bike size={44} color="#ffffff" strokeWidth={2.4} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+        {/* Cabeçalho */}
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', paddingTop: '12px' }}>
+          <div
+            style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '24px',
+              background: 'linear-gradient(135deg, var(--nw-pink), var(--nw-purple))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 8px 30px rgba(236, 72, 153, 0.45)',
+              marginBottom: '6px'
+            }}
+          >
+            <Bike size={46} color="#ffffff" strokeWidth={2.4} />
+          </div>
+
+          <h1 style={{ fontSize: '26px', fontWeight: 900, letterSpacing: '-0.5px', marginTop: '4px' }}>
+            NovaesWeb <span style={{ color: 'var(--nw-pink)' }}>Entregador</span>
+          </h1>
+
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '340px', lineHeight: 1.4 }}>
+            Acesse seu painel com seu usuário ou telefone cadastrado para receber entregas e vincular-se às lojas.
+          </p>
         </div>
 
-        <h1 style={{ fontSize: '26px', fontWeight: 900, letterSpacing: '-0.5px', marginTop: '4px' }}>
-          NovaesWeb <span style={{ color: 'var(--nw-pink)' }}>Entregador</span>
-        </h1>
-
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '340px', lineHeight: 1.4 }}>
-          Sua conta universal de entregador. Acesse com seus dados pessoais e conecte-se a qualquer pizzaria ou loja parceira.
-        </p>
-      </div>
-
-      {/* Seletor de Modo (Entrar vs Criar Conta) */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '6px',
-          background: 'var(--bg-card)',
-          padding: '5px',
-          borderRadius: '16px',
-          border: '1px solid var(--border-subtle)'
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => {
-            audioAlert.playClickSound();
-            setAuthMode('login');
-            setErrorMessage(null);
-          }}
-          style={{
-            height: '48px',
-            borderRadius: '12px',
-            border: 'none',
-            background: authMode === 'login' ? 'linear-gradient(135deg, var(--nw-pink), var(--nw-purple))' : 'transparent',
-            color: '#ffffff',
-            fontWeight: 800,
-            fontSize: '14px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            transition: 'all 0.2s ease',
-            boxShadow: authMode === 'login' ? '0 4px 15px rgba(236,72,153,0.35)' : 'none'
-          }}
-        >
-          <LogIn size={18} />
-          <span>Já Tenho Conta</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            audioAlert.playClickSound();
-            setAuthMode('register');
-            setErrorMessage(null);
-          }}
-          style={{
-            height: '48px',
-            borderRadius: '12px',
-            border: 'none',
-            background: authMode === 'register' ? 'linear-gradient(135deg, var(--nw-pink), var(--nw-purple))' : 'transparent',
-            color: '#ffffff',
-            fontWeight: 800,
-            fontSize: '14px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            transition: 'all 0.2s ease',
-            boxShadow: authMode === 'register' ? '0 4px 15px rgba(236,72,153,0.35)' : 'none'
-          }}
-        >
-          <UserPlus size={18} />
-          <span>Criar Conta</span>
-        </button>
-      </div>
-
-      {/* Formulário Principal */}
-      <div className="card-surface card-highlight" style={{ padding: '22px' }}>
-        {authMode === 'login' ? (
-          /* FLUXO DE LOGIN */
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* Formulário Principal de Login */}
+        <div className="card-surface card-highlight" style={{ padding: '24px' }}>
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#c084fc', marginBottom: '6px', textTransform: 'uppercase' }}>
-                Seu Telefone ou Usuário
+                Telefone ou Usuário
               </label>
               <div style={{ position: 'relative' }}>
                 <input
@@ -277,7 +138,7 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
 
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#c084fc', marginBottom: '6px', textTransform: 'uppercase' }}>
-                Sua Senha
+                Senha de Acesso
               </label>
               <div style={{ position: 'relative' }}>
                 <input
@@ -344,7 +205,7 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
               type="submit"
               disabled={loading}
               className="btn-glove btn-glove-accent"
-              style={{ marginTop: '6px', height: '62px', fontSize: '16px' }}
+              style={{ marginTop: '6px', height: '60px', fontSize: '16px' }}
             >
               {loading ? (
                 <span>Autenticando...</span>
@@ -357,220 +218,260 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
               )}
             </button>
           </form>
-        ) : (
-          /* FLUXO DE CADASTRO */
-          <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#c084fc', marginBottom: '4px', textTransform: 'uppercase' }}>
-                Nome Completo
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  value={regName}
-                  onChange={(e) => {
-                    setRegName(e.target.value);
-                    setErrorMessage(null);
-                  }}
-                  placeholder="Ex: Carlos Alberto Santos"
-                  autoFocus
-                  style={{
-                    width: '100%',
-                    height: '52px',
-                    padding: '0 14px 0 42px',
-                    background: 'var(--bg-app)',
-                    border: '1.5px solid var(--border-subtle)',
-                    borderRadius: '12px',
-                    color: '#ffffff',
-                    fontSize: '15px',
-                    fontWeight: 700,
-                    outline: 'none'
-                  }}
-                />
-                <User size={18} color="var(--nw-purple)" style={{ position: 'absolute', left: '14px', top: '17px' }} />
-              </div>
-            </div>
+        </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#c084fc', marginBottom: '4px', textTransform: 'uppercase' }}>
-                Celular / WhatsApp (com DDD)
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="tel"
-                  value={regPhone}
-                  onChange={(e) => {
-                    setRegPhone(formatPhone(e.target.value));
-                    setErrorMessage(null);
-                  }}
-                  placeholder="(11) 98765-4321"
-                  maxLength={15}
-                  style={{
-                    width: '100%',
-                    height: '52px',
-                    padding: '0 14px 0 42px',
-                    background: 'var(--bg-app)',
-                    border: '1.5px solid var(--border-subtle)',
-                    borderRadius: '12px',
-                    color: '#ffffff',
-                    fontSize: '15px',
-                    fontWeight: 700,
-                    outline: 'none'
-                  }}
-                />
-                <Phone size={18} color="var(--nw-purple)" style={{ position: 'absolute', left: '14px', top: '17px' }} />
-              </div>
-            </div>
+        <div style={{ textAlign: 'center', color: 'var(--text-subtle)', fontSize: '12px', lineHeight: 1.5 }}>
+          🔒 Conexão criptografada de ponta a ponta vinculada à Central NovaesWeb.
+        </div>
+      </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#c084fc', marginBottom: '4px', textTransform: 'uppercase' }}>
-                  Placa do Veículo
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    value={regPlate}
-                    onChange={(e) => {
-                      setRegPlate(formatPlate(e.target.value));
-                      setErrorMessage(null);
-                    }}
-                    placeholder="BRA-2E19"
-                    maxLength={8}
-                    style={{
-                      width: '100%',
-                      height: '52px',
-                      padding: '0 10px 0 38px',
-                      background: 'var(--bg-app)',
-                      border: '1.5px solid var(--border-subtle)',
-                      borderRadius: '12px',
-                      color: '#ffffff',
-                      fontSize: '14px',
-                      fontWeight: 800,
-                      outline: 'none',
-                      textTransform: 'uppercase'
-                    }}
-                  />
-                  <CreditCard size={16} color="var(--nw-purple)" style={{ position: 'absolute', left: '12px', top: '18px' }} />
-                </div>
-              </div>
+      {/* RODAPÉ OFICIAL NOVAESWEB */}
+      <footer
+        style={{
+          borderTop: '1px solid var(--border-subtle)',
+          paddingTop: '20px',
+          marginTop: '24px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '12px',
+          textAlign: 'center'
+        }}
+      >
+        {/* Links Rápidos: Política de Privacidade, Termos e Ajuda */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button
+            type="button"
+            onClick={() => setActiveModal('privacy')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#c084fc',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <Shield size={14} />
+            Política de Privacidade
+          </button>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#c084fc', marginBottom: '4px', textTransform: 'uppercase' }}>
-                  Modelo (Opcional)
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    value={regModel}
-                    onChange={(e) => setRegModel(e.target.value)}
-                    placeholder="Ex: CG 160"
-                    style={{
-                      width: '100%',
-                      height: '52px',
-                      padding: '0 10px 0 38px',
-                      background: 'var(--bg-app)',
-                      border: '1.5px solid var(--border-subtle)',
-                      borderRadius: '12px',
-                      color: '#ffffff',
-                      fontSize: '14px',
-                      fontWeight: 700,
-                      outline: 'none'
-                    }}
-                  />
-                  <Bike size={16} color="var(--nw-purple)" style={{ position: 'absolute', left: '12px', top: '18px' }} />
-                </div>
-              </div>
-            </div>
+          <span style={{ color: 'var(--border-subtle)', fontSize: '12px' }}>•</span>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#c084fc', marginBottom: '4px', textTransform: 'uppercase' }}>
-                Crie sua Senha de Acesso
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={regPassword}
-                  onChange={(e) => {
-                    setRegPassword(e.target.value);
-                    setErrorMessage(null);
-                  }}
-                  placeholder="Mínimo 4 dígitos"
-                  style={{
-                    width: '100%',
-                    height: '52px',
-                    padding: '0 44px 0 42px',
-                    background: 'var(--bg-app)',
-                    border: '1.5px solid var(--border-subtle)',
-                    borderRadius: '12px',
-                    color: '#ffffff',
-                    fontSize: '16px',
-                    fontWeight: 700,
-                    outline: 'none'
-                  }}
-                />
-                <Lock size={18} color="var(--nw-purple)" style={{ position: 'absolute', left: '14px', top: '17px' }} />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute',
-                    right: '12px',
-                    top: '15px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
+          <button
+            type="button"
+            onClick={() => setActiveModal('terms')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <FileText size={14} />
+            Termos de Uso
+          </button>
 
-            {errorMessage && (
-              <div
+          <span style={{ color: 'var(--border-subtle)', fontSize: '12px' }}>•</span>
+
+          <button
+            type="button"
+            onClick={() => setActiveModal('support')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <HelpCircle size={14} />
+            Ajuda / Suporte
+          </button>
+        </div>
+
+        {/* Informações da Plataforma */}
+        <div style={{ fontSize: '11px', color: 'var(--text-subtle)', lineHeight: 1.6 }}>
+          <p style={{ margin: 0, fontWeight: 700, color: 'var(--text-muted)' }}>
+            NovaesWeb Tecnologia & Logística Integrada
+          </p>
+          <p style={{ margin: 0 }}>
+            Todos os direitos reservados • Versão 2.4.0 (Build Seguro)
+          </p>
+          <p style={{ margin: '4px 0 0 0', opacity: 0.8 }}>
+            CNPJ & Infraestrutura Cloud em conformidade com a LGPD (Lei Nº 13.709/2018)
+          </p>
+        </div>
+      </footer>
+
+      {/* MODAL DE POLÍTICA DE PRIVACIDADE E TERMOS */}
+      {activeModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            zIndex: 9999
+          }}
+          onClick={() => setActiveModal(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: '20px',
+              maxWidth: '480px',
+              width: '100%',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.6)'
+            }}
+          >
+            {/* Header Modal */}
+            <div
+              style={{
+                padding: '16px 20px',
+                borderBottom: '1px solid var(--border-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'between',
+                width: '100%'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                {activeModal === 'privacy' && <Shield size={18} color="var(--nw-pink)" />}
+                {activeModal === 'terms' && <FileText size={18} color="var(--nw-pink)" />}
+                {activeModal === 'support' && <HelpCircle size={18} color="var(--nw-pink)" />}
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#ffffff' }}>
+                  {activeModal === 'privacy' && 'Política de Privacidade (LGPD)'}
+                  {activeModal === 'terms' && 'Termos de Uso do Entregador'}
+                  {activeModal === 'support' && 'Suporte e Atendimento NovaesWeb'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
                 style={{
-                  background: 'rgba(239, 68, 68, 0.15)',
-                  border: '1px solid var(--nw-red)',
-                  borderRadius: '12px',
-                  padding: '10px 12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  color: '#fca5a5',
-                  fontSize: '12px',
-                  fontWeight: 600
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px'
                 }}
               >
-                <AlertCircle size={18} color="var(--nw-red)" style={{ flexShrink: 0 }} />
-                <span>{errorMessage}</span>
-              </div>
-            )}
+                <X size={20} />
+              </button>
+            </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-glove btn-glove-accent"
-              style={{ marginTop: '4px', height: '62px', fontSize: '16px' }}
+            {/* Conteúdo Modal */}
+            <div
+              style={{
+                padding: '20px',
+                overflowY: 'auto',
+                fontSize: '13px',
+                color: 'var(--text-muted)',
+                lineHeight: 1.6,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}
             >
-              {loading ? (
-                <span>Criando sua conta...</span>
-              ) : (
+              {activeModal === 'privacy' && (
                 <>
-                  <ShieldCheck size={22} />
-                  <span>Cadastrar e Começar</span>
-                  <ArrowRight size={20} />
+                  <p>
+                    <strong style={{ color: '#ffffff' }}>1. Coleta e Finalidade da Localização:</strong> O aplicativo NovaesWeb coleta dados de geolocalização do entregador exclusivamente durante o período em que uma rota de entrega estiver ativa (após a confirmação de retirada no estabelecimento até a validação do PIN de entrega).
+                  </p>
+                  <p>
+                    <strong style={{ color: '#ffffff' }}>2. Proteção de Dados (LGPD):</strong> Nenhum dado de localização é transmitido ou exibido antes da saída do estabelecimento ou após a finalização da entrega. As informações são criptografadas e não são comercializadas com terceiros.
+                  </p>
+                  <p>
+                    <strong style={{ color: '#ffffff' }}>3. Armazenamento e Histórico:</strong> Registros operacionais de entregas concluídas permanecem vinculados à conta do entregador de forma protegida para fins de conferência financeira e relatórios.
+                  </p>
                 </>
               )}
-            </button>
-          </form>
-        )}
-      </div>
 
-      <div style={{ textAlign: 'center', color: 'var(--text-subtle)', fontSize: '12px', lineHeight: 1.5 }}>
-        🔒 Seus dados ficam protegidos no seu aparelho e vinculados à Central de Logística NovaesWeb.
-      </div>
+              {activeModal === 'terms' && (
+                <>
+                  <p>
+                    <strong style={{ color: '#ffffff' }}>1. Uso da Plataforma:</strong> O acesso ao painel do entregador destina-se ao recebimento, gestão e conferência de ordens de entrega despachadas pelos estabelecimentos parceiros credenciados.
+                  </p>
+                  <p>
+                    <strong style={{ color: '#ffffff' }}>2. Validação de Entrega (PIN):</strong> É de responsabilidade do entregador solicitar e confirmar o código PIN de 4 dígitos informado pelo cliente no momento da entrega presencial para liberação e baixa segura da comanda.
+                  </p>
+                  <p>
+                    <strong style={{ color: '#ffffff' }}>3. Vínculo com Estabelecimentos:</strong> Os códigos de vínculo (<code style={{ color: '#facc15' }}>NW-XXXXXX</code>) fornecidos pelas lojas possuem validade pré-determinada e podem ser revogados pelo estabelecimento conforme normas operacionais internas.
+                  </p>
+                </>
+              )}
+
+              {activeModal === 'support' && (
+                <>
+                  <p>
+                    <strong style={{ color: '#ffffff' }}>Central de Ajuda NovaesWeb:</strong>
+                  </p>
+                  <p>
+                    Para dúvidas sobre códigos de vínculo, plantões e taxas de entrega, consulte diretamente o gerente ou operador do estabelecimento parceiro.
+                  </p>
+                  <p>
+                    Para suporte técnico relativo ao aplicativo, falhas de sincronização ou redefinição de acesso, contate nosso time de tecnologia pelo suporte operacional:
+                  </p>
+                  <div
+                    style={{
+                      background: 'var(--bg-app)',
+                      padding: '12px',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border-subtle)',
+                      fontWeight: 700,
+                      color: '#ffffff'
+                    }}
+                  >
+                    📧 suporte@novaesweb.com.br<br />
+                    📱 WhatsApp de Suporte: (11) 99999-0000
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer Modal */}
+            <div
+              style={{
+                padding: '14px 20px',
+                borderTop: '1px solid var(--border-subtle)',
+                display: 'flex',
+                justifyContent: 'flex-end'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="btn-glove"
+                style={{ height: '42px', padding: '0 20px', fontSize: '13px' }}
+              >
+                Entendi e Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

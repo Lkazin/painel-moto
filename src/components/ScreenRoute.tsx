@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Navigation,
   ArrowUp,
@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { Assignment } from '../types';
 import { audioAlert } from '../utils/audioAlert';
+import { trackingService } from '../services/trackingService';
+import TrackingBadge from './TrackingBadge';
 
 interface ScreenRouteProps {
   assignments: Assignment[];
@@ -33,13 +35,26 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
 }) => {
   // Apenas pedidos retirados entram na rota
   const activeAssignments = assignments
-    .filter((a) => a.status === 'picked_up' || a.status === 'in_transit')
+    .filter(
+      (a) =>
+        a.status === 'picked_up' ||
+        a.status === 'in_transit' ||
+        (a as any).status === 'em_rota'
+    )
     .sort((a, b) => a.sequence - b.sequence);
 
   const [stops, setStops] = useState<Assignment[]>(activeAssignments);
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  // Ativa rastreamento GPS em segundo plano assim que houver paradas ativas na rota
+  useEffect(() => {
+    setStops(activeAssignments);
+    if (activeAssignments.length > 0) {
+      trackingService.start(activeAssignments[0]?.driverId, activeAssignments[0]?.assignmentId);
+    }
+  }, [assignments]);
 
   // Roteirização Inteligente: Ordena as entregas em lote agrupando por bairro e número
   const handleOptimizeRoute = () => {
@@ -157,7 +172,10 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
       {/* Cabeçalho da Rota */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 900 }}>Minha Rota de Entregas</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 900 }}>Minha Rota de Entregas</h2>
+            <TrackingBadge />
+          </div>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             Organize por arrastar ou setas. O lojista apenas visualiza.
           </p>

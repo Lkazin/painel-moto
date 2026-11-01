@@ -153,7 +153,7 @@ export const ScreenPinConfirm: React.FC<ScreenPinConfirmProps> = ({
           Código de Confirmação
         </h2>
         <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '340px', margin: '4px auto 0', lineHeight: 1.35 }}>
-          Digite os <strong style={{ color: '#fff' }}>4 dígitos do PIN</strong>, ou os <strong style={{ color: '#fff' }}>4 finais do celular</strong> do cliente, ou o <strong style={{ color: '#fff' }}>número do pedido</strong>.
+          Digite o <strong style={{ color: '#fff' }}>número do pedido ({assignment.orderNumber.replace('#', '')})</strong>, ou os <strong style={{ color: '#fff' }}>4 finais do celular</strong>, ou o <strong style={{ color: '#fff' }}>PIN</strong>.
         </p>
       </div>
 
@@ -191,6 +191,19 @@ export const ScreenPinConfirm: React.FC<ScreenPinConfirmProps> = ({
           );
         })}
       </div>
+
+      {/* Botão de Confirmação Rápida */}
+      {pin.length >= 2 && (
+        <button
+          type="button"
+          onClick={() => submitPin(pin)}
+          disabled={isValidating}
+          className="btn-glove btn-glove-primary"
+          style={{ height: '48px', fontSize: '15px' }}
+        >
+          <span>{isValidating ? 'Validando...' : `Confirmar Entrega (${pin})`}</span>
+        </button>
+      )}
 
       {/* Mensagem de Erro / Limite de Tentativas */}
       {errorMessage && (

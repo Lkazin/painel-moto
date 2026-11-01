@@ -54,6 +54,7 @@ export interface OfferOrderItem {
 }
 
 export interface Offer {
+  id?: string;
   offerId: string;
   orderId: string;
   orderNumber: string;
@@ -83,6 +84,7 @@ export type AssignmentStatus =
   | 'canceled_by_store';
 
 export interface Assignment {
+  id?: string;
   assignmentId: string;
   orderId: string;
   orderNumber: string;
@@ -160,3 +162,24 @@ export interface RatingsData {
     percentage: number;
   }[];
 }
+
+export interface DriverLocationUpdate {
+  driverId: string;
+  assignmentId?: string;
+  latitude: number;
+  longitude: number;
+  heading?: number | null;
+  speed?: number | null;
+  accuracy?: number | null;
+  timestamp?: number;
+}
+
+export interface TrackingSessionState {
+  isActive: boolean;
+  driverId: string | null;
+  assignmentId?: string | null;
+  lastLocation?: DriverLocationUpdate | null;
+  lastPushedAt?: string | null;
+  error?: string | null;
+}
+
