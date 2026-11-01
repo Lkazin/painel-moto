@@ -1,5 +1,5 @@
 // Service Worker para PWA do Painel do Motoboy
-const CACHE_NAME = 'novaesweb-motoboy-v3';
+const CACHE_NAME = 'novaesweb-motoboy-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

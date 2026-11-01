@@ -1,9 +1,6 @@
 import { DriverLocationUpdate, TrackingSessionState } from '../types';
 
-const API_BASE_URL =
-  (import.meta as any).env?.VITE_LOGISTICS_API_URL ||
-  (import.meta as any).env?.NEXT_PUBLIC_LOGISTICS_API_URL ||
-  'http://localhost:3000/api/v1/logistics';
+import { logisticsApiUrl } from './logisticsConfig';
 
 type StateListener = (state: TrackingSessionState) => void;
 
@@ -320,7 +317,7 @@ class TrackingService {
         sessionToken: identity.token,
       };
 
-      const res = await fetch(`${API_BASE_URL}/tracking-location-push`, {
+      const res = await fetch(`${logisticsApiUrl()}/tracking-location-push`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -347,7 +344,7 @@ class TrackingService {
   private async sendEndSession(driverId: string) {
     try {
       const identity = getStoredDriverIdentity(driverId);
-      await fetch(`${API_BASE_URL}/tracking-session-end`, {
+      await fetch(`${logisticsApiUrl()}/tracking-session-end`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

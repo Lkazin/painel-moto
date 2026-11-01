@@ -11,10 +11,7 @@ import {
 } from '../types';
 import { offlineQueue } from './offlineQueue';
 
-const API_BASE_URL =
-  (import.meta as any).env?.VITE_LOGISTICS_API_URL ||
-  (import.meta as any).env?.NEXT_PUBLIC_LOGISTICS_API_URL ||
-  'http://localhost:3000/api/v1/logistics';
+import { logisticsApiUrl } from './logisticsConfig';
 
 // Configuração Supabase Cloud Storage (Nuvem em Tempo Real - Fallback de Alta Disponibilidade)
 const SUPABASE_PROJECT_URL =
@@ -24,10 +21,6 @@ const SUPABASE_PROJECT_URL =
 const SUPABASE_ANON_KEY =
   (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ||
   'sb_publishable_ynzw0icpmaxAhkCJWDYDGg_nTQCPUeY';
-
-const SUPABASE_SERVICE_KEY =
-  (import.meta as any).env?.VITE_SUPABASE_SERVICE_ROLE_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5yZGJwb3JieXVqd3RnbnBpZWp6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzE3NjI1MiwiZXhwIjoyMTA4NzUyMjUyfQ.14LuRaZIPmmRCyHz9uD6PiTajpH0ap5vGphW2_d0YrA';
 
 const STORAGE_BUCKET = 'novaesweb_store';
 const LOGISTICS_FILE = 'logistics.json';
@@ -63,24 +56,8 @@ async function fetchCloudLogistics(): Promise<CloudLogisticsState> {
   return { drivers: [], offers: [], assignments: [] };
 }
 
-async function saveCloudLogistics(state: CloudLogisticsState): Promise<boolean> {
-  try {
-    const url = `${SUPABASE_PROJECT_URL}/storage/v1/object/${STORAGE_BUCKET}/${LOGISTICS_FILE}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'x-upsert': 'true',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(state)
-    });
-    return res.ok;
-  } catch (err) {
-    console.warn('[CloudLogistics] Falha ao salvar estado na nuvem:', err);
-    return false;
-  }
+async function saveCloudLogistics(_state: CloudLogisticsState): Promise<boolean> {
+  throw new Error('Não foi possível confirmar a operação com a loja. Verifique a conexão e tente novamente.');
 }
 
 const ACCOUNT_STORAGE_KEY = 'novaesweb_driver_account_v2';
@@ -340,7 +317,7 @@ class ApiClient {
       localStorage.setItem('novaesweb_device_fp', fingerprint);
     }
 
-    const response = await fetch(`${API_BASE_URL}/invite-activate`, {
+    const response = await fetch(`${logisticsApiUrl()}/invite-activate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -400,7 +377,7 @@ class ApiClient {
 
     if (offlineQueue.getIsOnline()) {
       try {
-        await fetch(`${API_BASE_URL}/shift-close`, {
+        await fetch(`${logisticsApiUrl()}/shift-close`, {
           method: 'POST',
           headers: this.getAuthHeaders(),
           body: JSON.stringify({
@@ -492,7 +469,7 @@ class ApiClient {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/session-validate?driverId=${encodeURIComponent(
+        `${logisticsApiUrl()}/session-validate?driverId=${encodeURIComponent(
           currentSession.driverId
         )}&membershipId=${encodeURIComponent(currentSession.membershipId)}`,
         {
@@ -529,7 +506,7 @@ class ApiClient {
 
     if (this.session && offlineQueue.getIsOnline()) {
       try {
-        await fetch(`${API_BASE_URL}/driver-presence`, {
+        await fetch(`${logisticsApiUrl()}/driver-presence`, {
           method: 'POST',
           headers: this.getAuthHeaders(),
           body: JSON.stringify({
@@ -552,7 +529,7 @@ class ApiClient {
     // 1. Tenta API Central (Next.js)
     try {
       const res = await fetch(
-        `${API_BASE_URL}/offers?driverId=${encodeURIComponent(
+        `${logisticsApiUrl()}/offers?driverId=${encodeURIComponent(
           this.session.driverId
         )}&membershipId=${encodeURIComponent(this.session.membershipId)}`,
         {
@@ -652,7 +629,7 @@ class ApiClient {
 
     // 1. Tenta API Central
     try {
-      const res = await fetch(`${API_BASE_URL}/offer-respond`, {
+      const res = await fetch(`${logisticsApiUrl()}/offer-respond`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
@@ -747,7 +724,7 @@ class ApiClient {
 
     try {
       const res = await fetch(
-        `${API_BASE_URL}/assignments?driverId=${encodeURIComponent(
+        `${logisticsApiUrl()}/assignments?driverId=${encodeURIComponent(
           this.session.driverId
         )}&membershipId=${encodeURIComponent(this.session.membershipId)}`,
         {
@@ -802,7 +779,7 @@ class ApiClient {
 
     // 1. Tenta API Central da Loja
     try {
-      const res = await fetch(`${API_BASE_URL}/pickup-confirm`, {
+      const res = await fetch(`${logisticsApiUrl()}/pickup-confirm`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
@@ -915,7 +892,7 @@ class ApiClient {
 
     try {
       const res = await fetch(
-        `${API_BASE_URL}/route-current?driverId=${encodeURIComponent(
+        `${logisticsApiUrl()}/route-current?driverId=${encodeURIComponent(
           this.session.driverId
         )}&membershipId=${encodeURIComponent(this.session.membershipId)}`,
         {
@@ -944,7 +921,7 @@ class ApiClient {
     if (!this.session) return false;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/route-reorder`, {
+      const res = await fetch(`${logisticsApiUrl()}/route-reorder`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
@@ -992,7 +969,7 @@ class ApiClient {
 
     // 1. Tenta API Central da Loja
     try {
-      const res = await fetch(`${API_BASE_URL}/delivery-confirm`, {
+      const res = await fetch(`${logisticsApiUrl()}/delivery-confirm`, {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
@@ -1167,7 +1144,7 @@ class ApiClient {
       throw new Error('Sessão não autorizada.');
     }
 
-    const res = await fetch(`${API_BASE_URL}/assignment-withdraw`, {
+    const res = await fetch(`${logisticsApiUrl()}/assignment-withdraw`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({
@@ -1202,7 +1179,7 @@ class ApiClient {
 
     try {
       const res = await fetch(
-        `${API_BASE_URL}/history?driverId=${encodeURIComponent(
+        `${logisticsApiUrl()}/history?driverId=${encodeURIComponent(
           this.session.driverId
         )}&membershipId=${encodeURIComponent(this.session.membershipId)}`,
         {
@@ -1239,7 +1216,7 @@ class ApiClient {
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/ratings`, {
+      const res = await fetch(`${logisticsApiUrl()}/ratings`, {
         headers: this.getAuthHeaders()
       });
       if (res.ok) {
@@ -1268,25 +1245,25 @@ class ApiClient {
       try {
         let res: Response | null = null;
         if (cmd.action === 'delivery_confirm') {
-          res = await fetch(`${API_BASE_URL}/delivery-confirm`, {
+          res = await fetch(`${logisticsApiUrl()}/delivery-confirm`, {
             method: 'POST',
             headers: this.getAuthHeaders(),
             body: JSON.stringify(cmd.payload)
           });
         } else if (cmd.action === 'pickup_confirm') {
-          res = await fetch(`${API_BASE_URL}/pickup-confirm`, {
+          res = await fetch(`${logisticsApiUrl()}/pickup-confirm`, {
             method: 'POST',
             headers: this.getAuthHeaders(),
             body: JSON.stringify(cmd.payload)
           });
         } else if (cmd.action === 'route_reorder') {
-          res = await fetch(`${API_BASE_URL}/route-reorder`, {
+          res = await fetch(`${logisticsApiUrl()}/route-reorder`, {
             method: 'POST',
             headers: this.getAuthHeaders(),
             body: JSON.stringify(cmd.payload)
           });
         } else if (cmd.action === 'assignment_withdraw') {
-          res = await fetch(`${API_BASE_URL}/assignment-withdraw`, {
+          res = await fetch(`${logisticsApiUrl()}/assignment-withdraw`, {
             method: 'POST',
             headers: this.getAuthHeaders(),
             body: JSON.stringify(cmd.payload)
