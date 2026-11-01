@@ -1,10 +1,14 @@
 // Service Worker para PWA do Painel do Motoboy
-const CACHE_NAME = 'novaesweb-motoboy-v2';
+const CACHE_NAME = 'novaesweb-motoboy-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/favicon.svg'
+  '/favicon.svg',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable.png',
+  '/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -35,7 +39,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Não interceptar chamadas externas do Supabase nem APIs
+  // Não interceptar chamadas externas do Supabase nem APIs dinâmicas
   if (url.origin !== self.location.origin || url.pathname.startsWith('/api')) {
     return;
   }
@@ -60,35 +64,19 @@ self.addEventListener('fetch', (event) => {
 // Manipulador de Cliques em Notificações na Tela de Bloqueio
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+
+  const targetUrl = event.notification.data?.url || '/';
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if (client.url && 'focus' in client) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
           return client.focus();
         }
       }
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(targetUrl);
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
       }
     })
   );
-});
-
-// Receptor de Mensagens para Exibição de Notificação com Celular Bloqueado
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SHOW_OFFER_NOTIFICATION') {
-    const { title, body, tag, data } = event.data;
-    self.registration.showNotification(title || '🍕 Nova Corrida Disponível!', {
-      body: body || 'Toque para abrir o painel e aceitar o pedido.',
-      icon: '/favicon.svg',
-      badge: '/favicon.svg',
-      vibrate: [500, 200, 500, 200, 800],
-      tag: tag || 'nova-oferta',
-      renotify: true,
-      requireInteraction: true,
-      data: data || { url: '/' }
-    });
-  }
 });

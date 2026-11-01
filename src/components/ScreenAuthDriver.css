@@ -440,3 +440,33 @@
   }
 }
 
+
+/* Botão de Instalação Mobile PWA */
+.nwl-install-app-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, rgba(255, 46, 154, 0.22), rgba(139, 47, 232, 0.32));
+  border: 1.5px solid rgba(255, 110, 200, 0.5);
+  border-radius: 16px;
+  color: #FFFFFF;
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4), 0 0 16px rgba(255, 46, 154, 0.2);
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.nwl-install-app-btn:hover,
+.nwl-install-app-btn:active {
+  background: linear-gradient(135deg, rgba(255, 46, 154, 0.38), rgba(139, 47, 232, 0.5));
+  border-color: rgba(255, 110, 200, 0.85);
+  box-shadow: 0 6px 24px rgba(255, 46, 154, 0.35);
+  transform: translateY(-1px);
+}

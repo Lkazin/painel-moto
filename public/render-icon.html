@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 512px;
+    height: 512px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+  }
+  .app-icon {
+    width: 512px;
+    height: 512px;
+    border-radius: 128px;
+    background: linear-gradient(140deg, #FF3D6E 0%, #FF2E9A 38%, #8B2FE8 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 20px 60px rgba(139, 47, 232, 0.5), inset 0 2px 4px rgba(255, 255, 255, 0.4);
+    position: relative;
+    border: 8px solid rgba(255, 200, 235, 0.85);
+  }
+  svg {
+    width: 320px;
+    height: 320px;
+  }
+</style>
+</head>
+<body>
+  <div class="app-icon">
+    <!-- SVG Motocicleta com piloto e linhas de velocidade -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Linhas de velocidade -->
+      <line x1="2" y1="8" x2="6" y2="8" stroke-width="2.5" />
+      <line x1="1" y1="11" x2="5" y2="11" stroke-width="2.5" />
+      <line x1="2" y1="14" x2="7" y2="14" stroke-width="2.5" />
+      <!-- Rodas -->
+      <circle cx="18.5" cy="17.5" r="3.5" fill="none" stroke-width="2.2" />
+      <circle cx="5.5" cy="17.5" r="3.5" fill="none" stroke-width="2.2" />
+      <!-- Piloto -->
+      <circle cx="15" cy="5" r="2" fill="#FFFFFF" stroke="none" />
+      <path d="M12 9l2.5-2.5L17 8l-3 4-4-1-2 3" stroke-width="2.2" />
+      <!-- Moto chassi -->
+      <path d="M12 17.5V13l3.5-3.5L18.5 14" stroke-width="2.2" />
+      <path d="M5.5 17.5l4.5-4h4" stroke-width="2.2" />
+      <!-- Guidão -->
+      <path d="M15 7.5l1.5-.5" stroke-width="2.5" />
+    </svg>
+  </div>
+</body>
+</html>

@@ -10,7 +10,8 @@ import {
   Settings,
   CheckCircle,
   AlertCircle,
-  Wallet
+  Wallet,
+  Smartphone
 } from 'lucide-react';
 
 import {
@@ -40,6 +41,7 @@ import { ScreenHistory } from './components/ScreenHistory';
 import { ModalSessionAndStore } from './components/ModalSessionAndStore';
 import { ModalWithdrawal } from './components/ModalWithdrawal';
 import { ModalRouteCompleted } from './components/ModalRouteCompleted';
+import { PWAInstallModal } from './components/PWAInstallModal';
 
 export const App: React.FC = () => {
   // Autenticação Pessoal do Entregador e Sessão de Plantão na Loja
@@ -67,6 +69,11 @@ export const App: React.FC = () => {
   const [withdrawTarget, setWithdrawTarget] = useState<{ assignment: Assignment; isException: boolean } | null>(null);
   const [isRouteCompletedOpen, setIsRouteCompletedOpen] = useState(false);
   const [routeCompletedStats, setRouteCompletedStats] = useState({ count: 0, fees: 0, hasUninformed: false });
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(
+    typeof window !== 'undefined' &&
+    (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true)
+  );
 
   // Toast de Notificação
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -522,6 +529,21 @@ export const App: React.FC = () => {
               <span>{session.storeName}</span>
             </button>
 
+            {/* Botão Instalar App no Celular (quando rodando no navegador) */}
+            {!isStandalone && (
+              <button
+                onClick={() => {
+                  audioAlert.playClickSound();
+                  setIsInstallModalOpen(true);
+                }}
+                className="install-pwa-pill"
+                title="Instalar aplicativo no Android ou iPhone"
+              >
+                <Smartphone size={13} color="#FFB3E0" />
+                <span>Instalar</span>
+              </button>
+            )}
+
             {/* Botão de Menu / Configurações */}
             <button
               onClick={() => {
@@ -687,6 +709,12 @@ export const App: React.FC = () => {
           }}
         />
       )}
+
+      {/* Modal de Instalação Mobile PWA */}
+      <PWAInstallModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+      />
 
       {/* Toast Notifier Flutuante */}
       {toastMessage && (

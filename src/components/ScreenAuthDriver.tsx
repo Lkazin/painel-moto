@@ -14,12 +14,14 @@ import {
   X,
   Package,
   ShieldCheck,
-  Headphones
+  Headphones,
+  Smartphone
 } from 'lucide-react';
 import './ScreenAuthDriver.css';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
 import { DriverAccount } from '../types';
+import { PWAInstallModal } from './PWAInstallModal';
 
 interface ScreenAuthDriverProps {
   onLoginSuccess: (account: DriverAccount) => void;
@@ -35,6 +37,7 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
 
   // Modais de Informações Legais / Rodapé
   const [activeModal, setActiveModal] = useState<'privacy' | 'terms' | 'support' | null>(null);
+  const [showInstallModal, setShowInstallModal] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,6 +176,21 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
         <div className="nwl-secure">
           <ShieldCheck size={26} color="#D97BB9" style={{ flexShrink: 0 }} />
           <span>Conexão criptografada de ponta a ponta vinculada à Central NovaesWeb.</span>
+        </div>
+
+        {/* Botão Oficial para Instalar no Celular (Android / iOS) */}
+        <div style={{ width: '100%', marginTop: '4px' }}>
+          <button
+            type="button"
+            onClick={() => {
+              audioAlert.playClickSound();
+              setShowInstallModal(true);
+            }}
+            className="nwl-install-app-btn"
+          >
+            <Smartphone size={19} color="#FFB3E0" />
+            <span>Baixar Aplicativo no Celular (Android / iPhone)</span>
+          </button>
         </div>
       </div>
 
@@ -381,6 +399,8 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
           </div>
         </div>
       )}
+      {/* MODAL DE INSTALAÇÃO PWA MOBILE (ANDROID & IOS) */}
+      <PWAInstallModal isOpen={showInstallModal} onClose={() => setShowInstallModal(false)} />
     </div>
   );
 };
