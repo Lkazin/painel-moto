@@ -3,6 +3,7 @@ import { OfflineCommand } from '../types';
 const QUEUE_STORAGE_KEY = 'novaesweb_offline_queue_v1';
 
 class OfflineQueueManager {
+  private context: {accountId:string;accountToken:string;shiftToken:string} | null = null;
   private queue: OfflineCommand[] = [];
   private listeners: ((queue: OfflineCommand[]) => void)[] = [];
 
@@ -45,7 +46,9 @@ class OfflineQueueManager {
   }
 
   public enqueue(action: OfflineCommand['action'], payload: any): OfflineCommand {
+    if (!this.context?.accountToken || !this.context?.shiftToken) throw new Error('Entre na conta e na loja antes de guardar uma confirmação.');
     const command: OfflineCommand = {
+      ...this.context,
       id: 'cmd_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
       action,
       payload,
@@ -73,10 +76,10 @@ class OfflineQueueManager {
     this.saveQueue();
   }
 
-  public markFailed(commandId: string, error: string): void {
+  public markFailed(commandId: string, error: string, retryable = false): void {
     const cmd = this.queue.find(c => c.id === commandId);
     if (cmd) {
-      cmd.status = 'failed';
+      cmd.status = retryable ? 'pending' : 'failed';
       cmd.retryCount++;
       cmd.lastError = error;
       this.saveQueue();
@@ -85,6 +88,13 @@ class OfflineQueueManager {
 
   public clearQueue(): void {
     this.queue = [];
+    this.context = null;
+    this.saveQueue();
+  }
+
+  public setContext(accountId:string, accountToken:string, shiftToken:string): void {
+    this.context = {accountId,accountToken,shiftToken};
+    this.queue = this.queue.filter(command => command.accountId === accountId && command.accountToken === accountToken);
     this.saveQueue();
   }
 

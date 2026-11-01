@@ -1,6 +1,7 @@
 import { DriverLocationUpdate, TrackingSessionState } from '../types';
 
 import { logisticsApiUrl } from './logisticsConfig';
+import { accountClient } from './accountClient';
 
 type StateListener = (state: TrackingSessionState) => void;
 
@@ -14,7 +15,7 @@ interface StoredDriverIdentity {
 
 function getStoredDriverIdentity(fallbackDriverId?: string | null): StoredDriverIdentity {
   if (typeof window === 'undefined') {
-    return { driverId: fallbackDriverId || 'drv_active' };
+    return { driverId: '' };
   }
 
   let sessionObj: any = null;
@@ -35,15 +36,12 @@ function getStoredDriverIdentity(fallbackDriverId?: string | null): StoredDriver
     accountObj?.id ||
     (fallbackDriverId && fallbackDriverId !== 'drv_default' ? fallbackDriverId : null) ||
     sessionObj?.membershipId ||
-    'drv_active';
+    '';
 
   const membershipId = sessionObj?.membershipId || undefined;
   const driverName = sessionObj?.driverName || accountObj?.name || undefined;
   const token =
-    sessionObj?.token ||
-    localStorage.getItem('novaesweb_session_token') ||
-    sessionStorage.getItem('novaesweb_session_token') ||
-    undefined;
+    sessionObj?.token || undefined;
 
   return {
     driverId,
@@ -72,6 +70,7 @@ class TrackingService {
 
   constructor() {
     this.initPermissionMonitor();
+    accountClient.subscribe(() => this.stop(false));
   }
 
   private initPermissionMonitor() {
@@ -239,6 +238,7 @@ class TrackingService {
   public start(driverId?: string, assignmentId?: string) {
     const identity = getStoredDriverIdentity(driverId);
     const resolvedDriverId = identity.driverId;
+    if (!accountClient.getToken() || !identity.token || !resolvedDriverId) return;
 
     if (this.currentState.isActive && this.activeDriverId === resolvedDriverId && this.watchId !== null) {
       if (assignmentId) {
@@ -269,13 +269,13 @@ class TrackingService {
   /**
    * Para o envio de localização
    */
-  public stop() {
+  public stop(sendEnd = true) {
     if (this.watchId !== null && typeof window !== 'undefined' && 'geolocation' in navigator) {
       navigator.geolocation.clearWatch(this.watchId);
       this.watchId = null;
     }
 
-    if (this.activeDriverId) {
+    if (sendEnd && this.activeDriverId && accountClient.getToken()) {
       this.sendEndSession(this.activeDriverId);
     }
 
@@ -300,6 +300,7 @@ class TrackingService {
     this.currentState.error = null;
     this.notify();
 
+    if (!this.currentState.isActive || !accountClient.getToken()) return;
     const now = Date.now();
     if (!forceImmediate && now - this.lastSentTime < 5000) {
       return;
@@ -317,7 +318,7 @@ class TrackingService {
         sessionToken: identity.token,
       };
 
-      const res = await fetch(`${logisticsApiUrl()}/tracking-location-push`, {
+      await accountClient.request(`${logisticsApiUrl()}/tracking-location-push`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -332,7 +333,7 @@ class TrackingService {
         body: JSON.stringify(payload),
       });
 
-      if (res.ok) {
+      if (this.currentState.isActive && accountClient.getToken()) {
         this.currentState.lastPushedAt = new Date().toISOString();
         this.notify();
       }
@@ -344,7 +345,7 @@ class TrackingService {
   private async sendEndSession(driverId: string) {
     try {
       const identity = getStoredDriverIdentity(driverId);
-      await fetch(`${logisticsApiUrl()}/tracking-session-end`, {
+      await accountClient.request(`${logisticsApiUrl()}/tracking-session-end`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

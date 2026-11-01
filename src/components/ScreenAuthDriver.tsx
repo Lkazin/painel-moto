@@ -25,10 +25,16 @@ import { PWAInstallModal } from './PWAInstallModal';
 
 interface ScreenAuthDriverProps {
   onLoginSuccess: (account: DriverAccount) => void;
+  notice?: string;
 }
 
-export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSuccess }) => {
-  // Campos de Login Único (sem criar conta)
+export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSuccess, notice }) => {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [name, setName] = useState('');
+  const [plate, setPlate] = useState('');
+  const [model, setModel] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
+  // Conta centralizada, compartilhada entre aparelhos.
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -42,7 +48,7 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginIdentifier.trim()) {
-      setErrorMessage('Informe seu telefone ou usuário.');
+      setErrorMessage('Informe seu telefone com DDD.');
       audioAlert.playErrorSound();
       return;
     }
@@ -57,7 +63,11 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
     audioAlert.playClickSound();
 
     try {
-      const account = await api.loginDriver(loginIdentifier, loginPassword);
+      if (mode === 'register' && loginPassword.length < 8) throw new Error('A senha deve ter pelo menos 8 caracteres.');
+      if (mode === 'register' && loginPassword !== passwordConfirmation) throw new Error('As senhas precisam ser iguais.');
+      const account = mode === 'register'
+        ? await api.registerDriver(name,loginIdentifier,plate,model,loginPassword)
+        : await api.loginDriver(loginIdentifier, loginPassword);
       audioAlert.playSuccessSound();
       onLoginSuccess(account);
     } catch (err: any) {
@@ -90,28 +100,41 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
           </span>
 
           <p className="nwl-subtitle">
-            Acesse seu painel com seu usuário ou telefone cadastrado para receber entregas e vincular-se às lojas.
+            Sua conta acompanha você no celular e no computador. Ao entrar em outro aparelho, o acesso anterior é desconectado.
           </p>
         </header>
 
         {/* Formulário Principal de Login */}
         <div className="nwl-card">
+          <div style={{display:'flex',gap:8,marginBottom:20}}>
+            <button type="button" className="nwl-submit" aria-pressed={mode === 'login'} onClick={() => {setMode('login');setErrorMessage(null);}} disabled={loading}>Entrar</button>
+            <button type="button" className="nwl-submit" aria-pressed={mode === 'register'} onClick={() => {setMode('register');setErrorMessage(null);}} disabled={loading}>Criar conta</button>
+          </div>
+          <p style={{fontSize:12,marginBottom:16}}>Para recuperar seu vínculo e histórico antigos, peça ao lojista para vincular sua conta cadastrada. Depois, use o mesmo telefone e senha nos outros aparelhos.</p>
+          {notice && <p className="nwl-error" role="alert">{notice}</p>}
           <form onSubmit={handleLogin} className="nwl-form">
+            {mode === 'register' && <>
+              <div><label htmlFor="nwl-name" className="nwl-label">Nome completo</label><input id="nwl-name" className="nwl-input" value={name} onChange={event => setName(event.target.value)} autoComplete="name" required minLength={3} maxLength={120}/></div>
+              <div><label htmlFor="nwl-plate" className="nwl-label">Placa da moto</label><input id="nwl-plate" className="nwl-input" value={plate} onChange={event => setPlate(event.target.value.toUpperCase())} required maxLength={10}/></div>
+              <div><label htmlFor="nwl-model" className="nwl-label">Modelo da moto</label><input id="nwl-model" className="nwl-input" value={model} onChange={event => setModel(event.target.value)} required maxLength={100}/></div>
+            </>}
             <div>
               <label htmlFor="nwl-login-identifier" className="nwl-label">
                 <Phone size={16} color="#F8F5FC" />
-                Telefone ou Usuário
+                Telefone com DDD
               </label>
               <div className="nwl-field">
                 <input
                   id="nwl-login-identifier"
-                  type="text"
+                  type="tel"
+                  autoComplete="tel"
+                  required
                   value={loginIdentifier}
                   onChange={(e) => {
                     setLoginIdentifier(e.target.value);
                     setErrorMessage(null);
                   }}
-                  placeholder="(11) 98765-4321 ou Nome"
+                  placeholder="(11) 98765-4321"
                   autoFocus
                   className="nwl-input"
                 />
@@ -133,6 +156,9 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
                     setLoginPassword(e.target.value);
                     setErrorMessage(null);
                   }}
+                  autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                  minLength={mode === 'register' ? 8 : undefined}
+                  required
                   placeholder="••••••••"
                   className="nwl-input nwl-input--password"
                 />
@@ -148,6 +174,11 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
               </div>
             </div>
 
+            {mode === 'register' && <div>
+              <label htmlFor="nwl-password-confirmation" className="nwl-label">Confirmar senha</label>
+              <input id="nwl-password-confirmation" className="nwl-input" type={showPassword ? 'text' : 'password'} value={passwordConfirmation} onChange={event => setPasswordConfirmation(event.target.value)} autoComplete="new-password" minLength={8} required/>
+              <p style={{fontSize:12,marginTop:8}}>Use pelo menos 8 caracteres. Guarde sua senha; a recuperação por telefone ainda não está disponível.</p>
+            </div>}
             {errorMessage && (
               <div className="nwl-error" role="alert">
                 <AlertCircle size={20} color="#C85B75" style={{ flexShrink: 0 }} />
@@ -165,7 +196,7 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
               ) : (
                 <>
                   <LogIn size={22} />
-                  <span>Entrar no Aplicativo</span>
+                  <span>{mode === 'register' ? 'Criar minha conta' : 'Entrar no aplicativo'}</span>
                   <ArrowRight size={20} />
                 </>
               )}
@@ -175,7 +206,7 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
 
         <div className="nwl-secure">
           <ShieldCheck size={26} color="#D97BB9" style={{ flexShrink: 0 }} />
-          <span>Conexão criptografada de ponta a ponta vinculada à Central NovaesWeb.</span>
+          <span>Conexão protegida. Uma conta, um aparelho conectado por vez.</span>
         </div>
 
         {/* Botão Oficial para Instalar no Celular (Android / iOS) */}

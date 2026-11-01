@@ -129,6 +129,9 @@ export interface RouteStop {
 }
 
 export interface OfflineCommand {
+  accountId?: string;
+  accountToken?: string;
+  shiftToken?: string;
   id: string;
   action: 'pickup_confirm' | 'delivery_confirm' | 'route_reorder' | 'assignment_withdraw';
   payload: any;

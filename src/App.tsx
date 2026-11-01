@@ -23,6 +23,7 @@ import {
 } from './types';
 
 import { api } from './services/api';
+import { accountClient } from './services/accountClient';
 import { offlineQueue } from './services/offlineQueue';
 import { trackingService } from './services/trackingService';
 import { audioAlert } from './utils/audioAlert';
@@ -45,6 +46,9 @@ import { PWAInstallModal } from './components/PWAInstallModal';
 
 export const App: React.FC = () => {
   // Autenticação Pessoal do Entregador e Sessão de Plantão na Loja
+  const [accountReady, setAccountReady] = useState(false);
+  const [accountNotice, setAccountNotice] = useState(accountClient.getNotice());
+  const [syncError, setSyncError] = useState('');
   const [account, setAccount] = useState<DriverAccount | null>(api.getDriverAccount());
   const [session, setSession] = useState<DriverSession | null>(api.getSession());
   const [presence, setPresence] = useState<DriverPresence>(api.getPresence());
@@ -85,6 +89,49 @@ export const App: React.FC = () => {
     }, 4000);
   }, []);
 
+  const syncAccount = useCallback(async () => {
+    if (!api.hasAccountAccess()) return;
+    try {
+      const result = await api.synchronizeAccount();
+      setAccount(result.account); setSession(result.session); setPresence(api.getPresence());
+      setAccountReady(true); setSyncError('');
+      if (result.session) await api.flushOfflineQueue();
+    } catch {
+      if (api.hasAccountAccess()) setSyncError('Não foi possível sincronizar sua conta. Verifique a internet e tente novamente.');
+    }
+  }, []);
+
+  useEffect(() => {
+    const changed = (event: Event) => {
+      const message = (event as CustomEvent).detail?.message || '';
+      trackingService.stop(false); audioAlert.stopOfferAlert();
+      setAccount(api.getDriverAccount()); setSession(null); setAccountReady(false);
+      setAssignments([]); setCurrentOffer(null); setActiveDelivery(null); setPinTarget(null);
+      setIsStoreModalOpen(false); setIsProfileLedgerOpen(false); setWithdrawTarget(null);
+      setHistorySummary({totalEarnings:0,itemsCount:0}); handledOfferIdsRef.current.clear();
+      setAccountNotice(message); setSyncError('');
+    };
+    window.addEventListener('novaesweb:account-change',changed);
+    const storage = (event: StorageEvent) => {
+      if (event.key === 'novaesweb_account_access_v1') {
+        // Outra aba mudou a identidade: recarregar evita misturar dados entre contas.
+        trackingService.stop(false); window.location.reload();
+      }
+    };
+    window.addEventListener('storage',storage);
+    return () => {window.removeEventListener('novaesweb:account-change',changed);window.removeEventListener('storage',storage);};
+  }, []);
+
+  useEffect(() => {
+    if (!account) return;
+    let running = false;
+    const check = async () => { if (running || !navigator.onLine) return; running = true; try {await syncAccount();} finally {running=false;} };
+    void check();
+    const interval = setInterval(check,10000);
+    window.addEventListener('focus',check); window.addEventListener('online',check);
+    return () => {clearInterval(interval);window.removeEventListener('focus',check);window.removeEventListener('online',check);};
+  }, [account?.id,syncAccount]);
+
   // Inicializa áudio no primeiro clique do usuário
   useEffect(() => {
     const handleFirstInteraction = () => {
@@ -117,6 +164,7 @@ export const App: React.FC = () => {
         api.getAssignments(),
         api.getHistory()
       ]);
+      if (!api.getSession() || api.getSession()?.driverId !== session.driverId) return;
       setAssignments(data);
       setHistorySummary({
         totalEarnings: hist.totalEarnings,
@@ -205,11 +253,13 @@ export const App: React.FC = () => {
     if (!session) return;
 
     const heartbeat = setInterval(async () => {
-      const res = await api.validateSession();
-      if (!res.valid) {
-        setSession(null);
-        showToast('Sessão de plantão expirada ou encerrada pela loja.', 'error');
-      }
+      try {
+        const res = await api.validateSession();
+        if (!res.valid) {
+          trackingService.stop(false); setSession(null);
+          showToast('Sessão de plantão expirada ou encerrada pela loja.', 'error');
+        }
+      } catch { /* Falha de rede não encerra a conta. */ }
     }, 30000);
 
     return () => clearInterval(heartbeat);
@@ -293,14 +343,10 @@ export const App: React.FC = () => {
 
   // Confirmar Retirada de Pedidos
   const handleConfirmPickup = async (assignmentIds: string[]) => {
-    setAssignments((prev) =>
-      prev.map((a) =>
-        assignmentIds.includes(a.assignmentId || a.id || '')
-          ? { ...a, status: 'picked_up' as const }
-          : a
-      )
-    );
     const res = await api.confirmPickup(assignmentIds);
+    setAssignments((previous) => previous.map(assignment =>
+      res.confirmed.includes(assignment.assignmentId || assignment.id || '')
+        ? {...assignment,status:'picked_up' as const} : assignment));
     if (assignmentIds[0]) {
       trackingService.start(session?.driverId, assignmentIds[0]);
     }
@@ -368,13 +414,10 @@ export const App: React.FC = () => {
   };
 
   // Logout seguro da conta do entregador
-  const handleLogoutAccount = () => {
-    api.logoutDriver();
-    setAccount(null);
-    setSession(null);
-    setIsStoreModalOpen(false);
-    setIsProfileLedgerOpen(false);
-    showToast('Você saiu da sua conta de entregador com segurança.', 'info');
+  const handleLogoutAccount = async () => {
+    trackingService.stop(false);
+    try { await api.logoutDriver(); showToast('Você saiu da sua conta.', 'info'); }
+    catch (error) { setAccountNotice(error instanceof Error ? error.message : 'Falha ao sair.'); }
   };
 
   // Pedidos no balcão e na rota para os badges do bottom nav
@@ -386,8 +429,9 @@ export const App: React.FC = () => {
     return (
       <div className="app-container">
         <ScreenAuthDriver
+          notice={accountNotice}
           onLoginSuccess={(newAccount) => {
-            setAccount(newAccount);
+            setAccount(newAccount); setSession(api.getSession()); setPresence(api.getPresence()); setAccountReady(true); setAccountNotice('');
             showToast(`Bem-vindo(a), ${newAccount.name}!`, 'success');
           }}
         />
@@ -419,6 +463,15 @@ export const App: React.FC = () => {
         )}
       </div>
     );
+  }
+
+  if (!accountReady) {
+    return <main className="app-container" style={{padding:24,textAlign:'center'}} aria-live="polite">
+      <h1>Sincronizando sua conta</h1>
+      <p>{syncError || 'Buscando suas informações e o plantão no servidor.'}</p>
+      <button className="btn-glove btn-glove-accent" onClick={() => void syncAccount()}>Tentar novamente</button>
+      <button className="btn-glove" onClick={() => void handleLogoutAccount()}>Sair da conta</button>
+    </main>;
   }
 
   // FLUXO 2: Entregador está logado, mas NÃO tem plantão ativo na loja -> Tela de Conectar à Loja & Extrato

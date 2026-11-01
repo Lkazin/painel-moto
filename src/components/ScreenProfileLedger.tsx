@@ -24,7 +24,7 @@ interface ScreenProfileLedgerProps {
   account: DriverAccount;
   activeSession: DriverSession | null;
   onClose: () => void;
-  onCloseShift: () => void;
+  onCloseShift: () => void | Promise<void>;
   onLogoutAccount: () => void;
 }
 
@@ -52,7 +52,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
     audioAlert.playClickSound();
 
     try {
-      await api.closeStoreShift();
+      await onCloseShift();
       audioAlert.playSuccessSound();
       setLedger(api.getStoresLedger());
       onCloseShift();
