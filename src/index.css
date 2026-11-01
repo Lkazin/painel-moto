@@ -79,6 +79,7 @@ body {
   width: 4px;
   height: 4px;
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--nw-purple-dark);
   border-radius: 4px;
@@ -173,8 +174,15 @@ body {
 
 
 @keyframes pulse-red {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.8; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
 }
 
 /* Navegação Inferior Fixa para Polegar */
@@ -359,13 +367,23 @@ body {
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slide-up {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
 }
 
 /* Teclado Numérico para Luva */

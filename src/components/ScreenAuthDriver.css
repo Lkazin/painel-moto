@@ -78,9 +78,7 @@
   min-height: 100vh;
   min-height: 100dvh;
   padding:
-    calc(28px + env(safe-area-inset-top, 0px))
-    18px
-    calc(20px + env(safe-area-inset-bottom, 0px));
+    calc(28px + env(safe-area-inset-top, 0px)) 18px calc(20px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -202,7 +200,8 @@
   background: linear-gradient(180deg, #FDF2FB 0%, #F6E1F3 100%);
   border: 1.5px solid rgba(255, 190, 235, 0.9);
   color: var(--nwl-purple-dark);
-  font-size: 16px; /* 16px evita zoom automático no iOS */
+  font-size: 16px;
+  /* 16px evita zoom automático no iOS */
   font-weight: 700;
   outline: none;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
@@ -413,14 +412,17 @@
     padding-left: 14px;
     padding-right: 14px;
   }
+
   .nwl-card {
     padding: 18px 14px;
   }
+
   .nwl-logo {
     width: 74px;
     height: 74px;
     border-radius: 22px;
   }
+
   .nwl-divider {
     display: none;
   }
@@ -434,6 +436,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .nwl-submit,
   .nwl-input {
     transition: none;

@@ -98,3 +98,4 @@ Generate-PwaIcon -size 512 -outputPath "$destDir\icon-512.png"
 Generate-PwaIcon -size 192 -outputPath "$destDir\icon-192.png"
 Generate-PwaIcon -size 180 -outputPath "$destDir\apple-touch-icon.png"
 Generate-PwaIcon -size 512 -outputPath "$destDir\icon-maskable.png"
+
