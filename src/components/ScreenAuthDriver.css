@@ -509,3 +509,21 @@
 .nwl-info-footer button { min-height: 44px; width: 100%; border: 1px solid #d994c0; border-radius: 12px; background: #733258; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
 .nwl-info-dialog button:focus-visible, .nwl-info-dialog a:focus-visible, .nwl-info-dialog summary:focus-visible { outline: 2px solid #ffb3e0; outline-offset: 3px; }
 @media (max-width: 360px) { .nwl-info-header { padding: 15px; } .nwl-info-body { padding: 16px; } .nwl-info-header h2 { font-size: 18px; } .nwl-info-icon { display: none; } }
+
+/* Primeiro acesso em duas etapas, com identidade informada pela loja. */
+.nwl-input--plain { padding-left: 16px; }
+.nwl-address-input { height: auto; min-height: 104px; padding-top: 14px; padding-bottom: 14px; resize: vertical; font: inherit; font-size: 16px; line-height: 1.5; }
+.nwl-field-help { margin: 7px 0 0; color: #eddaee; font-size: 12px; line-height: 1.6; }
+.nwl-optional { color: #e3c1df; font-size: 11px; font-weight: 500; text-transform: none; }
+.nwl-code-input { letter-spacing: 1px; }
+.nwl-onboarding-steps { display: flex; flex-wrap: wrap; gap: 8px 16px; list-style: none; margin: 0 0 20px; padding: 0; font-size: 12px; color: #d8bfd9; }
+.nwl-onboarding-steps li[aria-current="step"] { color: #fff; font-weight: 800; }
+.nwl-verified-account { border: 1px solid #ffffff30; background: #ffffff08; border-radius: 14px; padding: 16px; }
+.nwl-verified-account h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; color: #fff; font-size: 15px; line-height: 1.4; }
+.nwl-verified-account h2 svg { flex-shrink: 0; color: #8fe4ba; }
+.nwl-verified-account dl { display: grid; gap: 12px; margin: 0; }
+.nwl-verified-account dt { color: #d8bfd9; font-size: 11px; margin-bottom: 3px; }
+.nwl-verified-account dd { margin: 0; overflow-wrap: anywhere; color: #fff; font-size: 14px; font-weight: 700; }
+.nwl-verified-account p { margin: 14px 0 0; color: #d8bfd9; font-size: 11px; line-height: 1.6; }
+.nwl-onboarding-back { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px; border: 1px solid #d994c066; border-radius: 12px; color: #f3d7ec; background: #ffffff08; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.nwl-onboarding-back:focus-visible { outline: 2px solid #ffb3e0; outline-offset: 3px; }

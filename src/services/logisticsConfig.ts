@@ -16,5 +16,6 @@ export function normalizeLogisticsUrl(value: string): string {
 
 export function logisticsApiUrl(): string {
   if (configuredUrl) return normalizeLogisticsUrl(configuredUrl);
+  if (import.meta.env?.DEV) return 'http://localhost:3000/api/v1/logistics';
   return normalizeLogisticsUrl(STORE_URL);
 }

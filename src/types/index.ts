@@ -4,7 +4,24 @@ export interface DriverAccount {
   phone: string;
   vehiclePlate: string;
   vehicleModel?: string;
+  address?: string;
   createdAt: string;
+}
+
+export interface FirstAccessChallenge {
+  onboardingToken: string;
+  name: string;
+  phone: string;
+  storeName: string;
+  expiresAt: string;
+}
+
+export interface FirstAccessDetails {
+  onboardingToken: string;
+  password: string;
+  address: string;
+  vehicleModel: string;
+  vehiclePlate?: string;
 }
 
 export interface StoreShiftSummary {

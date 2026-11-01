@@ -1,4 +1,4 @@
-import { DriverSession, DriverPresence, StoreShiftSummary, Offer, Assignment, RouteStop, DeliveryHistoryItem, RatingsData } from '../types';
+import { FirstAccessDetails, DriverSession, DriverPresence, StoreShiftSummary, Offer, Assignment, RouteStop, DeliveryHistoryItem, RatingsData } from '../types';
 import { offlineQueue } from './offlineQueue';
 import { accountClient, AccountRequestError } from './accountClient';
 import { logisticsApiUrl } from './logisticsConfig';
@@ -12,6 +12,7 @@ export class ApiClient {
   private bootstrapped = false;
   private legacySession: DriverSession | null = null;
   private flushPromise: Promise<{ syncedCount: number; errors: number }> | null = null;
+  private accountSync: { token: string; promise: Promise<{ account: ReturnType<typeof accountClient.getAccount>; session: DriverSession | null }> } | null = null;
   constructor() {
     try {
       this.legacySession = JSON.parse(localStorage.getItem(LEGACY_SESSION_KEY) || 'null');
@@ -19,6 +20,7 @@ export class ApiClient {
       if (cached?.accountId === accountClient.getAccount()?.id) { this.session = cached.session; this.ledger = cached.ledger || []; }
     } catch { /* Dados locais antigos não autorizam acesso. */ }
     accountClient.subscribe(message => {
+      this.accountSync = null;
       this.bootstrapped = false; this.session = null; this.ledger = []; offlineQueue.clearQueue();
       localStorage.removeItem(CACHE_KEY);
       localStorage.removeItem(LEGACY_SESSION_KEY);
@@ -59,17 +61,35 @@ export class ApiClient {
     return { driverId: this.session.driverId, membershipId: this.session.membershipId, storeId: this.session.storeId };
   }
   private query(action: string) { const identity = this.identity(); return action + '?' + new URLSearchParams(identity).toString(); }
-  private async authenticate(action: 'login' | 'register', body: unknown) {
+  private async authenticate(action: 'login', body: unknown) {
     const account = await accountClient.authenticate(action, body);
     this.legacySession = null; localStorage.removeItem(LEGACY_SESSION_KEY);
     await this.synchronizeAccount(); return account;
   }
-  public verifyStoreCode(code: string) { return accountClient.verifyCode(code); }
-  public registerDriver(name: string, phone: string, vehiclePlate: string, vehicleModel: string, password: string, registrationCode: string) { return this.authenticate('register', { name, phone, vehiclePlate, vehicleModel, password, registrationCode }); }
+  public startFirstAccess(phone: string, code: string) { return accountClient.startFirstAccess(phone, code); }
+  public cancelFirstAccess() { accountClient.cancelFirstAccess(); }
+  public async completeFirstAccess(details: FirstAccessDetails) {
+    const account = await accountClient.completeFirstAccess(details);
+    this.legacySession = null; localStorage.removeItem(LEGACY_SESSION_KEY);
+    await this.synchronizeAccount();
+    return account;
+  }
   public loginDriver(identifier: string, password: string) { return this.authenticate('login', { identifier, password }); }
-  public async synchronizeAccount() {
+  public synchronizeAccount() {
+    const token = accountClient.getToken();
+    if (this.accountSync?.token === token) return this.accountSync.promise;
+    const sync = { token, promise: this.synchronizeAccountOnce(token) };
+    this.accountSync = sync;
+    const cleanup = () => { if (this.accountSync === sync) this.accountSync = null; };
+    void sync.promise.then(cleanup, cleanup);
+    return sync.promise;
+  }
+  private async synchronizeAccountOnce(token: string) {
+    if (!token) throw new AccountRequestError('Entre na sua conta para continuar.', 'ACCOUNT_SESSION_REQUIRED', 401);
     await accountClient.validate();
+    if (accountClient.getToken() !== token) throw new AccountRequestError('A conta foi alterada. Tente novamente.', 'STALE_REQUEST');
     const data = await this.request('account-bootstrap');
+    if (accountClient.getToken() !== token) throw new AccountRequestError('A conta foi alterada. Tente novamente.', 'STALE_REQUEST');
     if (!data.account?.id || data.account.id !== accountClient.getAccount()?.id) throw new Error('Dados de conta inválidos.');
     this.session = data.session || null; this.ledger = Array.isArray(data.ledger) ? data.ledger : [];
     this.bootstrapped = true;
@@ -78,7 +98,7 @@ export class ApiClient {
     offlineQueue.setContext(accountClient.getAccount()!.id, accountClient.getToken(), this.session?.token || '');
     return { account: accountClient.getAccount(), session: this.session };
   }
-  public async logoutDriver() { this.legacySession = null; localStorage.removeItem(LEGACY_SESSION_KEY); localStorage.removeItem('novaesweb_driver_account_v2'); await accountClient.logout(); }
+  public async logoutDriver() { this.accountSync = null; this.legacySession = null; localStorage.removeItem(LEGACY_SESSION_KEY); localStorage.removeItem('novaesweb_driver_account_v2'); await accountClient.logout(); }
   public logout() { return this.logoutDriver(); }
   public clearAllLocalData() { this.legacySession = null; accountClient.clear(); localStorage.removeItem(LEGACY_SESSION_KEY); localStorage.removeItem('novaesweb_driver_account_v2'); }
   public async activateInvite(code: string, _fingerprint?: string) { return this.activateStoreShift(code); }
