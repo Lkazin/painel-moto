@@ -64,7 +64,8 @@ export class ApiClient {
     this.legacySession = null; localStorage.removeItem(LEGACY_SESSION_KEY);
     await this.synchronizeAccount(); return account;
   }
-  public registerDriver(name:string,phone:string,vehiclePlate:string,vehicleModel:string,password:string) { return this.authenticate('register',{name,phone,vehiclePlate,vehicleModel,password}); }
+  public verifyStoreCode(code: string) { return accountClient.verifyCode(code); }
+  public registerDriver(name:string,phone:string,vehiclePlate:string,vehicleModel:string,password:string,registrationCode:string) { return this.authenticate('register',{name,phone,vehiclePlate,vehicleModel,password,registrationCode}); }
   public loginDriver(identifier:string,password:string) { return this.authenticate('login',{identifier,password}); }
   public async synchronizeAccount() {
     await accountClient.validate();

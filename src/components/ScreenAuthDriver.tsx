@@ -10,18 +10,20 @@ import {
   EyeOff,
   Shield,
   FileText,
-  HelpCircle,
-  X,
   Package,
   ShieldCheck,
   Headphones,
-  Smartphone
+  Smartphone,
+  Store,
+  CheckCircle,
+  Sparkles
 } from 'lucide-react';
 import './ScreenAuthDriver.css';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
 import { DriverAccount } from '../types';
 import { PWAInstallModal } from './PWAInstallModal';
+import { AccountInformationModal } from './AccountInformationModal';
 
 interface ScreenAuthDriverProps {
   onLoginSuccess: (account: DriverAccount) => void;
@@ -34,6 +36,41 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
   const [plate, setPlate] = useState('');
   const [model, setModel] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
+  const [registrationCode, setRegistrationCode] = useState('');
+  const [verifiedStoreName, setVerifiedStoreName] = useState<string | null>(null);
+  const [codeStatus, setCodeStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+
+  const handleCodeChange = async (val: string) => {
+    let clean = val.toUpperCase().replace(/[\s]/g, '');
+    if (!clean.startsWith('NW-') && clean.length > 0) {
+      if (clean.startsWith('NW')) {
+        clean = 'NW-' + clean.slice(2).replace(/-/g, '');
+      } else {
+        clean = 'NW-' + clean.replace(/-/g, '');
+      }
+    }
+    setRegistrationCode(clean);
+    setErrorMessage(null);
+
+    if (clean.length >= 6) {
+      setCodeStatus('checking');
+      try {
+        const res = await api.verifyStoreCode(clean);
+        if (res.valid && res.storeName) {
+          setVerifiedStoreName(res.storeName);
+          setCodeStatus('valid');
+        } else {
+          setVerifiedStoreName(null);
+          setCodeStatus('invalid');
+        }
+      } catch {
+        setCodeStatus('idle');
+      }
+    } else {
+      setCodeStatus('idle');
+      setVerifiedStoreName(null);
+    }
+  };
   // Conta centralizada, compartilhada entre aparelhos.
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -65,8 +102,19 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
     try {
       if (mode === 'register' && loginPassword.length < 8) throw new Error('A senha deve ter pelo menos 8 caracteres.');
       if (mode === 'register' && loginPassword !== passwordConfirmation) throw new Error('As senhas precisam ser iguais.');
+      if (mode === 'register') {
+        if (!name.trim() || name.trim().length < 3) throw new Error('Informe seu nome completo.');
+        if (!plate.trim() || plate.trim().length < 5) throw new Error('Informe a placa da moto.');
+        if (!model.trim()) throw new Error('Informe o modelo da moto.');
+        if (!registrationCode.trim() || registrationCode.trim().length < 5) {
+          throw new Error('Informe o código de autorização fornecido pela loja (ex: NW-XXXXXX).');
+        }
+        if (codeStatus === 'invalid') {
+          throw new Error('O código de autorização informado não é válido, expirou ou já foi utilizado.');
+        }
+      }
       const account = mode === 'register'
-        ? await api.registerDriver(name,loginIdentifier,plate,model,loginPassword)
+        ? await api.registerDriver(name,loginIdentifier,plate,model,loginPassword,registrationCode)
         : await api.loginDriver(loginIdentifier, loginPassword);
       audioAlert.playSuccessSound();
       onLoginSuccess(account);
@@ -106,15 +154,91 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
 
         {/* Formulário Principal de Login */}
         <div className="nwl-card">
-          <div style={{display:'flex',gap:8,marginBottom:20}}>
-            <button type="button" className="nwl-submit" aria-pressed={mode === 'login'} onClick={() => {setMode('login');setErrorMessage(null);}} disabled={loading}>Entrar</button>
-            <button type="button" className="nwl-submit" aria-pressed={mode === 'register'} onClick={() => {setMode('register');setErrorMessage(null);}} disabled={loading}>Criar conta</button>
+          <div className="nwl-account-switch" aria-label="Acesso à conta">
+            <button type="button" className="nwl-account-option" aria-pressed={mode === 'login'} onClick={() => {setMode('login');setErrorMessage(null);}} disabled={loading}>Entrar</button>
+            <button type="button" className="nwl-account-option" aria-pressed={mode === 'register'} onClick={() => {setMode('register');setErrorMessage(null);}} disabled={loading}>Criar conta</button>
           </div>
-          <p style={{fontSize:12,marginBottom:16}}>Para recuperar seu vínculo e histórico antigos, peça ao lojista para vincular sua conta cadastrada. Depois, use o mesmo telefone e senha nos outros aparelhos.</p>
+          <p className="nwl-account-hint">{mode === 'register' ? 'Seu primeiro acesso começa com o código de cadastro enviado pela loja.' : 'Entre com o mesmo telefone e senha em qualquer aparelho. Só um acesso fica conectado por vez.'}</p>
           {notice && <p className="nwl-error" role="alert">{notice}</p>}
           <form onSubmit={handleLogin} className="nwl-form">
             {mode === 'register' && <>
-              <div><label htmlFor="nwl-name" className="nwl-label">Nome completo</label><input id="nwl-name" className="nwl-input" value={name} onChange={event => setName(event.target.value)} autoComplete="name" required minLength={3} maxLength={120}/></div>
+              <div>
+                <label htmlFor="nwl-registration-code" className="nwl-label">
+                  <Store size={15} color="#F8F5FC" />
+                  Código de autorização da loja
+                </label>
+                <div className="nwl-field">
+                  <input
+                    id="nwl-registration-code"
+                    className="nwl-input"
+                    value={registrationCode}
+                    onChange={(e) => handleCodeChange(e.target.value)}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const pasted = e.clipboardData.getData('text');
+                      handleCodeChange(pasted);
+                    }}
+                    placeholder="Ex: NW-8K72P"
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    maxLength={12}
+                    required
+                  />
+                  <Store size={18} color="#754B98" className="nwl-input-icon" />
+                </div>
+
+                {/* Feedback dinâmico da loja */}
+                {codeStatus === 'checking' && (
+                  <div style={{ marginTop: '7px', fontSize: '12px', color: '#FFB3E0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sparkles size={14} className="spin-slow" />
+                    <span>Consultando autorização com a loja...</span>
+                  </div>
+                )}
+
+                {codeStatus === 'valid' && verifiedStoreName && (
+                  <div style={{
+                    marginTop: '7px',
+                    padding: '8px 12px',
+                    background: 'rgba(16, 185, 129, 0.18)',
+                    border: '1.5px solid rgba(16, 185, 129, 0.6)',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '12.5px',
+                    color: '#ffffff',
+                    fontWeight: 700
+                  }}>
+                    <CheckCircle size={16} color="#10b981" style={{ flexShrink: 0 }} />
+                    <span>Loja autorizada: <strong style={{ color: '#6ee7b7' }}>{verifiedStoreName}</strong> ✅</span>
+                  </div>
+                )}
+
+                {codeStatus === 'invalid' && (
+                  <div style={{
+                    marginTop: '7px',
+                    padding: '8px 12px',
+                    background: 'rgba(255, 61, 110, 0.18)',
+                    border: '1.5px solid rgba(255, 61, 110, 0.6)',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '12.5px',
+                    color: '#ffffff',
+                    fontWeight: 600
+                  }}>
+                    <AlertCircle size={16} color="#FF3D6E" style={{ flexShrink: 0 }} />
+                    <span style={{ color: '#FFB3E0' }}>Código não encontrado, expirado ou já utilizado pela loja.</span>
+                  </div>
+                )}
+
+                <p id="nwl-registration-code-help" className="nwl-account-hint" style={{ marginTop: '6px' }}>
+                  Solicite este código exclusivo ao lojista para o qual você deseja prestar serviços de entrega.
+                </p>
+              </div>
+              <div><label htmlFor="nwl-name" className="nwl-label">Nome completo</label><input id="nwl-name" className="nwl-input" value={name} onChange={event => setName(event.target.value)} autoComplete="name" required minLength={3} maxLength={100}/></div>
               <div><label htmlFor="nwl-plate" className="nwl-label">Placa da moto</label><input id="nwl-plate" className="nwl-input" value={plate} onChange={event => setPlate(event.target.value.toUpperCase())} required maxLength={10}/></div>
               <div><label htmlFor="nwl-model" className="nwl-label">Modelo da moto</label><input id="nwl-model" className="nwl-input" value={model} onChange={event => setModel(event.target.value)} required maxLength={100}/></div>
             </>}
@@ -158,6 +282,7 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
                   }}
                   autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
                   minLength={mode === 'register' ? 8 : undefined}
+                  maxLength={128}
                   required
                   placeholder="••••••••"
                   className="nwl-input nwl-input--password"
@@ -176,7 +301,7 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
 
             {mode === 'register' && <div>
               <label htmlFor="nwl-password-confirmation" className="nwl-label">Confirmar senha</label>
-              <input id="nwl-password-confirmation" className="nwl-input" type={showPassword ? 'text' : 'password'} value={passwordConfirmation} onChange={event => setPasswordConfirmation(event.target.value)} autoComplete="new-password" minLength={8} required/>
+              <input id="nwl-password-confirmation" className="nwl-input" type={showPassword ? 'text' : 'password'} value={passwordConfirmation} onChange={event => setPasswordConfirmation(event.target.value)} autoComplete="new-password" minLength={8} maxLength={128} required/>
               <p style={{fontSize:12,marginTop:8}}>Use pelo menos 8 caracteres. Guarde sua senha; a recuperação por telefone ainda não está disponível.</p>
             </div>}
             {errorMessage && (
@@ -201,6 +326,7 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
                 </>
               )}
             </button>
+            <p className="nwl-account-legal">Conheça nossos <button type="button" onClick={() => setActiveModal('terms')}>Termos de Uso</button> e saiba como utilizamos seus dados na <button type="button" onClick={() => setActiveModal('privacy')}>Política de Privacidade</button>.</p>
           </form>
         </div>
 
@@ -220,7 +346,7 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
             className="nwl-install-app-btn"
           >
             <Smartphone size={19} color="#FFB3E0" />
-            <span>Baixar Aplicativo no Celular (Android / iPhone)</span>
+            <span>Instalar no celular (Android / iPhone)</span>
           </button>
         </div>
       </div>
@@ -265,171 +391,16 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({ onLoginSucce
             NovaesWeb Tecnologia &amp; Logística Integrada
           </p>
           <p>
-            Todos os direitos reservados • Versão 2.4.0 (Build Seguro)
+            Sua conta. Suas entregas. Onde você estiver.
           </p>
           <p className="nwl-company-legal">
-            CNPJ &amp; Infraestrutura Cloud em conformidade com a LGPD (Lei Nº 13.709/2018)
+            Consulte os termos, a privacidade e os canais de atendimento.
           </p>
         </div>
       </footer>
       </div>
 
-      {/* MODAL DE POLÍTICA DE PRIVACIDADE E TERMOS */}
-      {activeModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.85)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '16px',
-            zIndex: 9999
-          }}
-          onClick={() => setActiveModal(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '20px',
-              maxWidth: '480px',
-              width: '100%',
-              maxHeight: '80vh',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.6)'
-            }}
-          >
-            {/* Header Modal */}
-            <div
-              style={{
-                padding: '16px 20px',
-                borderBottom: '1px solid var(--border-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'between',
-                width: '100%'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                {activeModal === 'privacy' && <Shield size={18} color="var(--nw-pink)" />}
-                {activeModal === 'terms' && <FileText size={18} color="var(--nw-pink)" />}
-                {activeModal === 'support' && <HelpCircle size={18} color="var(--nw-pink)" />}
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#ffffff' }}>
-                  {activeModal === 'privacy' && 'Política de Privacidade (LGPD)'}
-                  {activeModal === 'terms' && 'Termos de Uso do Entregador'}
-                  {activeModal === 'support' && 'Suporte e Atendimento NovaesWeb'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveModal(null)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  padding: '4px'
-                }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Conteúdo Modal */}
-            <div
-              style={{
-                padding: '20px',
-                overflowY: 'auto',
-                fontSize: '13px',
-                color: 'var(--text-muted)',
-                lineHeight: 1.6,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px'
-              }}
-            >
-              {activeModal === 'privacy' && (
-                <>
-                  <p>
-                    <strong style={{ color: '#ffffff' }}>1. Coleta e Finalidade da Localização:</strong> O aplicativo NovaesWeb coleta dados de geolocalização do entregador exclusivamente durante o período em que uma rota de entrega estiver ativa (após a confirmação de retirada no estabelecimento até a validação do PIN de entrega).
-                  </p>
-                  <p>
-                    <strong style={{ color: '#ffffff' }}>2. Proteção de Dados (LGPD):</strong> Nenhum dado de localização é transmitido ou exibido antes da saída do estabelecimento ou após a finalização da entrega. As informações são criptografadas e não são comercializadas com terceiros.
-                  </p>
-                  <p>
-                    <strong style={{ color: '#ffffff' }}>3. Armazenamento e Histórico:</strong> Registros operacionais de entregas concluídas permanecem vinculados à conta do entregador de forma protegida para fins de conferência financeira e relatórios.
-                  </p>
-                </>
-              )}
-
-              {activeModal === 'terms' && (
-                <>
-                  <p>
-                    <strong style={{ color: '#ffffff' }}>1. Uso da Plataforma:</strong> O acesso ao painel do entregador destina-se ao recebimento, gestão e conferência de ordens de entrega despachadas pelos estabelecimentos parceiros credenciados.
-                  </p>
-                  <p>
-                    <strong style={{ color: '#ffffff' }}>2. Validação de Entrega (PIN):</strong> É de responsabilidade do entregador solicitar e confirmar o código PIN de 4 dígitos informado pelo cliente no momento da entrega presencial para liberação e baixa segura da comanda.
-                  </p>
-                  <p>
-                    <strong style={{ color: '#ffffff' }}>3. Vínculo com Estabelecimentos:</strong> Os códigos de vínculo (<code style={{ color: '#facc15' }}>NW-XXXXXX</code>) fornecidos pelas lojas possuem validade pré-determinada e podem ser revogados pelo estabelecimento conforme normas operacionais internas.
-                  </p>
-                </>
-              )}
-
-              {activeModal === 'support' && (
-                <>
-                  <p>
-                    <strong style={{ color: '#ffffff' }}>Central de Ajuda NovaesWeb:</strong>
-                  </p>
-                  <p>
-                    Para dúvidas sobre códigos de vínculo, plantões e taxas de entrega, consulte diretamente o gerente ou operador do estabelecimento parceiro.
-                  </p>
-                  <p>
-                    Para suporte técnico relativo ao aplicativo, falhas de sincronização ou redefinição de acesso, contate nosso time de tecnologia pelo suporte operacional:
-                  </p>
-                  <div
-                    style={{
-                      background: 'var(--bg-app)',
-                      padding: '12px',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border-subtle)',
-                      fontWeight: 700,
-                      color: '#ffffff'
-                    }}
-                  >
-                    📧 suporte@novaesweb.com.br<br />
-                    📱 WhatsApp de Suporte: (11) 99999-0000
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Footer Modal */}
-            <div
-              style={{
-                padding: '14px 20px',
-                borderTop: '1px solid var(--border-subtle)',
-                display: 'flex',
-                justifyContent: 'flex-end'
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setActiveModal(null)}
-                className="btn-glove"
-                style={{ height: '42px', padding: '0 20px', fontSize: '13px' }}
-              >
-                Entendi e Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeModal && <AccountInformationModal page={activeModal} onClose={() => setActiveModal(null)} />}
       {/* MODAL DE INSTALAÇÃO PWA MOBILE (ANDROID & IOS) */}
       <PWAInstallModal isOpen={showInstallModal} onClose={() => setShowInstallModal(false)} />
     </div>

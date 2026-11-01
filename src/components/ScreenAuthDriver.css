@@ -473,3 +473,39 @@
   box-shadow: 0 6px 24px rgba(255, 46, 154, 0.35);
   transform: translateY(-1px);
 }
+
+.nwl-account-switch { display: flex; gap: 6px; padding: 5px; border-radius: 14px; background: rgba(15, 4, 24, .45); margin-bottom: 16px; }
+.nwl-account-option { flex: 1; min-height: 44px; border: 1px solid transparent; border-radius: 10px; color: #eacde8; background: transparent; font: inherit; font-weight: 700; cursor: pointer; }
+.nwl-account-option[aria-pressed="true"] { color: #fff; background: rgba(255, 46, 154, .24); border-color: rgba(255, 179, 224, .55); }
+.nwl-account-option:focus-visible { outline: 2px solid #ffb3e0; outline-offset: 2px; }
+.nwl-account-hint, .nwl-account-legal { font-size: 12px; line-height: 1.65; color: #eddaee; margin: 0 0 18px; }
+.nwl-account-legal { margin: 0; text-align: center; }
+.nwl-account-legal button { background: none; border: 0; padding: 0; color: #ffb3e0; text-decoration: underline; font: inherit; cursor: pointer; }
+
+.nwl-info-dialog { margin: auto; padding: 0; width: min(560px, calc(100vw - 24px)); max-width: none; max-height: min(88dvh, 880px); border: 1px solid #754269; border-radius: 22px; color: #fff; background: #210f2c; box-shadow: 0 28px 90px #0009; }
+.nwl-info-dialog::backdrop { background: #0d0419cc; backdrop-filter: blur(6px); }
+.nwl-info-shell { display: flex; flex-direction: column; max-height: min(88dvh, 880px); }
+.nwl-info-header { display: flex; align-items: center; gap: 12px; padding: 20px; border-bottom: 1px solid #ffffff1c; flex-shrink: 0; }
+.nwl-info-heading { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.nwl-info-icon { display: flex; padding: 11px; border: 1px solid #e77fbd66; border-radius: 13px; background: #c52f8b20; color: #ffb3e0; }
+.nwl-info-eyebrow { margin: 0 0 4px; color: #d3b5d4; font-size: 11px; }
+.nwl-info-header h2 { margin: 0; color: #fff; font-size: 21px; line-height: 1.2; }
+.nwl-info-close { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border: 0; border-radius: 12px; color: #efdaec; background: #ffffff0b; cursor: pointer; }
+.nwl-info-body { overflow-y: auto; overscroll-behavior: contain; padding: 22px; font-size: 13px; line-height: 1.75; color: #e0cfe2; }
+.nwl-info-intro { margin: 0; font-size: 14px; color: #f4e7f4; }
+.nwl-info-date { margin: 8px 0 22px; color: #baa0c2; font-size: 11px; }
+.nwl-info-body section { margin-top: 24px; }
+.nwl-info-body h3 { margin: 0 0 8px; font-size: 14px; line-height: 1.5; color: #fff; }
+.nwl-info-body p { margin: 0 0 10px; }
+.nwl-info-body .nwl-info-date { margin: 8px 0 22px; }
+.nwl-info-highlight { padding: 16px; background: #c83e971c; border: 1px solid #e47cb644; border-radius: 14px; }
+.nwl-info-highlight p:last-child, .nwl-info-body section p:last-child { margin-bottom: 0; }
+.nwl-info-faq details { border-bottom: 1px solid #ffffff20; padding: 15px 0; }
+.nwl-info-faq summary { color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; padding-right: 4px; }
+.nwl-info-faq details p { margin: 12px 0 0; }
+.nwl-info-contact { padding: 18px; margin-top: 24px; border-radius: 14px; border: 1px solid #ffffff25; background: #ffffff08; }
+.nwl-info-contact a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: #ffb3e0; font-weight: 700; text-underline-offset: 4px; }
+.nwl-info-footer { padding: 14px 20px; border-top: 1px solid #ffffff1c; flex-shrink: 0; }
+.nwl-info-footer button { min-height: 44px; width: 100%; border: 1px solid #d994c0; border-radius: 12px; background: #733258; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.nwl-info-dialog button:focus-visible, .nwl-info-dialog a:focus-visible, .nwl-info-dialog summary:focus-visible { outline: 2px solid #ffb3e0; outline-offset: 3px; }
+@media (max-width: 360px) { .nwl-info-header { padding: 15px; } .nwl-info-body { padding: 16px; } .nwl-info-header h2 { font-size: 18px; } .nwl-info-icon { display: none; } }

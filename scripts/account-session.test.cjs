@@ -11,7 +11,7 @@ function server(){
     if(unavailable)throw new TypeError('Network unavailable');
     const body=options.body?JSON.parse(options.body):{};const headers=new Headers(options.headers);calls.push({url,body,headers});
     const action=new URL(url).pathname.split('/').at(-1);
-    if(action==='register'){const account={id:'account-'+body.phone,name:body.name,phone:body.phone,vehiclePlate:body.vehiclePlate,vehicleModel:body.vehicleModel,createdAt:'2026-11-01'};accounts.set(body.phone,{account,password:body.password,active:'',session:null});}
+    if(action==='register'){if(body.registrationCode!=='NW-8K72P')return response(403,{success:false,error:'Código de cadastro inválido.'});const account={id:'account-'+body.phone,name:body.name,phone:body.phone,vehiclePlate:body.vehiclePlate,vehicleModel:body.vehicleModel,createdAt:'2026-11-01'};accounts.set(body.phone,{account,password:body.password,active:'',session:null});}
     if(action==='login'||action==='register'){
       const entry=accounts.get(body.identifier||body.phone);
       if(!entry||entry.password!==body.password)return response(401,{success:false,error:'Telefone ou senha incorretos.'});
@@ -45,7 +45,7 @@ function browser(server,memory=new Map()){
   }
   return {api:load('api').api,account:load('accountClient').accountClient,queue:load('offlineQueue').offlineQueue,memory,events,setOnline(value){online=value;}};
 }
-const register=b=>b.api.registerDriver('Entregador Teste','11999999999','TEST123','Moto','SenhaSegura123');
+const register=b=>b.api.registerDriver('Entregador Teste','11999999999','TEST123','Moto','SenhaSegura123','NW-8K72P');
 test('cadastro central, senha errada rejeitada e dados recuperados em outro aparelho',async()=>{
   const backend=server(),phone=browser(backend);await register(phone);await phone.api.activateStoreShift('nw-123456');
   const computer=browser(backend);await assert.rejects(computer.api.loginDriver('11999999999','errada'),/incorretos/);assert.equal(computer.api.getDriverAccount(),null);
@@ -76,4 +76,14 @@ test('resposta atrasada de sessão antiga não desconecta o novo login',async()=
   const pending=first.account.request(BASE+'/delayed');await first.api.logoutDriver();await first.api.loginDriver('11999999999','SenhaSegura123');
   finish({ok:false,status:401,json:async()=>({success:false,code:'ACCOUNT_SESSION_REPLACED'})});
   await assert.rejects(pending,error=>error.code==='STALE_REQUEST');assert.ok(first.api.getDriverAccount());assert.ok(first.account.getToken());
+});
+
+test('cadastro exige código de autorização da loja e rejeita código inválido',async()=>{
+  const backend=server(),first=browser(backend);
+  await assert.rejects(first.api.registerDriver('Teste','11999999999','TEST123','Moto','SenhaSegura123','NW-INVALID'),/cadastro inválido/);
+  assert.equal(first.api.getDriverAccount(),null);
+  await register(first);
+  const signup=backend.calls.filter(call=>call.url.endsWith('/register')).at(-1);
+  assert.equal(signup.body.registrationCode,'NW-8K72P');
+  assert.equal(signup.body.phone,'11999999999');
 });

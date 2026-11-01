@@ -53,6 +53,19 @@ class AccountClient {
     if (!response.ok || data.success === false) throw new AccountRequestError(data.error || data.message || 'Não foi possível confirmar a operação com a loja.', data.code, response.status);
     return data;
   }
+  async verifyCode(code: string): Promise<{ valid: boolean; storeName?: string; storeId?: string; error?: string }> {
+    try {
+      const url = logisticsApiUrl().replace('/api/v1/logistics', '/api/v1/driver-account') + '/verify-code?code=' + encodeURIComponent(code);
+      const response = await fetch(url, { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.success && data.valid) {
+        return { valid: true, storeName: data.storeName, storeId: data.storeId };
+      }
+      return { valid: false, error: data.error || 'Código inválido ou já utilizado.' };
+    } catch {
+      return { valid: false, error: 'Falha ao verificar o código com o servidor.' };
+    }
+  }
   async validate() {
     const data = await this.request(logisticsApiUrl().replace('/api/v1/logistics', '/api/v1/driver-account') + '/me');
     if (!data.account?.id || data.account.id !== this.account?.id) throw new AccountRequestError('Resposta de conta inválida.');
