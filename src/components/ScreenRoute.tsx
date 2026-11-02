@@ -400,6 +400,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                   </div>
 
                   {metric && <div className="route-stop-metrics">
+                    {metric.locationApproximate && <p className="route-location-warning">Localização aproximada da rua. Confirme o número do imóvel no Maps ou Waze.</p>}
                     {matchesSuggestion && Number.isFinite(metric.distanceMeters) && Number.isFinite(metric.durationSeconds) && <>
                       <p className="route-metric-caption">{index === 0 ? 'Saída até esta entrega' : 'Da entrega anterior até aqui'}</p>
                       <div className="route-metric-grid">

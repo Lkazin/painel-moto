@@ -42,7 +42,10 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
   const [closingShift, setClosingShift] = useState(false);
 
   useEffect(() => {
+    let live = true;
     setLedger(api.getStoresLedger());
+    void api.synchronizeAccount().then(()=>{if(live)setLedger(api.getStoresLedger());}).catch(()=>{});
+    return ()=>{live=false;};
   }, []);
 
   const totalToReceive = ledger.reduce((sum, item) => sum + (item.totalToReceive || 0), 0);
@@ -58,7 +61,6 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
       await onCloseShift();
       audioAlert.playSuccessSound();
       setLedger(api.getStoresLedger());
-      onCloseShift();
     } catch (e) {
       audioAlert.playErrorSound();
     } finally {
@@ -82,7 +84,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
       `🏪 Estabelecimento: ${storeName}\n` +
       `📅 Data/Hora: ${nowStr}\n\n` +
       `✅ *Entregas concluídas com PIN:* ${totalCompleted}\n` +
-      `💵 *Total de Taxas a Receber:* R$ ${totalToReceive.toFixed(2).replace('.', ',')}\n\n` +
+      `💵 *Total de Valores das entregas:* R$ ${totalToReceive.toFixed(2).replace('.', ',')}\n\n` +
       `_Enviado pelo App do Entregador_`;
 
     const encoded = encodeURIComponent(text);
@@ -320,7 +322,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
 
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ fontSize: '10px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 800 }}>
-                        A Receber
+                        Valores registrados
                       </span>
                       <p style={{ fontSize: '16px', fontWeight: 900, color: 'var(--nw-emerald)' }}>
                         R$ {store.totalToReceive.toFixed(2).replace('.', ',')}
@@ -339,7 +341,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
                     }}
                   >
                     <span style={{ color: 'var(--nw-emerald)', fontWeight: 700 }}>
-                      ✔ {store.completedCount} entregas com PIN
+                      ✔ {store.completedCount} entregas concluídas
                     </span>
                     {store.canceledCount > 0 && (
                       <span style={{ color: 'var(--nw-red)', fontWeight: 700 }}>
@@ -347,6 +349,15 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
                       </span>
                     )}
                   </div>
+                  <details style={{borderTop:'1px solid var(--border-subtle)',paddingTop:10,fontSize:12}}>
+                    <summary style={{cursor:'pointer',fontWeight:800}}>Ver entregas e valores ({store.deliveries?.length || 0})</summary>
+                    <p style={{color:'var(--text-muted)',marginTop:8}}>Histórico preservado mesmo sem vínculo ativo. Valores registrados por entrega; pagamento não é confirmado neste extrato.</p>
+                    {(store.deliveries || []).map(item=><div key={item.assignmentId} style={{padding:'10px 0',borderBottom:'1px solid var(--border-subtle)',display:'flex',justifyContent:'space-between',gap:8}}>
+                      <span>Pedido #{item.orderNumber}<br/><small>{item.deliveredAt ? new Date(item.deliveredAt).toLocaleString('pt-BR') : 'Data não registrada'}</small></span>
+                      <strong>{item.amount == null ? 'Valor não informado' : item.amount.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong>
+                    </div>)}
+                    {!!store.uninformedCount && <p style={{color:'#fde68a',marginTop:8}}>{store.uninformedCount} entrega(s) sem valor informado.</p>}
+                  </details>
                 </div>
               ))}
             </div>

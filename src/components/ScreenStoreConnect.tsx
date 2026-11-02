@@ -197,7 +197,7 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
               Iniciar Plantão na Loja
             </h2>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Insira o código enviado pela pizzaria para começar a receber pedidos
+              Sua conta já está cadastrada. Insira somente o código da nova loja.
             </p>
           </div>
         </div>
@@ -311,7 +311,7 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
           </div>
           <div>
             <p style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Total Geral a Receber
+              Total registrado nas lojas
             </p>
             <p style={{ fontSize: '22px', fontWeight: 900, color: 'var(--nw-emerald)' }}>
               R$ {totalToReceiveAll.toFixed(2).replace('.', ',')}
@@ -351,7 +351,7 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
             <span>Lojas Onde Você Trabalha ({ledger.length})</span>
           </h3>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            {totalDeliveriesAll} entregas com PIN
+            {totalDeliveriesAll} entregas concluídas
           </span>
         </div>
 
@@ -372,7 +372,7 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
               Nenhum plantão registrado ainda
             </p>
             <p style={{ fontSize: '12px', color: 'var(--text-subtle)', maxWidth: '280px', lineHeight: 1.4 }}>
-              Assim que você iniciar o plantão em uma pizzaria com o código dela, os valores a receber e o histórico aparecerão aqui.
+              Assim que você iniciar o plantão em uma pizzaria com o código dela, os valores registrados e o histórico aparecerão aqui.
             </p>
           </div>
         ) : (
@@ -402,7 +402,7 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <span style={{ fontSize: '10px', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 800, display: 'block' }}>
-                      A Receber
+                      Valores registrados
                     </span>
                     <span style={{ fontSize: '17px', fontWeight: 900, color: 'var(--nw-emerald)' }}>
                       R$ {item.totalToReceive.toFixed(2).replace('.', ',')}
@@ -447,3 +447,4 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
 };
 
 export default ScreenStoreConnect;
+

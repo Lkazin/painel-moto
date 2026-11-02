@@ -578,3 +578,5 @@ html, #root { width: 100%; min-height: 100%; }
 .route-total { font-size:22px; font-weight:900; color:var(--text-main); }
 .route-total span { color:var(--text-muted); margin:0 4px; }
 .route-summary summary { cursor:pointer; }
+
+.route-location-warning { padding:8px; margin-bottom:10px; border:1px solid #a16207; border-radius:8px; color:#fde68a; background:rgba(161,98,7,.12); font-size:12px; line-height:1.5; }

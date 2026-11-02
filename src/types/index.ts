@@ -25,6 +25,8 @@ export interface FirstAccessDetails {
 }
 
 export interface StoreShiftSummary {
+  uninformedCount?: number;
+  deliveries?: {assignmentId:string;orderNumber:string|number;amount:number|null;status:string;acceptedAt?:string;pickedUpAt?:string;deliveredAt?:string|null}[];
   storeId: string;
   storeName: string;
   storeAddress?: string;
@@ -142,7 +144,7 @@ export type RouteOptimizationMode = 'shortest_distance' | 'oldest_wait';
 export interface OptimizedRouteResult {
   success: boolean;
   mode: RouteOptimizationMode;
-  stops: { assignmentId: string; sequence: number; distanceMeters?: number; durationSeconds?: number; cumulativeDurationSeconds?: number; distanceFromOriginMeters?: number; durationFromOriginSeconds?: number }[];
+  stops: { assignmentId: string; sequence: number; distanceMeters?: number; durationSeconds?: number; cumulativeDurationSeconds?: number; locationApproximate?: boolean; distanceFromOriginMeters?: number; durationFromOriginSeconds?: number }[];
   totalDistanceMeters: number;
   totalDurationSeconds: number;
   rule: string;
