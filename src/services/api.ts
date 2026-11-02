@@ -1,4 +1,4 @@
-import { FirstAccessDetails, DriverSession, DriverPresence, StoreShiftSummary, Offer, Assignment, RouteStop, DeliveryHistoryItem, RatingsData } from '../types';
+import { OptimizedRouteResult, RouteOptimizationMode, FirstAccessDetails, DriverSession, DriverPresence, StoreShiftSummary, Offer, Assignment, RouteStop, DeliveryHistoryItem, RatingsData } from '../types';
 import { offlineQueue } from './offlineQueue';
 import { accountClient, AccountRequestError } from './accountClient';
 import { logisticsApiUrl } from './logisticsConfig';
@@ -127,9 +127,23 @@ export class ApiClient {
   public async getOffers(): Promise<Offer[]> { if (!this.session) return []; const data = await this.request(this.query('offers')); const list = Array.isArray(data) ? data : data.offers || []; return list.filter((offer: Offer) => !offer.expiresAt || Date.parse(offer.expiresAt) > Date.now()); }
   public respondOffer(offerId: string, decision: 'accepted' | 'rejected') { return this.request('offer-respond', { ...this.identity(), offerId, decision }); }
   public async getAssignments(): Promise<Assignment[]> { if (!this.session) return []; const data = await this.request(this.query('assignments')); return Array.isArray(data) ? data : data.assignments || []; }
-  public async confirmPickup(assignmentIds: string[]): Promise<{ confirmed: string[]; errors: Record<string, string> }> {
+  public async confirmPickup(assignmentIds: string[], pickupScopeIds: string[]): Promise<{ confirmed: string[]; released: string[]; errors: Record<string, string> }> {
+    if (!assignmentIds.length) throw new Error('Selecione pelo menos um pedido para retirar.');
+    if (!pickupScopeIds.length || assignmentIds.some(id => !pickupScopeIds.includes(id))) throw new Error('Confira os pedidos selecionados antes de confirmar a retirada.');
     if (!offlineQueue.getIsOnline()) throw new Error('Conecte-se à internet para confirmar a retirada.');
-    const data = await this.request('pickup-confirm', { ...this.identity(), assignmentIds }); return { confirmed: data.confirmed || [], errors: data.errors || {} };
+    const data = await this.request('pickup-confirm', { ...this.identity(), assignmentIds, pickupScopeIds });
+    return { confirmed: data.confirmed || [], released: data.released || [], errors: data.errors || {} };
+  }
+  public async getOptimizeRoute(mode: RouteOptimizationMode, origin?: {latitude:number;longitude:number}): Promise<OptimizedRouteResult> {
+    this.identity();
+    if (!offlineQueue.getIsOnline()) throw new Error('Conecte-se à internet para calcular a rota. Você pode organizar as paradas manualmente.');
+    const shiftToken = this.session?.token;
+    const data = await accountClient.request(logisticsApiUrl().replace('/api/v1/logistics','/api/v1/driver-route') + '/optimize', {
+      method:'POST',headers:this.getAuthHeaders(),body:JSON.stringify({mode,...(origin ? {origin}: {})}),
+    });
+    if(shiftToken !== this.session?.token) throw new AccountRequestError('O plantão foi alterado. Calcule novamente.', 'STALE_REQUEST');
+    if(data.source !== 'osrm' || data.mode !== mode || !Array.isArray(data.stops) || !Number.isFinite(data.totalDistanceMeters) || data.totalDistanceMeters < 0 || !Number.isFinite(data.totalDurationSeconds) || data.totalDurationSeconds < 0 || typeof data.rule !== 'string') throw new Error('O serviço de rotas não retornou um trajeto válido. Organize as paradas manualmente ou tente novamente.');
+    return data as OptimizedRouteResult;
   }
   public async getCurrentRoute(): Promise<RouteStop[]> { if (!this.session) return []; const data = await this.request(this.query('route-current')); return Array.isArray(data) ? data : data.stops || []; }
   public async reorderRoute(stops: { assignmentId: string; sequence: number }[]): Promise<boolean> { if (!offlineQueue.getIsOnline()) throw new Error('Conecte-se à internet para salvar a rota.'); await this.request('route-reorder', { ...this.identity(), stops }); return true; }

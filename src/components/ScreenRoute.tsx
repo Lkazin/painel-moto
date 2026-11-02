@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Navigation,
   ArrowUp,
@@ -15,7 +15,9 @@ import {
   MessageCircle,
   Map
 } from 'lucide-react';
-import { Assignment } from '../types';
+import { Assignment, OptimizedRouteResult, RouteOptimizationMode } from '../types';
+import { api } from '../services/api';
+import { activeRouteAssignments, assignmentKey, reconcileRouteStops, mapOptimizedStops } from '../services/pickupRouteState';
 import { audioAlert } from '../utils/audioAlert';
 import { trackingService } from '../services/trackingService';
 import TrackingBadge from './TrackingBadge';
@@ -33,52 +35,45 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
   onSelectDelivery,
   onNavigateToOrders
 }) => {
-  // Apenas pedidos retirados entram na rota
-  const activeAssignments = assignments
-    .filter(
-      (a) =>
-        a.status === 'picked_up' ||
-        a.status === 'in_transit' ||
-        (a as any).status === 'em_rota'
-    )
-    .sort((a, b) => a.sequence - b.sequence);
-
-  const [stops, setStops] = useState<Assignment[]>(activeAssignments);
+  const [stops, setStops] = useState<Assignment[]>(() => activeRouteAssignments(assignments));
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [routeError, setRouteError] = useState('');
+  const [suggestion, setSuggestion] = useState<OptimizedRouteResult | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const assignmentsRef = useRef(assignments);
+  const hasChangesRef = useRef(hasChanges);
+  const requestRevision = useRef(0);
+  const routeIds = activeRouteAssignments(assignments).map(assignmentKey).sort().join('|');
+  const previousRouteIds = useRef(routeIds);
+  assignmentsRef.current = assignments;
+  hasChangesRef.current = hasChanges;
 
-  // Ativa rastreamento GPS em segundo plano assim que houver paradas ativas na rota
   useEffect(() => {
-    setStops(activeAssignments);
-    if (activeAssignments.length > 0) {
-      trackingService.start(activeAssignments[0]?.driverId, activeAssignments[0]?.assignmentId);
-    }
-  }, [assignments]);
+    setStops(previous => reconcileRouteStops(previous,assignments,hasChangesRef.current));
+    if (previousRouteIds.current !== routeIds) {setSuggestion(null);previousRouteIds.current = routeIds;}
+  },[assignments,routeIds]);
+  useEffect(() => () => {requestRevision.current++;},[]);
 
-  // Roteirização Inteligente: Ordena as entregas em lote agrupando por bairro e número
-  const handleOptimizeRoute = () => {
-    if (stops.length <= 1) return;
-    audioAlert.playClickSound();
-
-    const optimized = [...stops].sort((a, b) => {
-      // 1. Agrupar por bairro idêntico
-      const nA = (a.neighborhood || '').toLowerCase().trim();
-      const nB = (b.neighborhood || '').toLowerCase().trim();
-      if (nA !== nB) return nA.localeCompare(nB);
-
-      // 2. Ordenar por número do endereço na mesma rua/bairro
-      const numA = parseInt(a.addressNumber?.replace(/\D/g, '') || '0', 10);
-      const numB = parseInt(b.addressNumber?.replace(/\D/g, '') || '0', 10);
-      if (numA && numB && numA !== numB) return numA - numB;
-
-      // 3. Ordem de retirada
-      return (a.sequence || 0) - (b.sequence || 0);
-    });
-
-    setStops(optimized);
-    setHasChanges(true);
-    audioAlert.playSuccessSound();
+  const handleOptimizeRoute = async (mode: RouteOptimizationMode) => {
+    if (!stops.length || isOptimizing || isSaving) return;
+    const revision = ++requestRevision.current;
+    setIsOptimizing(true); setRouteError(''); audioAlert.playClickSound();
+    try {
+      const tracking = trackingService.getState(), location = tracking.lastLocation;
+      const recent = tracking.isActive && location && Number.isFinite(location.timestamp) && Date.now() - Number(location.timestamp) <= 120000 && Date.now() >= Number(location.timestamp);
+      const origin = recent && Number.isFinite(location.latitude) && Math.abs(location.latitude) <= 90 && Number.isFinite(location.longitude) && Math.abs(location.longitude) <= 180 ? {latitude:location.latitude,longitude:location.longitude} : undefined;
+      const result = await api.getOptimizeRoute(mode,origin);
+      if (revision !== requestRevision.current) return;
+      const optimized = mapOptimizedStops(result,assignmentsRef.current);
+      setStops(optimized); setHasChanges(true); setSuggestion(result); audioAlert.playSuccessSound();
+    } catch(error) {
+      if (revision !== requestRevision.current) return;
+      const message = error instanceof Error ? error.message : (typeof error === 'object' && error && 'message' in error) ? String((error as any).message) : 'Não foi possível calcular a rota.';
+      setRouteError(`${message} Você pode usar as setas para organizar e abrir cada entrega no Maps ou Waze.`);
+      audioAlert.playErrorSound();
+    } finally {if (revision === requestRevision.current)setIsOptimizing(false);}
   };
 
   const getFullAddress = (stop: Assignment) => {
@@ -110,6 +105,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
 
   // Reordenação por setas Subir/Descer
   const moveStop = (index: number, direction: 'up' | 'down') => {
+    requestRevision.current++; setIsOptimizing(false); setSuggestion(null); setRouteError('');
     audioAlert.playClickSound();
     const newStops = [...stops];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
@@ -139,6 +135,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === targetIndex) return;
 
+    requestRevision.current++; setIsOptimizing(false); setSuggestion(null); setRouteError('');
     const newStops = [...stops];
     const [removed] = newStops.splice(draggedIndex, 1);
     newStops.splice(targetIndex, 0, removed);
@@ -160,7 +157,8 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
       await onReorder(payload);
       audioAlert.playSuccessSound();
       setHasChanges(false);
-    } catch {
+    } catch(error) {
+      setRouteError(error instanceof Error ? error.message : 'Não foi possível salvar a ordem. Tente novamente.');
       audioAlert.playErrorSound();
     } finally {
       setIsSaving(false);
@@ -181,28 +179,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {stops.length > 1 && (
-            <button
-              onClick={handleOptimizeRoute}
-              style={{
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(139, 47, 232, 0.2) 100%)',
-                border: '1px solid var(--nw-emerald)',
-                color: 'var(--nw-emerald)',
-                padding: '6px 12px',
-                borderRadius: '12px',
-                fontSize: '12px',
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-              title="Reorganiza as paradas agrupando bairros para economizar tempo"
-            >
-              <Sparkles size={14} />
-              <span>Otimizar Roteiro</span>
-            </button>
-          )}
+
 
           <span
             style={{
@@ -219,6 +196,23 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
           </span>
         </div>
       </div>
+
+      {stops.length > 0 && <section className="card-surface" aria-label="Calcular sequência das entregas" style={{display:'flex',flexDirection:'column',gap:12}}>
+        <h3 style={{fontSize:15,fontWeight:800}}>Como você quer organizar as entregas?</h3>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          <button type="button" onClick={() => void handleOptimizeRoute('shortest_distance')} disabled={isOptimizing || isSaving} className="btn-glove btn-glove-accent" style={{fontSize:12,padding:10,height:'auto',minHeight:52}}><Sparkles size={16}/><span>Menor distância</span></button>
+          <button type="button" onClick={() => void handleOptimizeRoute('oldest_wait')} disabled={isOptimizing || isSaving} className="btn-glove btn-glove-secondary" style={{fontSize:12,padding:10,height:'auto',minHeight:52}}><Clock size={16}/><span>Maior espera primeiro</span></button>
+        </div>
+        {isOptimizing && <p role="status" aria-live="polite" style={{fontSize:13,color:'#ffb3e0'}}>Calculando a melhor rota para suas entregas...</p>}
+        {suggestion && <div style={{fontSize:12,lineHeight:1.7,color:'var(--text-muted)'}} aria-live="polite">
+          <p style={{color:'#fff',fontWeight:700}}>{suggestion.mode === 'shortest_distance' ? 'Sugestão por menor distância' : 'Sugestão por maior espera'}</p>
+          <p>{suggestion.rule}</p>
+          <p>{`${(suggestion.totalDistanceMeters / 1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km de percurso • ${Math.ceil(suggestion.totalDurationSeconds / 60)} min de deslocamento estimado pelo OSRM.`}</p>
+          <p>O tempo é apenas de direção, sem trânsito ao vivo nem tempo de atendimento. Não é uma promessa de chegada. Salve a ordem para usar esta sequência.</p>
+          <p>© OpenStreetMap contributors; OSRM.</p>
+        </div>}
+      </section>}
+      {routeError && <p className="card-surface" role="alert" style={{fontSize:13,lineHeight:1.6,color:'#fda4af'}}>{routeError}</p>}
 
       {stops.length === 0 ? (
         <div className="card-surface" style={{ textAlign: 'center', padding: '36px 20px' }}>
@@ -258,7 +252,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
               </div>
               <button
                 onClick={handleSaveOrder}
-                disabled={isSaving}
+                disabled={isSaving || isOptimizing}
                 style={{
                   background: 'var(--nw-pink)',
                   color: '#ffffff',
@@ -285,7 +279,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
               return (
                 <div
                   key={stop.assignmentId}
-                  draggable
+                  draggable={!isSaving}
                   onDragStart={(e) => handleDragStart(e, index)}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, index)}
@@ -343,7 +337,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button
                         onClick={() => moveStop(index, 'up')}
-                        disabled={isFirst}
+                        disabled={isFirst || isSaving}
                         aria-label="Subir posição"
                         style={{
                           width: '42px',
@@ -364,7 +358,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
 
                       <button
                         onClick={() => moveStop(index, 'down')}
-                        disabled={isLast}
+                        disabled={isLast || isSaving}
                         aria-label="Descer posição"
                         style={{
                           width: '42px',

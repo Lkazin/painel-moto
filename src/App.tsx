@@ -27,6 +27,7 @@ import { accountClient } from './services/accountClient';
 import { offlineQueue } from './services/offlineQueue';
 import { trackingService } from './services/trackingService';
 import { audioAlert } from './utils/audioAlert';
+import { pushService } from './services/pushService';
 import { triggerOfferNotification, requestScreenWakeLock, releaseScreenWakeLock } from './utils/mobileWake';
 
 import { ScreenAuthDriver } from './components/ScreenAuthDriver';
@@ -342,16 +343,18 @@ export const App: React.FC = () => {
   };
 
   // Confirmar Retirada de Pedidos
-  const handleConfirmPickup = async (assignmentIds: string[]) => {
-    const res = await api.confirmPickup(assignmentIds);
-    setAssignments((previous) => previous.map(assignment =>
+  const handleConfirmPickup = async (assignmentIds: string[], pickupScopeIds: string[]) => {
+    const res = await api.confirmPickup(assignmentIds, pickupScopeIds);
+    setAssignments((previous) => previous.filter(assignment => !res.released.includes(assignment.assignmentId || assignment.id || '')).map(assignment =>
       res.confirmed.includes(assignment.assignmentId || assignment.id || '')
         ? {...assignment,status:'picked_up' as const} : assignment));
-    if (assignmentIds[0]) {
-      trackingService.start(session?.driverId, assignmentIds[0]);
+    if (res.confirmed[0]) {
+      trackingService.start(session?.driverId, res.confirmed[0]);
     }
     await refreshAssignments();
-    showToast(`Retirada confirmada de ${res.confirmed.length} pedido(s)! Adicionados à sua rota.`, 'success');
+    if (!res.confirmed.length) throw new Error(Object.values(res.errors).join(' ') || 'Nenhum pedido teve a retirada confirmada. Confira o balcão novamente.');
+    const errorsCount = Object.keys(res.errors).length;
+    showToast(`${res.confirmed.length} pedido(s) retirado(s). ${res.released.length} devolvido(s) ao despacho.${errorsCount ? ` Confira ${errorsCount} pedido(s) que não puderam ser confirmados.` : ''}`, errorsCount ? 'info' : 'success');
     setActiveTab('route');
   };
 
@@ -498,6 +501,7 @@ export const App: React.FC = () => {
             onClose={() => setIsProfileLedgerOpen(false)}
             onCloseShift={handleCloseStoreShift}
             onLogoutAccount={handleLogoutAccount}
+            onShowToast={showToast}
           />
         )}
 
@@ -741,12 +745,13 @@ export const App: React.FC = () => {
       {/* Modal de Perfil & Extrato por Loja */}
       {isProfileLedgerOpen && (
         <ScreenProfileLedger
-          account={account}
-          activeSession={session}
-          onClose={() => setIsProfileLedgerOpen(false)}
-          onCloseShift={handleCloseStoreShift}
-          onLogoutAccount={handleLogoutAccount}
-        />
+            account={account}
+            activeSession={session}
+            onClose={() => setIsProfileLedgerOpen(false)}
+            onCloseShift={handleCloseStoreShift}
+            onLogoutAccount={handleLogoutAccount}
+            onShowToast={showToast}
+          />
       )}
 
       {/* Modal de Solicitação de Desistência / Exceção */}

@@ -120,6 +120,10 @@ export interface Assignment {
   status: AssignmentStatus;
   sequence: number;
   acceptedAt: string;
+  createdAt?: string;
+  offerId?: string;
+  batchId?: string;
+  stageHistory?: { stage?: string; status?: string; at: string; actor?: string; [key: string]: unknown }[];
   pickupConfirmedAt?: string;
   deliveredAt?: string;
   driverId?: string;
@@ -131,6 +135,19 @@ export interface Assignment {
   forcedAt?: string;
   isPendingSync?: boolean; // Para confirmações offline
   pinCandidateOffline?: string;
+}
+
+export type RouteOptimizationMode = 'shortest_distance' | 'oldest_wait';
+
+export interface OptimizedRouteResult {
+  success: boolean;
+  mode: RouteOptimizationMode;
+  stops: { assignmentId: string; sequence: number }[];
+  totalDistanceMeters: number;
+  totalDurationSeconds: number;
+  rule: string;
+  source: 'osrm';
+  origin: { latitude: number; longitude: number; [key: string]: unknown };
 }
 
 export interface RouteStop {

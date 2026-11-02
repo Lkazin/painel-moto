@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   PackageCheck,
   Package,
@@ -14,11 +14,11 @@ import {
 } from 'lucide-react';
 import { Assignment } from '../types';
 import { audioAlert } from '../utils/audioAlert';
-import { trackingService } from '../services/trackingService';
+import { assignmentKey, keepPickupSelection, waitingPickupAssignments, activeRouteAssignments } from '../services/pickupRouteState';
 
 interface ScreenOrdersPickupProps {
   assignments: Assignment[];
-  onConfirmPickup: (assignmentIds: string[]) => Promise<void>;
+  onConfirmPickup: (assignmentIds: string[], pickupScopeIds: string[]) => Promise<void>;
   onRequestWithdraw: (assignment: Assignment) => void;
   onNavigateToRoute: () => void;
 }
@@ -33,31 +33,22 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'waiting' | 'picked'>('waiting');
 
-  const waitingPickup = assignments.filter(
-    (a) =>
-      a.status === 'waiting_pickup' ||
-      a.status === 'accepted' ||
-      (a as any).status === 'assigned' ||
-      (a as any).status === 'aceito' ||
-      (a as any).status === 'aguardando_retirada'
-  );
-  const pickedUp = assignments.filter(
-    (a) =>
-      a.status === 'picked_up' ||
-      a.status === 'in_transit' ||
-      (a as any).status === 'em_rota'
-  );
+  const [confirmation, setConfirmation] = useState<{ selected: string[]; scope: string[] } | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
+  const confirmDialog = useRef<HTMLDialogElement>(null);
+  const waitingPickup = waitingPickupAssignments(assignments);
+  const pickedUp = activeRouteAssignments(assignments);
+  const visibleSelectedIds = keepPickupSelection(selectedIds, assignments);
 
-  // Auto-seleciona todos os pedidos no balcão por padrão para que o motoboy não precise clicar em caixas pequenas
+  useEffect(() => { setSelectedIds(previous => keepPickupSelection(previous, assignments)); }, [assignments]);
   useEffect(() => {
-    if (waitingPickup.length > 0) {
-      setSelectedIds(waitingPickup.map((a) => a.assignmentId || a.id || ''));
-    } else {
-      setSelectedIds([]);
-    }
-  }, [assignments]);
+    if (confirmation) confirmDialog.current?.showModal();
+    return () => confirmDialog.current?.close();
+  }, [confirmation]);
 
   const toggleSelect = (id: string) => {
+    if (isSubmitting) return;
+    setErrorMessage('');
     audioAlert.playClickSound();
     if (selectedIds.includes(id)) {
       setSelectedIds(selectedIds.filter((item) => item !== id));
@@ -75,28 +66,33 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
     }
   };
 
-  const handleConfirm = async () => {
-    const idsToConfirm =
-      selectedIds.length > 0 ? selectedIds : waitingPickup.map((a) => a.assignmentId || a.id || '');
+  const handleConfirm = () => {
+    if (!visibleSelectedIds.length || isSubmitting) return;
+    setErrorMessage('');
+    setConfirmation({ selected: [...visibleSelectedIds], scope: waitingPickup.map(assignmentKey) });
+  };
 
-    if (idsToConfirm.length === 0 || isSubmitting) return;
+  const submitPickup = async () => {
+    if (!confirmation || isSubmitting) return;
+    const currentIds = new Set(waitingPickup.map(assignmentKey));
+    if (confirmation.scope.some(id => !currentIds.has(id))) {
+      setConfirmation(null);
+      setErrorMessage('O balcão mudou. Confira os pedidos e confirme novamente.');
+      return;
+    }
     setIsSubmitting(true);
     audioAlert.playClickSound();
     try {
-      await onConfirmPickup(idsToConfirm);
-      try {
-        trackingService.start(undefined, idsToConfirm[0]);
-      } catch (trackErr) {
-        console.warn('GPS tracking warning:', trackErr);
-      }
+      await onConfirmPickup(confirmation.selected, confirmation.scope);
       audioAlert.playSuccessSound();
       setSelectedIds([]);
+      setConfirmation(null);
       setActiveTab('picked');
       onNavigateToRoute();
     } catch (err: any) {
-      console.error('Falha ao confirmar retirada:', err);
+      setConfirmation(null);
       audioAlert.playErrorSound();
-      alert(err?.message || 'Não foi possível confirmar a retirada na loja. Tente novamente.');
+      setErrorMessage(err?.message || 'Não foi possível confirmar a retirada na loja. Tente novamente.');
     } finally {
       setIsSubmitting(false);
     }
@@ -104,6 +100,7 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
 
   return (
     <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {errorMessage && <p className="card-surface" role="alert" style={{ color: '#fda4af' }}>{errorMessage}</p>}
       {/* Abas Superiores */}
       <div
         style={{
@@ -194,6 +191,7 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
                 </span>
                 <button
                   onClick={selectAll}
+                  disabled={isSubmitting}
                   style={{
                     background: 'var(--bg-elevated)',
                     border: '1px solid var(--border-subtle)',
@@ -213,7 +211,7 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
                   ) : (
                     <Square size={16} />
                   )}
-                  <span>Selecionar Todos</span>
+                  <span>{visibleSelectedIds.length === waitingPickup.length ? 'Desmarcar todos' : 'Selecionar todos'}</span>
                 </button>
               </div>
 
@@ -221,7 +219,7 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {waitingPickup.map((item) => {
                   const itemId = item.assignmentId || item.id || '';
-                  const isSelected = selectedIds.includes(itemId);
+                  const isSelected = visibleSelectedIds.includes(itemId);
                   return (
                     <div
                       key={itemId}
@@ -235,13 +233,7 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ color: isSelected ? 'var(--nw-pink)' : 'var(--text-muted)' }}>
-                            {isSelected ? (
-                              <CheckSquare size={24} color="var(--nw-pink)" />
-                            ) : (
-                              <Square size={24} />
-                            )}
-                          </div>
+                          <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(itemId)} onClick={event => event.stopPropagation()} disabled={isSubmitting} aria-label={`Retirar pedido ${item.orderNumber}`} style={{ width: 24, height: 24, accentColor: 'var(--nw-pink)', flexShrink: 0 }} />
                           <div>
                             <span style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff' }}>
                               {item.orderNumber}
@@ -300,7 +292,7 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
                 <button
                   type="button"
                   onClick={handleConfirm}
-                  disabled={waitingPickup.length === 0 || isSubmitting}
+                  disabled={visibleSelectedIds.length === 0 || isSubmitting}
                   className="btn-glove btn-glove-primary"
                   style={{ height: '62px', fontSize: '17px' }}
                 >
@@ -308,9 +300,9 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
                   <span>
                     {isSubmitting
                       ? 'Confirmando com a loja...'
-                      : selectedIds.length > 0
-                      ? `Confirmar Retirada (${selectedIds.length} selecionados)`
-                      : `Confirmar Retirada (${waitingPickup.length} pedidos)`}
+                      : visibleSelectedIds.length > 0
+                      ? `Retirar ${visibleSelectedIds.length} pedido(s) selecionado(s)`
+                      : 'Selecione os pedidos que vai retirar'}
                   </span>
                 </button>
               </div>
@@ -395,6 +387,15 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
           )}
         </div>
       )}
+      {confirmation && <dialog ref={confirmDialog} aria-labelledby="pickup-confirm-title" aria-describedby="pickup-confirm-details" onCancel={event => { if (isSubmitting) event.preventDefault(); else setConfirmation(null); }} style={{ margin: 'auto', width: 'min(440px, calc(100vw - 32px))', padding: 22, borderRadius: 18, border: '1px solid var(--border-strong)', background: 'var(--bg-card)', color: '#fff' }}>
+        <h2 id="pickup-confirm-title" style={{ fontSize: 20, marginBottom: 12 }}>Confirmar retirada</h2>
+        <p id="pickup-confirm-details" style={{ fontSize: 14, lineHeight: 1.6 }}><strong>{confirmation.selected.length} pedido(s) serão retirados.</strong> {confirmation.scope.length - confirmation.selected.length > 0 ? `${confirmation.scope.length - confirmation.selected.length} pedido(s) não selecionado(s) serão devolvidos ao despacho da loja e não entrarão na sua rota.` : 'Todos os pedidos desta confirmação entrarão na sua rota.'}</p>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>Confira se apenas os pedidos que estão com você foram marcados.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 18 }}>
+          <button type="button" className="btn-glove btn-glove-primary" disabled={isSubmitting} onClick={() => void submitPickup()}>{isSubmitting ? 'Confirmando com a loja...' : 'Confirmar estes pedidos'}</button>
+          <button type="button" className="btn-glove btn-glove-secondary" disabled={isSubmitting} onClick={() => setConfirmation(null)}>Voltar e conferir</button>
+        </div>
+      </dialog>}
     </div>
   );
 };

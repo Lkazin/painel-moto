@@ -19,6 +19,7 @@ import {
 import { DriverAccount, DriverSession, StoreShiftSummary } from '../types';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
+import { SectionPushNotifications } from './SectionPushNotifications';
 
 interface ScreenProfileLedgerProps {
   account: DriverAccount;
@@ -26,6 +27,7 @@ interface ScreenProfileLedgerProps {
   onClose: () => void;
   onCloseShift: () => void | Promise<void>;
   onLogoutAccount: () => void;
+  onShowToast?: (text: string, type: 'success' | 'error' | 'info') => void;
 }
 
 export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
@@ -33,7 +35,8 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
   activeSession,
   onClose,
   onCloseShift,
-  onLogoutAccount
+  onLogoutAccount,
+  onShowToast
 }) => {
   const [ledger, setLedger] = useState<StoreShiftSummary[]>([]);
   const [closingShift, setClosingShift] = useState(false);
@@ -175,6 +178,9 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Seção de Notificações de Entregas (Web Push) */}
+        <SectionPushNotifications onShowToast={onShowToast} />
 
         {/* Se houver Plantão Ativo */}
         {activeSession && (
