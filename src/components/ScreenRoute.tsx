@@ -21,6 +21,7 @@ import { activeRouteAssignments, assignmentKey, reconcileRouteStops, mapOptimize
 import { audioAlert } from '../utils/audioAlert';
 import { trackingService } from '../services/trackingService';
 import TrackingBadge from './TrackingBadge';
+import {recentRouteOrigin,routeStaleReason} from '../services/routeEstimate';
 
 interface ScreenRouteProps {
   assignments: Assignment[];
@@ -42,18 +43,23 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
   const [routeMode, setRouteMode] = useState<RouteOptimizationMode>('shortest_distance');
   const [routeError, setRouteError] = useState('');
   const [suggestion, setSuggestion] = useState<OptimizedRouteResult | null>(null);
+  const [routeNow,setRouteNow] = useState(Date.now());
+  const [tracking,setTracking] = useState(trackingService.getState());
+  useEffect(()=>trackingService.subscribe(setTracking),[]);
+  useEffect(()=>{if(!suggestion)return;const timer=setInterval(()=>setRouteNow(Date.now()),15000);return()=>clearInterval(timer);},[!!suggestion]);
+  const staleReason = routeStaleReason(suggestion,tracking,routeNow);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const assignmentsRef = useRef(assignments);
   const hasChangesRef = useRef(hasChanges);
   const requestRevision = useRef(0);
-  const routeIds = activeRouteAssignments(assignments).map(assignmentKey).sort().join('|');
+  const routeIds = JSON.stringify(activeRouteAssignments(assignments).map(a=>[assignmentKey(a),a.address,a.addressNumber,a.neighborhood,a.city]).sort((a,b)=>a[0].localeCompare(b[0])));
   const previousRouteIds = useRef(routeIds);
   assignmentsRef.current = assignments;
   hasChangesRef.current = hasChanges;
 
   useEffect(() => {
     setStops(previous => reconcileRouteStops(previous,assignments,hasChangesRef.current));
-    if (previousRouteIds.current !== routeIds) {setSuggestion(null);previousRouteIds.current = routeIds;}
+    if (previousRouteIds.current !== routeIds) {requestRevision.current++;setIsOptimizing(false);setSuggestion(null);previousRouteIds.current = routeIds;}
   },[assignments,routeIds]);
   useEffect(() => () => {requestRevision.current++;},[]);
 
@@ -62,13 +68,11 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
     const revision = ++requestRevision.current;
     setSuggestion(null); setIsOptimizing(true); setRouteError(''); audioAlert.playClickSound();
     try {
-      const tracking = trackingService.getState(), location = tracking.lastLocation;
-      const recent = tracking.isActive && location && Number.isFinite(location.timestamp) && Date.now() - Number(location.timestamp) <= 120000 && Date.now() >= Number(location.timestamp);
-      const origin = recent && Number.isFinite(location.latitude) && Math.abs(location.latitude) <= 90 && Number.isFinite(location.longitude) && Math.abs(location.longitude) <= 180 ? {latitude:location.latitude,longitude:location.longitude} : undefined;
+      const origin = recentRouteOrigin(trackingService.getState());
       const result = await api.getOptimizeRoute(mode,origin);
       if (revision !== requestRevision.current) return;
       const optimized = mapOptimizedStops(result,assignmentsRef.current);
-      setStops(optimized); setHasChanges(true); setSuggestion(result); audioAlert.playSuccessSound();
+      setStops(optimized); setHasChanges(true); setSuggestion({...result,calculatedAt:result.calculatedAt || new Date().toISOString()}); setRouteNow(Date.now()); audioAlert.playSuccessSound();
     } catch(error) {
       if (revision !== requestRevision.current) return;
       const message = error instanceof Error ? error.message : (typeof error === 'object' && error && 'message' in error) ? String((error as any).message) : 'Não foi possível calcular a rota.';
@@ -206,13 +210,17 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
           <button type="button" role="radio" aria-checked={routeMode === 'oldest_wait'} onClick={() => setRouteMode('oldest_wait')} disabled={isOptimizing || isSaving} className={`btn-glove route-mode ${routeMode === 'oldest_wait' ? 'btn-glove-accent' : 'btn-glove-secondary'}`}><Clock size={16}/><span>Maior espera</span></button>
         </div>
         <button type="button" className="btn-glove btn-glove-accent route-organize-button" disabled={!stops.length || isOptimizing || isSaving} aria-busy={isOptimizing} onClick={() => void handleOptimizeRoute(routeMode)}>
-          <Navigation size={20}/><span>{isOptimizing ? 'Calculando rota...' : 'Organizar minha rota'}</span>
+          <Navigation size={20}/><span>{isOptimizing ? 'Calculando rota...' : staleReason ? 'Recalcular minha rota' : 'Organizar minha rota'}</span>
         </button>
         {!stops.length && <p className="route-help">Confirme a retirada dos pedidos na aba Pedidos para calcular sua rota.</p>}
         {isOptimizing && <p role="status" aria-live="polite" style={{fontSize:13,color:'#ffb3e0'}}>Calculando a melhor rota para suas entregas...</p>}
-        {suggestion && <div className="route-summary" aria-live="polite">
+        {staleReason && <p className="route-location-warning" role="status">Estimativa desatualizada. {staleReason} Calcule novamente para atualizar os minutos.</p>}
+        {suggestion && !staleReason && <div className="route-summary" aria-live="polite">
           <p style={{fontSize:12,fontWeight:800}}>{suggestion.mode === 'shortest_distance' ? 'Sugestão por menor distância' : 'Sugestão por maior espera'}</p>
+          <p className="route-help">Total de todas as {stops.length} entregas</p>
           <p className="route-total">{(suggestion.totalDistanceMeters / 1000).toLocaleString('pt-BR',{maximumFractionDigits:2})} km <span>·</span> {Math.ceil(suggestion.totalDurationSeconds / 60)} min</p>
+          <p className="route-help">Saída usada: <b>{suggestion.origin.source === 'gps' ? 'seu GPS atual' : 'loja'}</b> · {suggestion.calculatedAt ? new Date(suggestion.calculatedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : 'agora'} · {suggestion.vehicle === 'motorcycle' || suggestion.source === 'valhalla' ? 'Motocicleta' : 'Direção'}.</p>
+          {suggestion.origin.source !== 'gps' && <p className="route-help">Para calcular da sua posição atual, ative o GPS e recalcule.</p>}
           <p className="route-help">Estimativa de direção, sem trânsito ao vivo e sem contar as paradas.</p>
           <details className="route-help"><summary>Como a rota foi calculada</summary><p>{suggestion.rule}</p><p>© OpenStreetMap contributors; {suggestion.source === 'valhalla' ? 'Valhalla' : 'OSRM'}.</p></details>
         </div>}
@@ -399,8 +407,9 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                     </p>
                   </div>
 
-                  {metric && <div className="route-stop-metrics">
-                    {metric.locationApproximate && <p className="route-location-warning">Localização aproximada da rua. Confirme o número do imóvel no Maps ou Waze.</p>}
+                  {metric && !staleReason && <div className="route-stop-metrics">
+                    {metric.locationApproximate && <p className="route-location-warning">Tempo e distância aproximados até a rua. O número do imóvel não foi confirmado no mapa.</p>}
+                    {metric.locationApproximate && metric.destinationCoordinates && <a className="route-help" href={`https://www.google.com/maps/search/?api=1&query=${metric.destinationCoordinates.latitude},${metric.destinationCoordinates.longitude}`} target="_blank" rel="noopener noreferrer">Ver o ponto usado no cálculo</a>}
                     {matchesSuggestion && Number.isFinite(metric.distanceMeters) && Number.isFinite(metric.durationSeconds) && <>
                       <p className="route-metric-caption">{index === 0 ? 'Saída até esta entrega' : 'Da entrega anterior até aqui'}</p>
                       <div className="route-metric-grid">

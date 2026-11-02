@@ -142,9 +142,12 @@ export interface Assignment {
 export type RouteOptimizationMode = 'shortest_distance' | 'oldest_wait';
 
 export interface OptimizedRouteResult {
+  calculatedAt?: string;
+  vehicle?: 'motorcycle' | 'driving';
+  hasLiveTraffic?: boolean;
   success: boolean;
   mode: RouteOptimizationMode;
-  stops: { assignmentId: string; sequence: number; distanceMeters?: number; durationSeconds?: number; cumulativeDurationSeconds?: number; locationApproximate?: boolean; distanceFromOriginMeters?: number; durationFromOriginSeconds?: number }[];
+  stops: { assignmentId: string; sequence: number; distanceMeters?: number; durationSeconds?: number; cumulativeDurationSeconds?: number; locationApproximate?: boolean; destinationCoordinates?: {latitude:number;longitude:number}; distanceFromOriginMeters?: number; durationFromOriginSeconds?: number }[];
   totalDistanceMeters: number;
   totalDurationSeconds: number;
   rule: string;

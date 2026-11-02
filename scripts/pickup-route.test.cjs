@@ -8,6 +8,7 @@ function helperModule() {
   const context={exports:{}};vm.runInNewContext(source+';Object.assign(exports,{assignmentKey,waitingPickupAssignments,activeRouteAssignments,keepPickupSelection,reconcileRouteStops,mapOptimizedStops});',context);return context.exports;
 }
 const helpers=helperModule();
+const estimateContext={exports:{}};const estimateSource=stripTypeScriptTypes(fs.readFileSync('src/services/routeEstimate.ts','utf8').replace(/import[\s\S]*?from '[^']+';/g,'')).replaceAll('export function','function');vm.runInNewContext(estimateSource+';Object.assign(exports,{recentRouteOrigin,routeStaleReason});',estimateContext);const estimateHelpers=estimateContext.exports;
 function assignment(id,status='waiting_pickup',sequence=1){return {assignmentId:id,orderNumber:'#'+id,orderId:'order-'+id,storeId:'store',storeName:'Loja',customerName:'Cliente '+id,phone:'',address:'Rua Teste',addressNumber:'10',neighborhood:'Centro',city:'Canoas',itemsSummary:'Pedido',status,sequence,deliveryFee:8,acceptedAt:'2026-11-01T12:00:00Z',createdAt:'2026-11-01T11:00:00Z'};}
 function routeResult(mode,ids){return {success:true,mode,stops:ids.map((id,index)=>({assignmentId:id,sequence:index+1})),totalDistanceMeters:4200,totalDurationSeconds:720,rule:'Regra calculada pelo servidor',source:'osrm',origin:{latitude:-29.9,longitude:-51.1}};}
 function walk(node,predicate,result=[]){if(!node||typeof node!=='object')return result;if(predicate(node))result.push(node);for(const child of [node.props?.children].flat(Infinity))walk(child,predicate,result);return result;}
@@ -20,7 +21,7 @@ async function component(name,props,api={}){
   const transformed=transformSync(name+'.tsx',source,{jsx:{runtime:'classic'},tsconfig:false});
   assert.equal(transformed.errors.length,0);
   const icons=new Proxy({}, {get:()=>()=>null});
-  const context={React:react,...react,exports:{},...helpers,api,audioAlert:{playClickSound(){},playSuccessSound(){},playErrorSound(){}},trackingService:{getState:()=>({isActive:false,lastLocation:null})},TrackingBadge:()=>null,console,Date,window:{open(){}}};
+  const context={React:react,...react,exports:{},...helpers,...estimateHelpers,setInterval:()=>0,clearInterval(){},api,audioAlert:{playClickSound(){},playSuccessSound(){},playErrorSound(){}},trackingService:{getState:()=>({isActive:false,lastLocation:null}),subscribe:()=>()=>{}},TrackingBadge:()=>null,console,Date,window:{open(){}}};
   for(const name of ['PackageCheck','Package','CheckSquare','Square','AlertTriangle','ArrowRight','Clock','MapPin','ChevronRight','Layers','Store','Navigation','ArrowUp','ArrowDown','GripVertical','CheckCircle','ShieldAlert','AlertCircle','Sparkles','Compass','MessageCircle','Map'])context[name]=icons[name];
   vm.runInNewContext(transformed.code+';exports.Component='+name+';',context);
   let currentProps=props,tree;
@@ -58,14 +59,30 @@ test('API de retirada exige seleção e transmite todos os IDs visíveis sem lim
 test('duas regras usam servidor, aceitam mais de quatro paradas e sugestão só é salva ao escolher',async()=>{
   const picked=Array.from({length:6},(_,i)=>assignment(String(i+1),'picked_up',i+1));const modes=[],saved=[];
   const view=await component('ScreenRoute',{assignments:[...picked,assignment('WAIT')],onReorder:async value=>saved.push(value),onSelectDelivery(){},onNavigateToOrders(){}},{getOptimizeRoute:async mode=>{modes.push(mode);return routeResult(mode,picked.map(helpers.assignmentKey).reverse());}});
-  view.render();view.find(node=>node.type==='button'&&nodeText(node).includes('Menor distância'))[0].props.onClick();view.render();assert.match(view.text(),/Calculando a melhor rota/);await view.settle();assert.match(view.text(),/4,2 km/);assert.equal(saved.length,0);
-  view.find(node=>node.type==='button'&&nodeText(node).includes('Maior espera primeiro'))[0].props.onClick();await view.settle();assert.deepEqual(modes,['shortest_distance','oldest_wait']);
+  view.render();view.find(node=>node.type==='button'&&nodeText(node).includes('Organizar minha rota'))[0].props.onClick();view.render();assert.match(view.text(),/Calculando a melhor rota/);await view.settle();assert.match(view.text(),/4,2\s+km/);assert.equal(saved.length,0);
+  view.find(node=>node.type==='button'&&nodeText(node).includes('Maior espera'))[0].props.onClick();view.render();view.find(node=>node.type==='button'&&nodeText(node).includes('Organizar minha rota'))[0].props.onClick();await view.settle();assert.deepEqual(modes,['shortest_distance','oldest_wait']);
   view.find(node=>node.type==='button'&&nodeText(node).includes('Salvar Ordem'))[0].props.onClick();await view.settle();assert.equal(saved[0].length,6);assert.equal(saved[0][0].assignmentId,'6');assert.equal(saved[0].some(stop=>stop.assignmentId==='WAIT'),false);
 });
 test('falha do provedor mantém rota manual, sem distância inventada e com Maps/Waze disponíveis',async()=>{
   const picked=[assignment('A','picked_up',1),assignment('B','picked_up',2)],saved=[];
   const view=await component('ScreenRoute',{assignments:picked,onReorder:async value=>saved.push(value),onSelectDelivery(){},onNavigateToOrders(){}},{getOptimizeRoute:async()=>{throw new Error('Serviço indisponível');}});
-  view.render();view.find(node=>node.type==='button'&&nodeText(node).includes('Menor distância'))[0].props.onClick();await view.settle();assert.match(view.text(),/Serviço indisponível/);assert.match(view.text(),/Maps/);assert.match(view.text(),/Waze/);assert.doesNotMatch(view.text(),/km de percurso/);
+  view.render();view.find(node=>node.type==='button'&&nodeText(node).includes('Organizar minha rota'))[0].props.onClick();await view.settle();assert.match(view.text(),/Serviço indisponível/);assert.match(view.text(),/Maps/);assert.match(view.text(),/Waze/);assert.doesNotMatch(view.text(),/km de percurso/);
   view.find(node=>node.type==='button'&&node.props['aria-label']==='Descer posição')[0].props.onClick();view.render();view.render({assignments:picked.map(item=>({...item})),onReorder:async value=>saved.push(value),onSelectDelivery(){},onNavigateToOrders(){}});
   view.find(node=>node.type==='button'&&nodeText(node).includes('Salvar Ordem'))[0].props.onClick();await view.settle();assert.equal(saved[0][0].assignmentId,'B');
+});
+
+test('GPS recente autorizado é usado mesmo sem monitoramento contínuo; GPS antigo ou impreciso não é usado',()=>{
+ const now=Date.parse('2026-11-01T12:00:00Z');const state={isActive:false,driverId:null,lastLocation:{latitude:-29.9,longitude:-51.1,timestamp:now-1000,accuracy:10}};
+ assert.ok(estimateHelpers.recentRouteOrigin(state,now));
+ assert.equal(estimateHelpers.recentRouteOrigin({...state,lastLocation:{...state.lastLocation,timestamp:now-121000}},now),undefined);
+ assert.equal(estimateHelpers.recentRouteOrigin({...state,lastLocation:{...state.lastLocation,accuracy:500}},now),undefined);
+ const route={...routeResult('shortest_distance',[]),calculatedAt:new Date(now).toISOString(),origin:{latitude:-29.9,longitude:-51.1,source:'gps'}};
+ assert.equal(estimateHelpers.routeStaleReason(route,state,now),null);
+ assert.match(estimateHelpers.routeStaleReason(route,{...state,lastLocation:{...state.lastLocation,latitude:-29.91}},now),/localização mudou/);
+ assert.match(estimateHelpers.routeStaleReason(route,state,now+301000),/cinco minutos/);
+});
+test('total de 56 minutos fica separado de trecho de 18 minutos',async()=>{
+ const picked=[assignment('A','picked_up',1),assignment('B','picked_up',2)];
+ const result={...routeResult('shortest_distance',['A','B']),totalDurationSeconds:3360,origin:{latitude:-29.9,longitude:-51.1,source:'store'},stops:[{assignmentId:'A',sequence:1,distanceMeters:6000,durationSeconds:1080,cumulativeDurationSeconds:1080},{assignmentId:'B',sequence:2,distanceMeters:9000,durationSeconds:2280,cumulativeDurationSeconds:3360}]};
+ const view=await component('ScreenRoute',{assignments:picked,onReorder:async()=>{},onSelectDelivery(){},onNavigateToOrders(){}},{getOptimizeRoute:async()=>result});view.render();view.find(n=>n.type==='button'&&nodeText(n).includes('Organizar minha rota'))[0].props.onClick();await view.settle();assert.match(view.text(),/Total de todas as\s+2\s+entregas/);assert.match(view.text(),/56\s+min/);assert.match(view.text(),/Tempo do trecho\s*18\s+min/);assert.match(view.text(),/Saída usada:\s+loja/);
 });
