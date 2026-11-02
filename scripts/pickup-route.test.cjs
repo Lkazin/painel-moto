@@ -86,3 +86,17 @@ test('total de 56 minutos fica separado de trecho de 18 minutos',async()=>{
  const result={...routeResult('shortest_distance',['A','B']),totalDurationSeconds:3360,origin:{latitude:-29.9,longitude:-51.1,source:'store'},stops:[{assignmentId:'A',sequence:1,distanceMeters:6000,durationSeconds:1080,cumulativeDurationSeconds:1080},{assignmentId:'B',sequence:2,distanceMeters:9000,durationSeconds:2280,cumulativeDurationSeconds:3360}]};
  const view=await component('ScreenRoute',{assignments:picked,onReorder:async()=>{},onSelectDelivery(){},onNavigateToOrders(){}},{getOptimizeRoute:async()=>result});view.render();view.find(n=>n.type==='button'&&nodeText(n).includes('Organizar minha rota'))[0].props.onClick();await view.settle();assert.match(view.text(),/Total de todas as\s+2\s+entregas/);assert.match(view.text(),/56\s+min/);assert.match(view.text(),/Tempo do trecho\s*18\s+min/);assert.match(view.text(),/Saída usada:\s+loja/);
 });
+
+test('próxima entrega acompanha a sequência manual sem duplicar cartões ou salvar automaticamente',async()=>{
+ const a={...assignment('A','picked_up',1),instructions:'Portão azul'},b={...assignment('B','picked_up',2),deliveryFee:null};
+ const saved=[],opened=[];
+ const props={assignments:[a,b],onReorder:async value=>saved.push(value),onSelectDelivery:value=>opened.push(value.assignmentId),onNavigateToOrders(){}};
+ const view=await component('ScreenRoute',props);view.render();
+ assert.match(view.text(),/Próxima entrega/);assert.match(view.text(),/Referência \/ observações:\s*Portão azul/);
+ assert.equal(view.find(n=>n.type==='button'&&nodeText(n).includes('Abrir próxima entrega')).length,1);
+ view.find(n=>n.type==='button'&&nodeText(n).includes('Abrir próxima entrega'))[0].props.onClick();assert.deepEqual(opened,['A']);
+ view.find(n=>n.type==='button'&&n.props['aria-label']==='Descer posição')[0].props.onClick();view.render();
+ assert.match(view.text(),/Prévia da sequência/);assert.match(view.text(),/Frete desta entrega: não informado pela loja/);
+ view.find(n=>n.type==='button'&&nodeText(n).includes('Abrir próxima entrega'))[0].props.onClick();assert.deepEqual(opened,['A','B']);
+ assert.equal(saved.length,0);
+});

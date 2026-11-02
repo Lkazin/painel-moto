@@ -1,87 +1,54 @@
 import React, { useEffect, useState } from 'react';
-import { Navigation, MapPin, AlertCircle } from 'lucide-react';
+import { Navigation, MapPin, WifiOff } from 'lucide-react';
 import { trackingService } from '../services/trackingService';
 import { TrackingSessionState } from '../types';
+import { trackingPresentation } from '../services/trackingPresentation';
 
 export default function TrackingBadge() {
   const [tracking, setTracking] = useState<TrackingSessionState>(trackingService.getState());
+  const [permission, setPermission] = useState(trackingService.getPermissionStatus());
+  const [online, setOnline] = useState(typeof navigator === 'undefined' || navigator.onLine !== false);
+  const [now, setNow] = useState(Date.now);
   const [loadingGps, setLoadingGps] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = trackingService.subscribe((state) => {
+    const unsubscribe = trackingService.subscribe(state => {
       setTracking(state);
+      setPermission(trackingService.getPermissionStatus());
+      setNow(Date.now());
     });
-    return () => unsubscribe();
+    const onConnection = () => { setOnline(navigator.onLine !== false); setNow(Date.now()); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') onConnection(); };
+    const clock = setInterval(() => setNow(Date.now()), 5000);
+    window.addEventListener('online', onConnection);
+    window.addEventListener('offline', onConnection);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      unsubscribe(); clearInterval(clock);
+      window.removeEventListener('online', onConnection);
+      window.removeEventListener('offline', onConnection);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
-  const handleRequestGps = async () => {
+  const state = trackingPresentation(tracking, permission, online, now);
+  const fresh = state.kind === 'fresh';
+  const color = fresh ? 'var(--nw-emerald)' : 'var(--text-muted)';
+  async function refreshGps() {
     setLoadingGps(true);
-    await trackingService.requestLocationPermission();
-    setLoadingGps(false);
-  };
-
-  if (tracking.error || !tracking.lastLocation) {
-    return (
-      <button
-        type="button"
-        onClick={handleRequestGps}
-        disabled={loadingGps}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: '4px 10px',
-          borderRadius: '999px',
-          background: 'rgba(245, 158, 11, 0.18)',
-          border: '1px solid rgba(245, 158, 11, 0.5)',
-          color: '#fde68a',
-          fontSize: '11px',
-          fontWeight: 800,
-          cursor: 'pointer'
-        }}
-        title="Toque para permitir e atualizar sua localização GPS real"
-      >
-        <MapPin size={13} color="#f59e0b" />
-        <span>{loadingGps ? 'Ativando GPS...' : 'Ativar GPS Real'}</span>
-      </button>
-    );
+    try { await trackingService.requestLocationPermission(); }
+    finally { setLoadingGps(false); }
   }
-
-  return (
-    <button
-      type="button"
-      onClick={handleRequestGps}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '4px 10px',
-        borderRadius: '999px',
-        background: 'rgba(16, 185, 129, 0.15)',
-        border: '1px solid rgba(16, 185, 129, 0.45)',
-        color: '#6ee7b7',
-        fontSize: '11px',
-        fontWeight: 800,
-        cursor: 'pointer'
-      }}
-      title="Sua localização real está sendo compartilhada com a loja e o cliente. Toque para atualizar agora."
-    >
-      <span
-        style={{
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          backgroundColor: '#10b981',
-          boxShadow: '0 0 8px #10b981'
-        }}
-      />
-      <Navigation size={12} color="#34d399" />
-      <span>GPS Ativo</span>
-      {tracking.lastLocation?.accuracy && (
-        <span style={{ fontSize: '10px', opacity: 0.85 }}>
-          (±{Math.round(tracking.lastLocation.accuracy)}m)
-        </span>
-      )}
-    </button>
-  );
+  return <button type="button" onClick={refreshGps} disabled={loadingGps}
+    aria-label={`${state.label}. ${state.detail} Toque para atualizar o GPS.`}
+    style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 8, minHeight: 44, maxWidth: '100%', textAlign: 'left',
+      padding: '8px 10px', borderRadius: 12, background: 'var(--bg-card)', border: '1px solid var(--border-strong)', color }}>
+    {state.kind === 'offline' ? <WifiOff size={16} style={{ flexShrink: 0, marginTop: 2 }} /> : fresh
+      ? <Navigation size={16} style={{ flexShrink: 0, marginTop: 2 }} /> : <MapPin size={16} style={{ flexShrink: 0, marginTop: 2 }} />}
+    <span style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+      <span role="status" aria-live="polite" style={{ fontSize: 12, fontWeight: 800 }}>{loadingGps ? 'Atualizando GPS…' : state.label}</span>
+      <span style={{ fontSize: 11, fontWeight: 400, lineHeight: 1.5, color: 'var(--text-muted)', maxWidth: 320 }}>{state.detail}</span>
+      {state.lastSentAt !== null && <span style={{ fontSize: 11, color: 'var(--text-subtle)' }}>Último envio confirmado: {new Date(state.lastSentAt).toLocaleTimeString('pt-BR')}</span>}
+    </span>
+  </button>;
 }

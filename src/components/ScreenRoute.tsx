@@ -307,8 +307,14 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                     transition: 'border 0.2s ease, opacity 0.2s ease'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  {isFirst && <div style={{ marginBottom: 12 }}>
+                    <h3 style={{ fontSize: 18, fontWeight: 900, color: 'var(--nw-emerald)' }}>Próxima entrega</h3>
+                    <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-muted)', marginTop: 4 }}>
+                      {hasChanges ? 'Prévia da sequência. Toque em Salvar Ordem para confirmar a alteração.' : 'Primeira parada da sua sequência salva. Confira o endereço antes de sair.'}
+                    </p>
+                  </div>}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', minWidth: 0 }}>
                       <GripVertical size={18} color="var(--text-subtle)" style={{ cursor: 'grab' }} />
                       <span
                         style={{
@@ -342,7 +348,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                               borderRadius: '8px'
                             }}
                           >
-                            PARADA ATUAL
+                            {hasChanges ? 'PRÉVIA' : 'PRÓXIMA PARADA'}
                           </span>
                         )}
                       </div>
@@ -399,12 +405,18 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                     <p style={{ fontSize: '14px', fontWeight: 800, color: '#ffffff' }}>
                       {stop.customerName}
                     </p>
-                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px', overflowWrap: 'anywhere' }}>
                       📍 {stop.address}, {stop.addressNumber} {stop.addressComplement ? `(${stop.addressComplement})` : ''}
                     </p>
                     <p style={{ fontSize: '12px', color: 'var(--text-subtle)', marginTop: '2px' }}>
                       {stop.neighborhood} • 🍕 {stop.itemsSummary}
                     </p>
+                    {stop.instructions && <p style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text-muted)', marginTop: 6 }}><b>Referência / observações:</b> {stop.instructions}</p>}
+                    {isFirst && <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', marginTop: 6 }}>
+                      {typeof stop.deliveryFee === 'number' && Number.isFinite(stop.deliveryFee) && stop.deliveryFee >= 0
+                        ? `Frete desta entrega: ${stop.deliveryFee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+                        : 'Frete desta entrega: não informado pela loja'}
+                    </p>}
                   </div>
 
                   {metric && !staleReason && <div className="route-stop-metrics">
@@ -503,7 +515,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                       style={{ height: '48px', fontSize: '14px' }}
                     >
                       <Navigation size={18} />
-                      <span>{isFirst ? 'Iniciar Entrega Agora' : 'Ver Detalhes desta Parada'}</span>
+                      <span>{isFirst ? 'Abrir próxima entrega' : 'Ver Detalhes desta Parada'}</span>
                       <ArrowRight size={16} />
                     </button>
                   </div>
