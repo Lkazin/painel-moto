@@ -56,6 +56,8 @@ class TrackingService {
   private activeDriverId: string | null = null;
   private activeAssignmentId: string | null = null;
   private lastSentTime: number = 0;
+  private generation = 0;
+  private pushController: AbortController | null = null;
   private listeners: Set<StateListener> = new Set();
   private permissionState: 'granted' | 'denied' | 'prompt' | 'unknown' = 'unknown';
 
@@ -71,6 +73,28 @@ class TrackingService {
   constructor() {
     this.initPermissionMonitor();
     accountClient.subscribe(() => this.stop(false));
+    if (typeof window !== 'undefined') {
+      window.addEventListener('offline', () => {
+        if (!this.currentState.isActive) return;
+        this.currentState.error = 'Sem internet. A localização será atualizada quando a conexão voltar.';
+        this.notify();
+      });
+      const recover = () => {
+        if (this.currentState.isActive && navigator.onLine !== false && document.visibilityState !== 'hidden') {
+          void this.requestLocationPermission();
+        }
+      };
+      window.addEventListener('online', recover);
+      document.addEventListener('visibilitychange', recover);
+    }
+  }
+
+  private validLocation(loc: DriverLocationUpdate): boolean {
+    return Number.isFinite(loc.latitude) && Math.abs(loc.latitude) <= 90 &&
+      Number.isFinite(loc.longitude) && Math.abs(loc.longitude) <= 180 &&
+      Number.isFinite(loc.timestamp) && Date.now() - Number(loc.timestamp) <= 30000 &&
+      Number(loc.timestamp) <= Date.now() + 5000 &&
+      (loc.accuracy == null || (Number.isFinite(loc.accuracy) && loc.accuracy >= 0 && loc.accuracy <= 100));
   }
 
   private initPermissionMonitor() {
@@ -134,6 +158,7 @@ class TrackingService {
       }
 
       const identity = getStoredDriverIdentity(this.activeDriverId);
+      const generation = this.generation;
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -149,8 +174,20 @@ class TrackingService {
             timestamp: pos.timestamp,
           };
 
+          if (generation !== this.generation) { resolve({ granted: false }); return; }
+          if (!this.validLocation(loc)) {
+            this.currentState.error = 'Aguardando uma localização recente e com melhor precisão do GPS.';
+            this.notify();
+            resolve({ granted: false, error: this.currentState.error });
+            return;
+          }
+          if (Number(loc.timestamp) < Number(this.currentState.lastLocation?.timestamp || 0)) {
+            resolve({ granted: true });
+            return;
+          }
+
           this.currentState.lastLocation = loc;
-          this.currentState.error = null;
+          if (!this.currentState.isActive) this.currentState.error = null;
           this.notify();
 
           // Só transmite para o servidor se não for apenas verificação de permissão e se a sessão de rota estiver ativa
@@ -168,6 +205,7 @@ class TrackingService {
           });
         },
         (err) => {
+          if (generation !== this.generation) { resolve({ granted: false }); return; }
           if (err.code === err.PERMISSION_DENIED) {
             this.permissionState = 'denied';
             this.currentState.error =
@@ -196,8 +234,10 @@ class TrackingService {
       this.watchId = null;
     }
 
+    const generation = this.generation;
     this.watchId = navigator.geolocation.watchPosition(
       (pos) => {
+        if (generation !== this.generation || !this.currentState.isActive) return;
         this.permissionState = 'granted';
         const identity = getStoredDriverIdentity(driverId);
         const loc: DriverLocationUpdate = {
@@ -213,6 +253,7 @@ class TrackingService {
         this.handleNewLocation(loc);
       },
       (err) => {
+        if (generation !== this.generation || !this.currentState.isActive) return;
         console.warn('[TrackingService] Aviso GPS:', err.message);
         if (err.code === err.PERMISSION_DENIED) {
           this.permissionState = 'denied';
@@ -250,13 +291,15 @@ class TrackingService {
     }
 
     this.activeDriverId = resolvedDriverId;
+    this.generation++;
+    this.lastSentTime = 0;
     this.activeAssignmentId = assignmentId || null;
     this.currentState = {
       isActive: true,
       driverId: resolvedDriverId,
       assignmentId: assignmentId || null,
       lastLocation: this.currentState.lastLocation,
-      lastPushedAt: this.currentState.lastPushedAt,
+      lastPushedAt: null,
       error: null,
     };
     this.notify();
@@ -270,6 +313,10 @@ class TrackingService {
    * Para o envio de localização
    */
   public stop(sendEnd = true) {
+    this.generation++;
+    this.pushController?.abort();
+    this.pushController = null;
+    this.lastSentTime = 0;
     if (this.watchId !== null && typeof window !== 'undefined' && 'geolocation' in navigator) {
       navigator.geolocation.clearWatch(this.watchId);
       this.watchId = null;
@@ -296,18 +343,33 @@ class TrackingService {
    * Trata nova localização real recebida com controle de taxa (throttle 5s)
    */
   private async handleNewLocation(loc: DriverLocationUpdate, forceImmediate = false) {
+    if (!this.currentState.isActive) return;
+    if (!this.validLocation(loc)) {
+      this.currentState.error = 'Aguardando uma localização recente e com melhor precisão do GPS.';
+      this.notify();
+      return;
+    }
+    if (Number(loc.timestamp) < Number(this.currentState.lastLocation?.timestamp || 0)) return;
     this.currentState.lastLocation = loc;
-    this.currentState.error = null;
+    if (navigator.onLine === false) {
+      this.currentState.error = 'Sem internet. A localização será atualizada quando a conexão voltar.';
+      this.notify();
+      return;
+    }
     this.notify();
 
     if (!this.currentState.isActive || !accountClient.getToken()) return;
     const now = Date.now();
-    if (!forceImmediate && now - this.lastSentTime < 5000) {
+    if (this.pushController || (!forceImmediate && now - this.lastSentTime < 5000)) {
       return;
     }
 
     this.lastSentTime = now;
     const identity = getStoredDriverIdentity(loc.driverId);
+    const generation = this.generation;
+    const controller = new AbortController();
+    this.pushController = controller;
+    const timeout = setTimeout(() => controller.abort(), 15000);
 
     try {
       const payload = {
@@ -318,8 +380,9 @@ class TrackingService {
         sessionToken: identity.token,
       };
 
-      await accountClient.request(`${logisticsApiUrl()}/tracking-location-push`, {
+      const response = await accountClient.request(`${logisticsApiUrl()}/tracking-location-push`, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           'x-driver-id': identity.driverId,
@@ -333,12 +396,23 @@ class TrackingService {
         body: JSON.stringify(payload),
       });
 
-      if (this.currentState.isActive && accountClient.getToken()) {
-        this.currentState.lastPushedAt = new Date().toISOString();
+      if (generation === this.generation && this.currentState.isActive && accountClient.getToken()) {
+        if (response?.success === true && !response.ignored && response.updatedAt) {
+          this.currentState.lastPushedAt = response.updatedAt;
+          this.currentState.error = null;
+        } else {
+          this.currentState.error = 'Localização ainda não compartilhada. Aguardando confirmação de entrega em andamento.';
+        }
         this.notify();
       }
-    } catch (e) {
-      console.warn('[TrackingService] Falha de conexão ao enviar coordenadas:', e);
+    } catch {
+      if (generation === this.generation && this.currentState.isActive) {
+        this.currentState.error = 'Não foi possível sincronizar a localização. Aguardando conexão para tentar novamente.';
+        this.notify();
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (this.pushController === controller) this.pushController = null;
     }
   }
 

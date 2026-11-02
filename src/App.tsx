@@ -65,6 +65,7 @@ export const App: React.FC = () => {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [currentOffer, setCurrentOffer] = useState<Offer | null>(null);
   const handledOfferIdsRef = useRef<Set<string>>(new Set());
+  const assignmentsRevision = useRef(0);
   const [pendingSyncCount, setPendingSyncCount] = useState<number>(offlineQueue.getPendingCount());
   const [historySummary, setHistorySummary] = useState({ totalEarnings: 0, itemsCount: 0 });
 
@@ -160,29 +161,33 @@ export const App: React.FC = () => {
   // Carrega atribuições e histórico real da API
   const refreshAssignments = useCallback(async () => {
     if (!session) return;
+    const requestRevision = ++assignmentsRevision.current;
     try {
       const [data, hist] = await Promise.all([
         api.getAssignments(),
         api.getHistory()
       ]);
-      if (!api.getSession() || api.getSession()?.driverId !== session.driverId) return;
+      if (requestRevision !== assignmentsRevision.current || !api.getSession() ||
+        api.getSession()?.driverId !== session.driverId || api.getSession()?.membershipId !== session.membershipId) return;
       setAssignments(data);
       setHistorySummary({
         totalEarnings: hist.totalEarnings,
         itemsCount: hist.items.length
       });
 
-      // Sincroniza GPS se houver pedidos ativos aceitos ou em rota
+      // Compartilha GPS somente depois da retirada confirmada pelo servidor.
       const activeAsg = data.find(
         (a) =>
           a.status === 'picked_up' ||
           a.status === 'in_transit' ||
-          a.status === 'waiting_pickup' ||
-          (a as any).status === 'accepted'
+          (a as any).status === 'em_rota'
       );
-      if (activeAsg && !trackingService.getState().isActive) {
+      if (activeAsg) {
         trackingService.start(session?.driverId, activeAsg.assignmentId || activeAsg.id);
+      } else if (trackingService.getState().isActive) {
+        trackingService.stop(false);
       }
+      return data;
     } catch {}
   }, [session]);
 
@@ -300,14 +305,6 @@ export const App: React.FC = () => {
           return Array.from(map.values());
         });
       }
-      const acceptedAsgId =
-        (res as any)?.assignment?.assignmentId ||
-        (res as any)?.assignment?.id ||
-        (res as any)?.assignments?.[0]?.assignmentId ||
-        (res as any)?.assignments?.[0]?.id ||
-        `asg_${offerId}`;
-      trackingService.start(session?.driverId, acceptedAsgId);
-
       await refreshAssignments();
       showToast('Corrida aceita! O pedido está aguardando retirada no balcão da pizzaria.', 'success');
       setActiveTab('orders');
@@ -371,13 +368,12 @@ export const App: React.FC = () => {
     setPinTarget(null);
     setActiveDelivery(null);
 
-    const remainingInRoute = assignments.filter(
+    const refreshedAssignments = await refreshAssignments();
+    const remainingInRoute = (refreshedAssignments || assignments).filter(
       (a) =>
-        (a.status === 'picked_up' || a.status === 'in_transit') &&
-        a.assignmentId !== completedAssignment?.assignmentId
+        (a.status === 'picked_up' || a.status === 'in_transit' || (a as any).status === 'em_rota') &&
+        (a.assignmentId || a.id) !== (completedAssignment?.assignmentId || completedAssignment?.id)
     );
-
-    await refreshAssignments();
 
     if (isOfflinePending) {
       showToast('Entrega gravada no aparelho! Pendente de validação online com a loja.', 'info');
