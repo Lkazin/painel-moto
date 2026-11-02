@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NovaesWeb Entregador</string>
+    <string name="title_activity_main">NovaesWeb Entregador</string>
+    <string name="package_name">br.com.novaesweb.entregador</string>
+    <string name="custom_url_scheme">br.com.novaesweb.entregador</string>
+    <string name="capacitor_background_geolocation_notification_channel_name">Localização durante entregas</string>
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_tracking</string>
+</resources>

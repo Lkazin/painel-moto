@@ -36,3 +36,10 @@ test('invalid or inaccurate captures and future confirmations are never shown as
  assert.equal(present({...state,lastPushedAt:new Date(now+6000).toISOString()},'granted',true,now).kind,'captured');
  assert.equal(present({...state,error:'Falha no envio'},'granted',true,now).kind,'stale');
 });
+
+test('Android background messaging distinguishes native GPS from browser limits',()=>{
+ assert.match(present(state,'granted',true,now,true).detail,/Waze/);
+ assert.match(present(state,'granted',true,now,false).detail,/navegador/);
+ assert.match(present(state,'denied',true,now,true).detail,/aplicativo/);
+ assert.doesNotMatch(present({...state,lastLocation:null},'granted',true,now,true).detail,/aplicativo aberto/);
+});

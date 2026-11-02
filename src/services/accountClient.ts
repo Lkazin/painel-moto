@@ -1,5 +1,7 @@
 import { DriverAccount, FirstAccessChallenge, FirstAccessDetails } from '../types';
 import { logisticsApiUrl } from './logisticsConfig';
+import { supportsBackgroundTracking, nativeAccountRequest } from './nativeTracking';
+
 
 const KEY = 'novaesweb_account_access_v1';
 const NOTICE_KEY = 'novaesweb_account_notice_v1';
@@ -48,7 +50,8 @@ class AccountClient {
   async request(url: string, options: RequestInit = {}) {
     const token = this.token, revision = this.revision;
     if (!token) throw new AccountRequestError('Entre na sua conta para continuar.', 'ACCOUNT_SESSION_REQUIRED', 401);
-    const response = await fetch(url, {...options, cache: 'no-store', headers: {...Object.fromEntries(new Headers(options.headers).entries()), 'x-account-session': token}});
+    const requestOptions = {...options, cache: 'no-store' as RequestCache, headers: {...Object.fromEntries(new Headers(options.headers).entries()), 'x-account-session': token}};
+    const response = supportsBackgroundTracking() ? await nativeAccountRequest(url, requestOptions) : await fetch(url, requestOptions);
     const data = await response.json().catch(() => ({}));
     if (token !== this.token || revision !== this.revision) throw new AccountRequestError('A conta foi alterada. Atualize os dados.', 'STALE_REQUEST');
     if (response.status === 401 && ['ACCOUNT_SESSION_REPLACED', 'ACCOUNT_SESSION_REQUIRED'].includes(data.code)) {

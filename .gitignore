@@ -28,3 +28,8 @@ dist-ssr
 
 # Local visual tests and screenshots
 .qa-route/
+
+# Android signing credentials remain local.
+*.jks
+*.keystore
+keystore.properties

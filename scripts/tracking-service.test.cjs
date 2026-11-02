@@ -14,6 +14,7 @@ function harness(request = async () => ({ success: true, updatedAt: '2026-11-02T
   const context = { exports: {}, console, Date, Number, Math, Set, Promise, AbortController, setTimeout, clearTimeout,
     navigator, document, window: { addEventListener(name, fn) { events[name] = fn; } },
     localStorage: { getItem(key) { return key.includes('session') ? JSON.stringify({ driverId: 'driver', membershipId: 'membership', token: 'shift' }) : null; } },
+    NativeTrackingWatcher: class { start(){} async stop(){} }, supportsBackgroundTracking: () => false, nativeCurrentPosition(){},
     logisticsApiUrl: () => 'https://example.test/api',
     accountClient: { subscribe() {}, getToken: () => 'account', async request(url, options) { calls.push({ url, body: JSON.parse(options.body) }); return request(url, options); } },
   };

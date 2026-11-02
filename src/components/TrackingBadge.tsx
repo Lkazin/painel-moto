@@ -3,6 +3,7 @@ import { Navigation, MapPin, WifiOff } from 'lucide-react';
 import { trackingService } from '../services/trackingService';
 import { TrackingSessionState } from '../types';
 import { trackingPresentation } from '../services/trackingPresentation';
+import { supportsBackgroundTracking } from '../services/nativeTracking';
 
 export default function TrackingBadge() {
   const [tracking, setTracking] = useState<TrackingSessionState>(trackingService.getState());
@@ -31,7 +32,8 @@ export default function TrackingBadge() {
     };
   }, []);
 
-  const state = trackingPresentation(tracking, permission, online, now);
+  const backgroundGps = supportsBackgroundTracking();
+  const state = trackingPresentation(tracking, permission, online, now, backgroundGps);
   const fresh = state.kind === 'fresh';
   const color = fresh ? 'var(--nw-emerald)' : 'var(--text-muted)';
   async function refreshGps() {
@@ -48,6 +50,7 @@ export default function TrackingBadge() {
     <span style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
       <span role="status" aria-live="polite" style={{ fontSize: 12, fontWeight: 800 }}>{loadingGps ? 'Atualizando GPS…' : state.label}</span>
       <span style={{ fontSize: 11, fontWeight: 400, lineHeight: 1.5, color: 'var(--text-muted)', maxWidth: 320 }}>{state.detail}</span>
+      <span style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--text-muted)', maxWidth: 320 }}>{backgroundGps ? 'GPS em segundo plano disponível durante entregas. Mantenha as permissões e o aviso de localização ativos.' : 'Ao abrir o Waze, o navegador pode pausar o GPS. Use o aplicativo Android para localização em segundo plano.'}</span>
       {state.lastSentAt !== null && <span style={{ fontSize: 11, color: 'var(--text-subtle)' }}>Último envio confirmado: {new Date(state.lastSentAt).toLocaleTimeString('pt-BR')}</span>}
     </span>
   </button>;

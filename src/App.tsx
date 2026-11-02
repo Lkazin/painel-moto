@@ -1,3 +1,4 @@
+import { deliveryTrackingDecision } from './services/deliveryTrackingLifecycle';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Home,
@@ -165,12 +166,12 @@ export const App: React.FC = () => {
     try {
       const [data, hist] = await Promise.all([
         api.getAssignments(),
-        api.getHistory()
+        api.getHistory().catch(() => null)
       ]);
       if (requestRevision !== assignmentsRevision.current || !api.getSession() ||
         api.getSession()?.driverId !== session.driverId || api.getSession()?.membershipId !== session.membershipId) return;
       setAssignments(data);
-      setHistorySummary({
+      if (hist) setHistorySummary({
         totalEarnings: hist.totalEarnings,
         itemsCount: hist.items.length
       });
@@ -369,10 +370,10 @@ export const App: React.FC = () => {
     setActiveDelivery(null);
 
     const refreshedAssignments = await refreshAssignments();
-    const remainingInRoute = (refreshedAssignments || assignments).filter(
-      (a) =>
-        (a.status === 'picked_up' || a.status === 'in_transit' || (a as any).status === 'em_rota') &&
-        (a.assignmentId || a.id) !== (completedAssignment?.assignmentId || completedAssignment?.id)
+    const trackingDecision = deliveryTrackingDecision(
+      refreshedAssignments || assignments,
+      completedAssignment?.assignmentId || completedAssignment?.id,
+      !isOfflinePending
     );
 
     if (isOfflinePending) {
@@ -382,7 +383,7 @@ export const App: React.FC = () => {
     }
 
     // Se concluiu a última entrega da rota, encerra sessão de GPS e abre a tela de Resumo de Rota
-    if (remainingInRoute.length === 0) {
+    if (trackingDecision.canFinishRoute) {
       trackingService.stop();
       setRouteCompletedStats({
         count: 1,
@@ -398,8 +399,8 @@ export const App: React.FC = () => {
   // Encerrar Plantão nesta loja e salvar ganhos no extrato
   const handleCloseStoreShift = async () => {
     try {
-      trackingService.stop();
       const res = await api.closeStoreShift();
+      trackingService.stop();
       setSession(null);
       setIsStoreModalOpen(false);
       setIsProfileLedgerOpen(false);

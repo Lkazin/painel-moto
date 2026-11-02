@@ -1,3 +1,4 @@
+import { NativeTrackingWatcher, supportsBackgroundTracking, nativeCurrentPosition } from './nativeTracking';
 import { DriverLocationUpdate, TrackingSessionState } from '../types';
 
 import { logisticsApiUrl } from './logisticsConfig';
@@ -53,6 +54,8 @@ function getStoredDriverIdentity(fallbackDriverId?: string | null): StoredDriver
 
 class TrackingService {
   private watchId: number | null = null;
+  private nativeWatcher = new NativeTrackingWatcher();
+  private nativeWatching = false;
   private activeDriverId: string | null = null;
   private activeAssignmentId: string | null = null;
   private lastSentTime: number = 0;
@@ -80,7 +83,7 @@ class TrackingService {
         this.notify();
       });
       const recover = () => {
-        if (this.currentState.isActive && navigator.onLine !== false && document.visibilityState !== 'hidden') {
+        if (this.currentState.isActive && navigator.onLine !== false && (supportsBackgroundTracking() || document.visibilityState !== 'hidden')) {
           void this.requestLocationPermission();
         }
       };
@@ -98,6 +101,7 @@ class TrackingService {
   }
 
   private initPermissionMonitor() {
+    if (supportsBackgroundTracking()) return;
     if (typeof window === 'undefined' || !('permissions' in navigator)) return;
     try {
       navigator.permissions
@@ -109,7 +113,7 @@ class TrackingService {
             this.permissionState = status.state as 'granted' | 'denied' | 'prompt';
             if (status.state === 'granted' && this.currentState.isActive) {
               const identity = getStoredDriverIdentity(this.activeDriverId);
-              this.startWatch(identity.driverId);
+              if (!supportsBackgroundTracking()) this.startWatch(identity.driverId);
             }
             this.notify();
           };
@@ -160,7 +164,8 @@ class TrackingService {
       const identity = getStoredDriverIdentity(this.activeDriverId);
       const generation = this.generation;
 
-      navigator.geolocation.getCurrentPosition(
+      const getPosition = supportsBackgroundTracking() ? nativeCurrentPosition : navigator.geolocation.getCurrentPosition.bind(navigator.geolocation);
+      getPosition(
         (pos) => {
           this.permissionState = 'granted';
           const loc: DriverLocationUpdate = {
@@ -227,7 +232,27 @@ class TrackingService {
   }
 
   private startWatch(driverId: string) {
-    if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
+    if (typeof window === 'undefined') return;
+    if (supportsBackgroundTracking()) {
+      if (this.nativeWatching) return;
+      this.nativeWatching = true;
+      const generation = this.generation;
+      void this.nativeWatcher.start(location => {
+        if (generation !== this.generation || !this.currentState.isActive) return;
+        this.permissionState = 'granted';
+        this.handleNewLocation({ driverId, assignmentId: this.activeAssignmentId || undefined,
+          latitude: location.latitude, longitude: location.longitude, accuracy: location.accuracy,
+          heading: location.bearing, speed: location.speed, timestamp: Number(location.time) });
+      }, (message, denied) => {
+        if (generation !== this.generation || !this.currentState.isActive) return;
+        if (denied) this.permissionState = 'denied';
+        this.currentState.error = message;
+        this.nativeWatching = false;
+        this.notify();
+      });
+      return;
+    }
+    if (!('geolocation' in navigator)) return;
 
     if (this.watchId !== null) {
       navigator.geolocation.clearWatch(this.watchId);
@@ -281,7 +306,7 @@ class TrackingService {
     const resolvedDriverId = identity.driverId;
     if (!accountClient.getToken() || !identity.token || !resolvedDriverId) return;
 
-    if (this.currentState.isActive && this.activeDriverId === resolvedDriverId && this.watchId !== null) {
+    if (this.currentState.isActive && this.activeDriverId === resolvedDriverId && (this.watchId !== null || this.nativeWatching)) {
       if (assignmentId) {
         this.activeAssignmentId = assignmentId;
         this.currentState.assignmentId = assignmentId;
@@ -305,7 +330,7 @@ class TrackingService {
     this.notify();
 
     // Captura imediata da posição atual e inicia watchPosition real
-    this.requestLocationPermission();
+    if (!supportsBackgroundTracking()) this.requestLocationPermission();
     this.startWatch(resolvedDriverId);
   }
 
@@ -313,6 +338,8 @@ class TrackingService {
    * Para o envio de localização
    */
   public stop(sendEnd = true) {
+    this.nativeWatching = false;
+    void this.nativeWatcher.stop();
     this.generation++;
     this.pushController?.abort();
     this.pushController = null;
