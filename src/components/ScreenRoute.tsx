@@ -39,6 +39,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [routeMode, setRouteMode] = useState<RouteOptimizationMode>('shortest_distance');
   const [routeError, setRouteError] = useState('');
   const [suggestion, setSuggestion] = useState<OptimizedRouteResult | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -166,16 +167,16 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
   };
 
   return (
-    <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div className="route-screen">
       {/* Cabeçalho da Rota */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+      <div className="route-header">
+        <div style={{minWidth:0,flex:1}}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap:'wrap' }}>
             <h2 style={{ fontSize: '20px', fontWeight: 900 }}>Minha Rota de Entregas</h2>
             <TrackingBadge />
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            Organize por arrastar ou setas. O lojista apenas visualiza.
+            Calcule a sequência e confira os km e minutos de cada entrega.
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -197,21 +198,25 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
         </div>
       </div>
 
-      {stops.length > 0 && <section className="card-surface" aria-label="Calcular sequência das entregas" style={{display:'flex',flexDirection:'column',gap:12}}>
-        <h3 style={{fontSize:15,fontWeight:800}}>Como você quer organizar as entregas?</h3>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-          <button type="button" onClick={() => void handleOptimizeRoute('shortest_distance')} disabled={isOptimizing || isSaving} className="btn-glove btn-glove-accent" style={{fontSize:12,padding:10,height:'auto',minHeight:52}}><Sparkles size={16}/><span>Menor distância</span></button>
-          <button type="button" onClick={() => void handleOptimizeRoute('oldest_wait')} disabled={isOptimizing || isSaving} className="btn-glove btn-glove-secondary" style={{fontSize:12,padding:10,height:'auto',minHeight:52}}><Clock size={16}/><span>Maior espera primeiro</span></button>
+      <section className="card-surface route-organizer" aria-label="Organizar minha rota">
+        <h3 style={{fontSize:16,fontWeight:800}}>Organizar minha rota</h3>
+        <p className="route-help">Escolha a prioridade e calcule o melhor caminho pelas ruas.</p>
+        <div className="route-mode-options" role="radiogroup" aria-label="Prioridade da rota">
+          <button type="button" role="radio" aria-checked={routeMode === 'shortest_distance'} onClick={() => setRouteMode('shortest_distance')} disabled={isOptimizing || isSaving} className={`btn-glove route-mode ${routeMode === 'shortest_distance' ? 'btn-glove-accent' : 'btn-glove-secondary'}`}><Sparkles size={16}/><span>Menor distância</span></button>
+          <button type="button" role="radio" aria-checked={routeMode === 'oldest_wait'} onClick={() => setRouteMode('oldest_wait')} disabled={isOptimizing || isSaving} className={`btn-glove route-mode ${routeMode === 'oldest_wait' ? 'btn-glove-accent' : 'btn-glove-secondary'}`}><Clock size={16}/><span>Maior espera</span></button>
         </div>
+        <button type="button" className="btn-glove btn-glove-accent route-organize-button" disabled={!stops.length || isOptimizing || isSaving} aria-busy={isOptimizing} onClick={() => void handleOptimizeRoute(routeMode)}>
+          <Navigation size={20}/><span>{isOptimizing ? 'Calculando rota...' : 'Organizar minha rota'}</span>
+        </button>
+        {!stops.length && <p className="route-help">Confirme a retirada dos pedidos na aba Pedidos para calcular sua rota.</p>}
         {isOptimizing && <p role="status" aria-live="polite" style={{fontSize:13,color:'#ffb3e0'}}>Calculando a melhor rota para suas entregas...</p>}
-        {suggestion && <div style={{fontSize:12,lineHeight:1.7,color:'var(--text-muted)'}} aria-live="polite">
-          <p style={{color:'#fff',fontWeight:700}}>{suggestion.mode === 'shortest_distance' ? 'Sugestão por menor distância' : 'Sugestão por maior espera'}</p>
-          <p>{suggestion.rule}</p>
-          <p>{`${(suggestion.totalDistanceMeters / 1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km de percurso • ${Math.ceil(suggestion.totalDurationSeconds / 60)} min de deslocamento estimado pelo ${suggestion.source === 'valhalla' ? 'Valhalla' : 'OSRM'}.`}</p>
-          <p>O tempo é apenas de direção, sem trânsito ao vivo nem tempo de atendimento. Não é uma promessa de chegada. Salve a ordem para usar esta sequência.</p>
-          <p>© OpenStreetMap contributors; {suggestion.source === 'valhalla' ? 'Valhalla' : 'OSRM'}.</p>
+        {suggestion && <div className="route-summary" aria-live="polite">
+          <p style={{fontSize:12,fontWeight:800}}>{suggestion.mode === 'shortest_distance' ? 'Sugestão por menor distância' : 'Sugestão por maior espera'}</p>
+          <p className="route-total">{(suggestion.totalDistanceMeters / 1000).toLocaleString('pt-BR',{maximumFractionDigits:2})} km <span>·</span> {Math.ceil(suggestion.totalDurationSeconds / 60)} min</p>
+          <p className="route-help">Estimativa de direção, sem trânsito ao vivo e sem contar as paradas.</p>
+          <details className="route-help"><summary>Como a rota foi calculada</summary><p>{suggestion.rule}</p><p>© OpenStreetMap contributors; {suggestion.source === 'valhalla' ? 'Valhalla' : 'OSRM'}.</p></details>
         </div>}
-      </section>}
+      </section>
       {routeError && <p className="card-surface" role="alert" style={{fontSize:13,lineHeight:1.6,color:'#fda4af'}}>{routeError}</p>}
 
       {stops.length === 0 ? (
@@ -394,11 +399,17 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                     </p>
                   </div>
 
-                  {metric && <div style={{marginTop:10,fontSize:12,lineHeight:1.8,color:'var(--text-muted)'}}>
-                    {Number.isFinite(metric.distanceFromOriginMeters) && Number.isFinite(metric.durationFromOriginSeconds) && <p>Da origem: {(metric.distanceFromOriginMeters! / 1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km · {Math.ceil(metric.durationFromOriginSeconds! / 60)} min</p>}
-                    {matchesSuggestion && Number.isFinite(metric.distanceMeters) && Number.isFinite(metric.durationSeconds) && <p>{index === 0 ? 'Até a primeira parada' : 'Desde a parada anterior'}: {(metric.distanceMeters! / 1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km · {Math.ceil(metric.durationSeconds! / 60)} min</p>}
-                    {matchesSuggestion && Number.isFinite(metric.cumulativeDurationSeconds) && <p>Chegada estimada em {Math.ceil(metric.cumulativeDurationSeconds! / 60)} min de deslocamento, sem contar o tempo das entregas.</p>}
-                    {!matchesSuggestion && <p>Ordem alterada. Recalcule para atualizar os trechos e a chegada.</p>}
+                  {metric && <div className="route-stop-metrics">
+                    {matchesSuggestion && Number.isFinite(metric.distanceMeters) && Number.isFinite(metric.durationSeconds) && <>
+                      <p className="route-metric-caption">{index === 0 ? 'Saída até esta entrega' : 'Da entrega anterior até aqui'}</p>
+                      <div className="route-metric-grid">
+                        <div><span>Distância do trecho</span><strong>{(metric.distanceMeters! / 1000).toLocaleString('pt-BR',{maximumFractionDigits:2})} <small>km</small></strong></div>
+                        <div><span>Tempo do trecho</span><strong>{Math.ceil(metric.durationSeconds! / 60)} <small>min</small></strong></div>
+                      </div>
+                    </>}
+                    {matchesSuggestion && Number.isFinite(metric.cumulativeDurationSeconds) && <p className="route-help">Tempo acumulado na rota: <b>{Math.ceil(metric.cumulativeDurationSeconds! / 60)} min</b>, sem contar as paradas.</p>}
+                    {Number.isFinite(metric.distanceFromOriginMeters) && Number.isFinite(metric.durationFromOriginSeconds) && <p className="route-help">Direto da origem: {(metric.distanceFromOriginMeters! / 1000).toLocaleString('pt-BR',{maximumFractionDigits:2})} km · {Math.ceil(metric.durationFromOriginSeconds! / 60)} min.</p>}
+                    {!matchesSuggestion && <p className="route-help">Ordem alterada. Calcule novamente para atualizar os trechos.</p>}
                   </div>}
                   {/* Botões Rápidos de Navegação e Contato */}
                   <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
