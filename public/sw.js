@@ -1,21 +1,38 @@
 // Service Worker para PWA do Painel do Motoboy — NovaesWeb Entregador
-const CACHE_NAME = 'novaesweb-motoboy-v6';
+const CACHE_PREFIX = 'novaesweb-motoboy-';
+const CACHE_NAME = `${CACHE_PREFIX}v7-brand`;
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/favicon.svg',
+  '/manifest.webmanifest',
+  '/favicon.ico',
+  '/favicon-16.png',
+  '/favicon-32.png',
   '/icon-192.png',
   '/icon-512.png',
   '/icon-maskable.png',
-  '/apple-touch-icon.png'
+  '/apple-touch-icon.png',
+  '/brand/novaesweb-entregador-ui.png'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch(() => {});
-    })
+    caches.open(CACHE_NAME).then(async (cache) => {
+      await cache.addAll(STATIC_ASSETS);
+      // O worker é registrado depois do primeiro carregamento do bundle. Aquecer
+      // as entradas do HTML garante que o primeiro retorno offline tenha JS/CSS.
+      const shell = await cache.match('/index.html');
+      if (!shell) return;
+      const html = await shell.text();
+      const entries = new Set();
+      for (const match of html.matchAll(/<(?:script|link)\b[^>]*\s(?:src|href)\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
+        const asset = new URL(match[1], self.location.origin);
+        if (asset.origin === self.location.origin && !asset.search && !asset.hash &&
+          /^\/assets\/[A-Za-z0-9._-]+\.(?:js|css)$/.test(asset.pathname)) entries.add(asset.pathname);
+      }
+      if (entries.size) await cache.addAll([...entries].slice(0, 32));
+    }).catch(() => {})
   );
   self.skipWaiting();
 });
@@ -25,7 +42,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          if (key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME) {
             return caches.delete(key);
           }
         })
@@ -35,28 +52,34 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Estratégia Network First para navegação e Stale-While-Revalidate para assets
+// Somente o shell público e arquivos estáticos entram no cache; APIs e sessões ficam fora.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-
-  // Não interceptar chamadas externas do Supabase nem APIs dinâmicas
-  if (url.origin !== self.location.origin || url.pathname.startsWith('/api')) {
+  const authenticated = event.request.headers?.has('authorization') || event.request.headers?.has('x-account-session');
+  if (event.request.method !== 'GET' || authenticated || url.origin !== self.location.origin || url.pathname.startsWith('/api')) {
     return;
   }
-
+  const navigation = event.request.mode === 'navigate' && (url.pathname === '/' || url.pathname === '/index.html');
+  const staticAsset = STATIC_ASSETS.includes(url.pathname) ||
+    /^\/assets\/[^/]+\.(?:js|css|woff2?|png|webp|svg)$/.test(url.pathname) ||
+    /^\/brand\/[^/]+\.(?:png|webp|svg)$/.test(url.pathname);
+  if (!navigation && !staticAsset) {
+    return;
+  }
+  // Não persistir query strings de ofertas/códigos no CacheStorage.
+  const cacheKey = navigation ? '/index.html' : url.pathname;
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        if (response.status === 200) {
+        const policy = response.headers.get('cache-control') || '';
+        if (response.status === 200 && !/\b(?:private|no-store)\b/i.test(policy)) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(cacheKey, clone)).catch(() => {}));
         }
         return response;
       })
       .catch(() => {
-        return caches.match(event.request).then((cached) => {
-          return cached || (event.request.mode === 'navigate' ? caches.match('/index.html') : null);
-        });
+        return caches.open(CACHE_NAME).then(cache => cache.match(cacheKey)).then(cached => cached || Response.error());
       })
   );
 });
@@ -75,7 +98,7 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Nova entrega disponível!';
   const body = data.body || 'Você recebeu uma nova entrega. Toque para visualizar.';
   const icon = data.icon || '/icon-192.png';
-  const badge = data.badge || '/favicon.svg';
+  const badge = data.badge || '/icon-192.png';
   const tag = data.tag || 'novaesweb-offer';
   const targetUrl = data.url || (data.data?.offerId ? `/?offerId=${data.data.offerId}` : '/');
 

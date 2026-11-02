@@ -98,8 +98,8 @@ export async function triggerOfferNotification(offer: Offer): Promise<void> {
       if (reg && reg.showNotification) {
         await reg.showNotification(title, {
           body,
-          icon: '/favicon.svg',
-          badge: '/favicon.svg',
+          icon: '/icon-192.png',
+          badge: '/favicon-32.png',
           vibrate: [600, 200, 600, 200, 900],
           tag: 'nova-oferta-' + (offer.offerId || Date.now()),
           renotify: true,
@@ -117,7 +117,7 @@ export async function triggerOfferNotification(offer: Offer): Promise<void> {
   try {
     new Notification(title, {
       body,
-      icon: '/favicon.svg',
+      icon: '/icon-192.png',
       vibrate: [600, 200, 600, 200, 900]
     } as any);
   } catch (e) {}

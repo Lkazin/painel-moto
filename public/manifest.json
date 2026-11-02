@@ -1,13 +1,12 @@
 {
   "name": "NovaesWeb Entregador",
   "short_name": "Entregador",
-  "description": "Aplicativo oficial para entregadores e motoboys NovaesWeb",
+  "description": "Aplicativo NovaesWeb Entregador para receber pedidos, organizar rotas, acompanhar entregas e trabalhar com lojas parceiras.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#16061F",
   "theme_color": "#16061F",
-  "orientation": "portrait-primary",
   "lang": "pt-BR",
   "dir": "ltr",
   "icons": [
@@ -33,26 +32,36 @@
       "src": "/apple-touch-icon.png",
       "sizes": "180x180",
       "type": "image/png"
-    },
-    {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
     }
   ],
-  "categories": ["business", "productivity", "utilities"],
+  "categories": [
+    "business",
+    "productivity",
+    "utilities"
+  ],
   "shortcuts": [
     {
       "name": "Minha Rota",
       "short_name": "Rota",
       "url": "/?tab=route",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Pedidos Pendentes",
       "short_name": "Pedidos",
       "url": "/?tab=orders",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
-  ]
+  ],
+  "id": "/"
 }

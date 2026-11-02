@@ -539,9 +539,8 @@ export const App: React.FC = () => {
         <div className="top-header-row">
           {/* Brand Universal */}
           <div className="brand-pill">
-            <span className="logo-dot" />
-            <span>NovaesWeb</span>
-            <span style={{ color: 'var(--nw-pink)', fontSize: '13px', fontWeight: 900 }}>ENTREGADOR</span>
+            <img src="/icon-192.png" className="brand-symbol" width="192" height="192" alt="" aria-hidden="true" decoding="async" />
+            <span className="brand-wordmark">NovaesWeb<span>Entregador</span></span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

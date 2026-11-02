@@ -1,0 +1,5 @@
+# O aplicativo usa login e não possui páginas editoriais públicas.
+# Permitir o rastreamento deixa os buscadores lerem a diretiva noindex do HTML.
+User-agent: *
+Allow: /
+Disallow: /api/

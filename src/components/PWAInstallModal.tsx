@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Smartphone,
   Download,
   Share,
   PlusSquare,
@@ -127,7 +126,7 @@ export const PWAInstallModal: React.FC<{ isOpen: boolean; onClose: () => void }>
                 boxShadow: '0 0 16px rgba(255, 46, 154, 0.4)'
               }}
             >
-              <Smartphone size={22} color="#ffffff" />
+              <img src="/icon-192.png" width="192" height="192" alt="" aria-hidden="true" style={{width:'34px',height:'auto',objectFit:'contain'}} />
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: '#ffffff' }}>

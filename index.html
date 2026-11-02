@@ -3,13 +3,13 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
-  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
 
-  <!-- Viewport exclusivo para celular (sem zoom acidental, seguro para notch e gestos) -->
+  <!-- Mantém o encaixe em celulares e permite ampliar o conteúdo por acessibilidade. -->
   <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
   <!-- Cores de tema do Android e navegador -->
   <meta name="theme-color" content="#16061F" />
@@ -19,18 +19,35 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Entregador" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-  <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
-  <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
 
   <!-- Compatibilidade Android PWA -->
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="application-name" content="NovaesWeb Entregador" />
-  <meta name="description" content="Aplicativo oficial para entregadores e motoboys NovaesWeb" />
-  <link rel="manifest" href="/manifest.json" />
+  <meta name="description" content="Aplicativo NovaesWeb Entregador para receber pedidos, organizar rotas, acompanhar entregas e trabalhar com lojas parceiras." />
+  <!-- A SPA contém acesso e telas privadas, sem páginas públicas para indexação. -->
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="canonical" href="https://painel-moto-three.vercel.app/" />
+  <link rel="manifest" href="/manifest.webmanifest" />
 
-  <title>NovaesWeb Entregador</title>
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:site_name" content="NovaesWeb Entregador" />
+  <meta property="og:title" content="NovaesWeb Entregador | Gestão de Entregas" />
+  <meta property="og:description" content="Aplicativo NovaesWeb Entregador para receber pedidos, organizar rotas, acompanhar entregas e trabalhar com lojas parceiras." />
+  <meta property="og:url" content="https://painel-moto-three.vercel.app/" />
+  <meta property="og:image" content="https://painel-moto-three.vercel.app/brand/og-novaesweb-entregador.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Logo NovaesWeb Entregador em rosa, roxo e branco" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="NovaesWeb Entregador | Gestão de Entregas" />
+  <meta name="twitter:description" content="Aplicativo NovaesWeb Entregador para receber pedidos, organizar rotas, acompanhar entregas e trabalhar com lojas parceiras." />
+  <meta name="twitter:image" content="https://painel-moto-three.vercel.app/brand/og-novaesweb-entregador.png" />
+  <meta name="twitter:image:alt" content="Logo NovaesWeb Entregador em rosa, roxo e branco" />
+
+  <title>NovaesWeb Entregador | Gestão de Entregas</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap"

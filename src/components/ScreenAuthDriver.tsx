@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Phone, Lock, Bike, ArrowRight, LogIn, AlertCircle, Eye, EyeOff, Shield, FileText, Package, ShieldCheck, Headphones, Smartphone, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Phone, Lock, ArrowRight, LogIn, AlertCircle, Eye, EyeOff, Shield, FileText, Package, ShieldCheck, Headphones, Smartphone, CheckCircle, ArrowLeft } from 'lucide-react';
 import './ScreenAuthDriver.css';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
@@ -72,8 +72,7 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({onLoginSucces
       <div className="nwl-content">
         <div className="nwl-main">
           <header className="nwl-header">
-            <div className="nwl-logo"><Bike size={46} color="#ffffff" strokeWidth={2.4}/></div>
-            <h1 className="nwl-title">NovaesWeb <span className="nwl-title-accent">Entregador</span></h1>
+            <h1 className="nwl-brand-heading"><img className="nwl-brand-logo" src="/brand/novaesweb-entregador-ui.png" width="480" height="320" alt="NovaesWeb Entregador" fetchPriority="high" decoding="async" /></h1>
             <span className="nwl-badge"><Package size={16} color="#F5B6D7"/>Painel do Entregador</span>
             <p className="nwl-subtitle">Seu cadastro acompanha você. Entre no celular ou no computador com apenas um acesso conectado por vez.</p>
           </header>
