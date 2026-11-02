@@ -14,6 +14,9 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
 
 export type PushPermissionStatus = 'granted' | 'denied' | 'default' | 'unsupported';
 
+export const DEFAULT_VAPID_PUBLIC_KEY =
+  'BI07ZQtHW3jjOz1BoDHw8QXL1tjmF1ZxVln2MZSUClRE4Bb4BOU-ahEEqUQkVK9JSeV4ja9enmR3CErXrviab3c';
+
 class PushNotificationService {
   private cachedVapidKey: string | null = null;
 
@@ -58,7 +61,9 @@ class PushNotificationService {
       return envKey;
     }
 
-    return '';
+    // 3. Fallback da chave pública VAPID oficial do sistema NovaesWeb
+    this.cachedVapidKey = DEFAULT_VAPID_PUBLIC_KEY;
+    return DEFAULT_VAPID_PUBLIC_KEY;
   }
 
   public async getExistingSubscription(): Promise<PushSubscription | null> {
