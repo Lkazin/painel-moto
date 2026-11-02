@@ -34,3 +34,6 @@ dist-ssr
 *.jks
 *.keystore
 keystore.properties
+
+# Local portable Android build tools
+.android-tools/

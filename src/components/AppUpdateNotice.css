@@ -1,0 +1,25 @@
+.nwa-update-banner {
+  position: fixed; z-index: 65; left: 50%; transform: translateX(-50%);
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  width: min(440px, calc(100% - 24px)); max-height: min(54dvh, 400px); overflow-y: auto;
+  padding: 16px; border: 1px solid var(--nw-pink, #ff2e9a); border-radius: 20px;
+  background: var(--bg-surface, #22072f); color: var(--text-main, #fff);
+  box-shadow: 0 10px 36px #0008; font-size: 14px;
+}
+.nwa-update-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.nwa-update-heading strong { font-size: 16px; }
+.nwa-update-heading p { margin-top: 4px; font-size: 13px; color: var(--text-muted, #e5c4f0); }
+.nwa-update-close { display: grid; place-items: center; flex-shrink: 0; min-width: 44px; min-height: 44px; background: transparent; border: 0; color: inherit; cursor: pointer; }
+.nwa-update-help { margin: 10px 0; color: var(--text-muted, #e5c4f0); font-size: 12px; line-height: 1.5; }
+.nwa-update-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.nwa-update-download, .nwa-update-check, .nwa-update-later { min-height: 44px; padding: 10px 14px; border-radius: 12px; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
+.nwa-update-download { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; background: #ff2e9a; color: #16061f; }
+.nwa-update-check { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--border-strong, #b38bbf); background: var(--bg-card, #2a0a3d); color: var(--text-main, #fff); }
+.nwa-update-later { border: 1px solid var(--border-strong, #b38bbf); background: transparent; color: inherit; }
+.nwa-update-download:disabled, .nwa-update-check:disabled { cursor: wait; opacity: .6; }
+.nwa-update-settings { padding: 16px; border: 1px solid var(--border-strong, #b38bbf); border-radius: 18px; background: var(--bg-card, #2a0a3d); }
+.nwa-update-settings h3 { margin: 0; font-size: 15px; }
+.nwa-update-available { margin-top: 12px; }
+.nwa-update-available > p:first-child { margin-bottom: 10px; font-size: 13px; }
+.nwa-update-error { margin-top: 10px; font-size: 12px; color: var(--nw-amber, #f59e0b); }
+.nwa-update-banner button:focus-visible, .nwa-update-settings button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }

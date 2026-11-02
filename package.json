@@ -8,13 +8,16 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "android:sync": "npm run build && cap sync android",
+    "android:sync": "node scripts/prepare-android.cjs",
     "android:open": "cap open android",
-    "android:apk": "npm run android:sync && cd android && gradlew.bat assembleDebug"
+    "android:apk": "node scripts/build-android-apk.cjs",
+    "android:release-files": "node scripts/prepare-android-release.cjs"
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.3.1",
     "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/app-launcher": "8.0.1",
     "@capacitor/core": "^8.6.0",
     "@capacitor/local-notifications": "^8.3.1",
     "lucide-react": "^1.64.0",

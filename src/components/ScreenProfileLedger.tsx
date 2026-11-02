@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AppUpdateSettings } from './AppUpdateNotice';
 import {
   X,
   User,
@@ -364,6 +365,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
           )}
         </div>
 
+        <AppUpdateSettings />
         {/* Botão de Logout da Conta */}
         <button
           onClick={() => {
