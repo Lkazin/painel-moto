@@ -59,7 +59,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
   const handleOptimizeRoute = async (mode: RouteOptimizationMode) => {
     if (!stops.length || isOptimizing || isSaving) return;
     const revision = ++requestRevision.current;
-    setIsOptimizing(true); setRouteError(''); audioAlert.playClickSound();
+    setSuggestion(null); setIsOptimizing(true); setRouteError(''); audioAlert.playClickSound();
     try {
       const tracking = trackingService.getState(), location = tracking.lastLocation;
       const recent = tracking.isActive && location && Number.isFinite(location.timestamp) && Date.now() - Number(location.timestamp) <= 120000 && Date.now() >= Number(location.timestamp);
@@ -207,9 +207,9 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
         {suggestion && <div style={{fontSize:12,lineHeight:1.7,color:'var(--text-muted)'}} aria-live="polite">
           <p style={{color:'#fff',fontWeight:700}}>{suggestion.mode === 'shortest_distance' ? 'Sugestão por menor distância' : 'Sugestão por maior espera'}</p>
           <p>{suggestion.rule}</p>
-          <p>{`${(suggestion.totalDistanceMeters / 1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km de percurso • ${Math.ceil(suggestion.totalDurationSeconds / 60)} min de deslocamento estimado pelo OSRM.`}</p>
+          <p>{`${(suggestion.totalDistanceMeters / 1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km de percurso • ${Math.ceil(suggestion.totalDurationSeconds / 60)} min de deslocamento estimado pelo ${suggestion.source === 'valhalla' ? 'Valhalla' : 'OSRM'}.`}</p>
           <p>O tempo é apenas de direção, sem trânsito ao vivo nem tempo de atendimento. Não é uma promessa de chegada. Salve a ordem para usar esta sequência.</p>
-          <p>© OpenStreetMap contributors; OSRM.</p>
+          <p>© OpenStreetMap contributors; {suggestion.source === 'valhalla' ? 'Valhalla' : 'OSRM'}.</p>
         </div>}
       </section>}
       {routeError && <p className="card-surface" role="alert" style={{fontSize:13,lineHeight:1.6,color:'#fda4af'}}>{routeError}</p>}
@@ -272,6 +272,8 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
           {/* Lista Ordenada de Paradas com suporte a Drag & Drop e Setas */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {stops.map((stop, index) => {
+              const metric = suggestion?.stops.find(item => item.assignmentId === (stop.assignmentId || stop.id));
+              const matchesSuggestion = suggestion?.stops.every((item,i) => item.assignmentId === (stops[i]?.assignmentId || stops[i]?.id));
               const isFirst = index === 0;
               const isLast = index === stops.length - 1;
               const isDragging = draggedIndex === index;
@@ -392,6 +394,12 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                     </p>
                   </div>
 
+                  {metric && <div style={{marginTop:10,fontSize:12,lineHeight:1.8,color:'var(--text-muted)'}}>
+                    {Number.isFinite(metric.distanceFromOriginMeters) && Number.isFinite(metric.durationFromOriginSeconds) && <p>Da origem: {(metric.distanceFromOriginMeters! / 1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km · {Math.ceil(metric.durationFromOriginSeconds! / 60)} min</p>}
+                    {matchesSuggestion && Number.isFinite(metric.distanceMeters) && Number.isFinite(metric.durationSeconds) && <p>{index === 0 ? 'Até a primeira parada' : 'Desde a parada anterior'}: {(metric.distanceMeters! / 1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} km · {Math.ceil(metric.durationSeconds! / 60)} min</p>}
+                    {matchesSuggestion && Number.isFinite(metric.cumulativeDurationSeconds) && <p>Chegada estimada em {Math.ceil(metric.cumulativeDurationSeconds! / 60)} min de deslocamento, sem contar o tempo das entregas.</p>}
+                    {!matchesSuggestion && <p>Ordem alterada. Recalcule para atualizar os trechos e a chegada.</p>}
+                  </div>}
                   {/* Botões Rápidos de Navegação e Contato */}
                   <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
                     <button

@@ -142,11 +142,11 @@ export type RouteOptimizationMode = 'shortest_distance' | 'oldest_wait';
 export interface OptimizedRouteResult {
   success: boolean;
   mode: RouteOptimizationMode;
-  stops: { assignmentId: string; sequence: number }[];
+  stops: { assignmentId: string; sequence: number; distanceMeters?: number; durationSeconds?: number; cumulativeDurationSeconds?: number; distanceFromOriginMeters?: number; durationFromOriginSeconds?: number }[];
   totalDistanceMeters: number;
   totalDurationSeconds: number;
   rule: string;
-  source: 'osrm';
+  source: 'osrm' | 'valhalla';
   origin: { latitude: number; longitude: number; [key: string]: unknown };
 }
 

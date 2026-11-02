@@ -142,7 +142,7 @@ export class ApiClient {
       method:'POST',headers:this.getAuthHeaders(),body:JSON.stringify({mode,...(origin ? {origin}: {})}),
     });
     if(shiftToken !== this.session?.token) throw new AccountRequestError('O plantão foi alterado. Calcule novamente.', 'STALE_REQUEST');
-    if(data.source !== 'osrm' || data.mode !== mode || !Array.isArray(data.stops) || !Number.isFinite(data.totalDistanceMeters) || data.totalDistanceMeters < 0 || !Number.isFinite(data.totalDurationSeconds) || data.totalDurationSeconds < 0 || typeof data.rule !== 'string') throw new Error('O serviço de rotas não retornou um trajeto válido. Organize as paradas manualmente ou tente novamente.');
+    if(!['osrm','valhalla'].includes(data.source) || data.mode !== mode || !Array.isArray(data.stops) || !Number.isFinite(data.totalDistanceMeters) || data.totalDistanceMeters < 0 || !Number.isFinite(data.totalDurationSeconds) || data.totalDurationSeconds < 0 || typeof data.rule !== 'string') throw new Error('O serviço de rotas não retornou um trajeto válido. Organize as paradas manualmente ou tente novamente.');
     return data as OptimizedRouteResult;
   }
   public async getCurrentRoute(): Promise<RouteStop[]> { if (!this.session) return []; const data = await this.request(this.query('route-current')); return Array.isArray(data) ? data : data.stops || []; }
