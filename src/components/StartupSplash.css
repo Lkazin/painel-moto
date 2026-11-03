@@ -74,13 +74,13 @@
   width: 205px;
   height: 122px;
   transform: translateX(calc(-100% - 40px));
-  animation: nw-startup-ride 2s cubic-bezier(.3, .04, .7, 1) both;
+  animation: nw-startup-ride 3s cubic-bezier(.3, .04, .7, 1) both;
   will-change: transform;
 }
 
 .nw-startup__motorcycle { display: block; width: 100%; height: 100%; overflow: visible; }
-.nw-startup__wheel { transform-box: fill-box; transform-origin: center; animation: nw-startup-wheel .4s linear 5; }
-.nw-startup__speed { animation: nw-startup-speed .2s ease-in-out 10 alternate; }
+.nw-startup__wheel { transform-box: fill-box; transform-origin: center; animation: nw-startup-wheel .4s linear 8; }
+.nw-startup__speed { animation: nw-startup-speed .2s ease-in-out 15 alternate; }
 
 .nw-startup__status {
   position: relative;

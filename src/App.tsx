@@ -55,7 +55,7 @@ export const App: React.FC = () => {
   const [startupAnimationDone, setStartupAnimationDone] = useState(false);
   useEffect(() => {
     const stopSound = startupSound.play();
-    const timer = setTimeout(() => { stopSound(); setStartupAnimationDone(true); }, 2000);
+    const timer = setTimeout(() => { stopSound(); setStartupAnimationDone(true); }, 3000);
     return () => { clearTimeout(timer); stopSound(); };
   }, []);
   // Autenticação Pessoal do Entregador e Sessão de Plantão na Loja

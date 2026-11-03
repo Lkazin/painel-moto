@@ -92,26 +92,26 @@ async function harness(options={}) {
 test('first launch stays in splash for animation, then opens login without authenticated calls',async t=>{
   const h=await harness();t.after(h.unmount);
   assert(h.has('StartupSplash'));assert(!h.has('ScreenAuthDriver'));assert.equal(h.syncCalls.length,0);
-  await h.advance(1999);assert(h.has('StartupSplash'));
+  await h.advance(2999);assert(h.has('StartupSplash'));
   await h.advance(1);assert(h.has('ScreenAuthDriver'));assert(!h.has('StartupSplash'));
 });
 
 test('cached account validates during animation and never exposes protected dashboard until validation',async t=>{
   const h=await harness({account:accountFixture,session:sessionFixture});t.after(h.unmount);
   assert.equal(h.syncCalls.length,1);assert.equal(h.syncCalls[0].at,0);assert(h.has('StartupSplash'));assert(!h.has('ScreenDashboard'));
-  await h.advance(2000);assert(!h.has('ScreenDashboard'));assert(!h.has('ScreenStoreConnect'));
+  await h.advance(3000);assert(!h.has('ScreenDashboard'));assert(!h.has('ScreenStoreConnect'));
   await h.validate();assert(h.has('ScreenDashboard'));assert(!h.has('StartupSplash'));
 });
 
 test('fast session validation still waits for animation, then opens linked store dashboard',async t=>{
   const h=await harness({account:accountFixture});t.after(h.unmount);
   await h.validate();assert(h.has('StartupSplash'));assert(!h.has('ScreenDashboard'));
-  await h.advance(2000);assert(h.has('ScreenDashboard'));
+  await h.advance(3000);assert(h.has('ScreenDashboard'));
 });
 
 test('validated account without active store preserves existing store-code flow and ledger',async t=>{
   const h=await harness({account:accountFixture,stores:[{storeId:'A'},{storeId:'B'}]});t.after(h.unmount);
-  await h.validate({account:accountFixture,session:null});await h.advance(2000);
+  await h.validate({account:accountFixture,session:null});await h.advance(3000);
   assert(h.has('ScreenStoreConnect'));assert(!h.has('ScreenDashboard'));
   assert.equal(h.component('ScreenStoreConnect').props.account.id,accountFixture.id);
 });
@@ -119,32 +119,32 @@ test('validated account without active store preserves existing store-code flow 
 test('multiple linked stores do not override the existing server-selected active store',async t=>{
   const h=await harness({account:accountFixture,stores:[{storeId:'A'},{storeId:'B'}]});t.after(h.unmount);
   const selected={...sessionFixture,storeId:'store-B',storeName:'Loja B'};
-  await h.validate({account:accountFixture,session:selected});await h.advance(2000);
+  await h.validate({account:accountFixture,session:selected});await h.advance(3000);
   assert(h.has('ScreenDashboard'));assert.equal(h.component('ScreenDashboard').props.session.storeId,'store-B');
 });
 
 test('expired session redirects to login after server invalidation, not cached store data',async t=>{
   const h=await harness({account:accountFixture,session:sessionFixture});t.after(h.unmount);
-  await h.fail(Object.assign(Error('Expired'),{status:401}),true);await h.advance(2000);
+  await h.fail(Object.assign(Error('Expired'),{status:401}),true);await h.advance(3000);
   assert(h.has('ScreenAuthDriver'));assert(!h.has('ScreenDashboard'));assert(!h.has('ScreenStoreConnect'));
 });
 
 test('a direct unauthorized bootstrap result also invalidates the cached account',async t=>{
   const h=await harness({account:accountFixture,session:sessionFixture});t.after(h.unmount);
-  await h.fail(Object.assign(Error('Expired'),{status:401}));await h.advance(2000);
+  await h.fail(Object.assign(Error('Expired'),{status:401}));await h.advance(3000);
   assert(h.has('ScreenAuthDriver'));assert(!h.has('ScreenDashboard'));assert(!h.has('ScreenStoreConnect'));
 });
 
 test('offline validation failure retains loading/retry without showing cached protected information',async t=>{
   const h=await harness({account:accountFixture,session:sessionFixture});t.after(h.unmount);
-  await h.fail();await h.advance(2000);
+  await h.fail();await h.advance(3000);
   assert(!h.has('ScreenDashboard'));assert(!h.has('ScreenStoreConnect'));assert.match(h.content(),/sincronizar|conexão|internet|Sincronizando/i);
   assert(nodes(h.render()).some(node=>node.type==='button'&&/Tentar novamente/.test(text(node))));
 });
 
 test('navigation and foreground return do not restart splash or opening audio',async t=>{
   const h=await harness({account:accountFixture});t.after(h.unmount);
-  await h.validate();await h.advance(2000);assert(h.has('ScreenDashboard'));
+  await h.validate();await h.advance(3000);assert(h.has('ScreenDashboard'));
   const starts=h.calls.audioStarts;
   h.click('Histórico');await h.settle();assert(h.has('ScreenHistory'));assert(!h.has('StartupSplash'));
   h.nextSync(async()=>({account:accountFixture,session:sessionFixture}));await h.emit('focus');
@@ -156,7 +156,7 @@ const offerFixture = id => ({offerId:id,id,orderNumber:id,storeId:'store-A',stor
 test('capsule integration: simultaneous offers keep real expiry and tap opens matching offer without accepting',async t=>{
   const first=offerFixture('offer-A'),second=offerFixture('offer-B');
   const h=await harness({account:accountFixture,manualEnabled:true,offers:[first,second]});t.after(h.unmount);
-  await h.validate();await h.advance(2500);
+  await h.validate();await h.advance(3000);
   const notices=h.calls.notices.filter(notice=>notice.kind==='offer');
   assert.deepEqual(notices.map(notice=>notice.id),['offer:offer-A','offer:offer-B']);
   assert.equal(notices[0].expiresAt,first.expiresAt);assert.equal(notices[1].expiresAt,second.expiresAt);
@@ -169,7 +169,7 @@ test('capsule integration: simultaneous offers keep real expiry and tap opens ma
 test('capsule integration: acceptance success is published only after backend acknowledgement',async t=>{
   const offer=offerFixture('offer-A');
   const h=await harness({account:accountFixture,manualEnabled:true,offers:[offer]});t.after(h.unmount);
-  await h.validate();await h.advance(2500);
+  await h.validate();await h.advance(3000);
   const accepted=h.component('ModalOfferReceived').props.onAccept(offer.offerId);
   await h.settle();
   assert.equal(h.calls.offersResponded.length,1);assert.equal(h.calls.offersResponded[0].response,'accepted');
@@ -182,7 +182,7 @@ test('capsule integration: acceptance success is published only after backend ac
 test('capsule integration: offline delivery is pending validation and never announced as delivered success',async t=>{
   const assignment={assignmentId:'assignment-A',id:'assignment-A',storeId:'store-A',orderNumber:'101',status:'picked_up',deliveryFee:8};
   const h=await harness({account:accountFixture,assignments:[assignment]});t.after(h.unmount);
-  await h.validate();await h.advance(2000);
+  await h.validate();await h.advance(3000);
   h.component('ScreenDashboard').props.onNavigateToRoute();h.render();
   h.component('ScreenRoute').props.onSelectDelivery(assignment);h.render();
   h.component('ScreenActiveDelivery').props.onOpenPinConfirmation(assignment);h.render();
@@ -191,3 +191,4 @@ test('capsule integration: offline delivery is pending validation and never anno
   assert(!h.calls.notices.some(notice=>notice.kind==='success'));
   assert(!h.has('ModalRouteCompleted'));
 });
+
