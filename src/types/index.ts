@@ -191,7 +191,7 @@ export interface DeliveryHistoryItem {
   deliveryFee: number | null;
   status: 'delivered' | 'canceled_by_store' | 'withdrawn';
   completedAt: string;
-  confirmedVia: 'pin_online' | 'pin_offline_synced' | 'store_override';
+  confirmedVia: 'pin_online' | 'pin_offline_synced' | 'store_override' | 'unknown';
 }
 
 export interface RatingsData {

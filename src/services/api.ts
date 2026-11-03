@@ -1,5 +1,6 @@
 import { OptimizedRouteResult, RouteOptimizationMode, FirstAccessDetails, DriverSession, DriverPresence, StoreShiftSummary, Offer, Assignment, RouteStop, DeliveryHistoryItem, RatingsData } from '../types';
 import { offlineQueue } from './offlineQueue';
+import { normalizeDeliveryHistory } from './deliveryHistory';
 import { accountClient, AccountRequestError } from './accountClient';
 import { logisticsApiUrl } from './logisticsConfig';
 
@@ -154,8 +155,8 @@ export class ApiClient {
   }
   public async requestWithdrawal(assignmentId: string, reason: string): Promise<{ success: boolean; message: string }> { if (!offlineQueue.getIsOnline()) throw new Error('Conecte-se à internet para solicitar a desistência.'); return this.request('assignment-withdraw', { ...this.identity(), assignmentId, reason }); }
   public async getHistory(): Promise<{ items: DeliveryHistoryItem[]; totalEarnings: number; hasUninformedFees: boolean }> {
-    if (!this.session) return { items: [], totalEarnings: 0, hasUninformedFees: false }; const data = await this.request(this.query('history')); const items: DeliveryHistoryItem[] = Array.isArray(data) ? data : data.items || [];
-    return { items, totalEarnings: items.reduce((total, item) => total + (item.deliveryFee || 0), 0), hasUninformedFees: items.some(item => item.deliveryFee == null) };
+    if (!this.session) return normalizeDeliveryHistory([]);
+    return normalizeDeliveryHistory(await this.request(this.query('history')));
   }
   public async getRatings(): Promise<RatingsData> { return this.request(this.query('ratings')); }
   public flushOfflineQueue(): Promise<{ syncedCount: number; errors: number }> { if (this.flushPromise) return this.flushPromise; this.flushPromise = this.flushCommands().finally(() => { this.flushPromise = null; }); return this.flushPromise; }

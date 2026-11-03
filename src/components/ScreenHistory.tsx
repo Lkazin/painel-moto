@@ -11,22 +11,28 @@ export const ScreenHistory: React.FC = () => {
   const [totalEarnings, setTotalEarnings] = useState<number>(0);
   const [hasUninformed, setHasUninformed] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    let live = true;
+    setLoading(true); setError(false);
     const fetchData = async () => {
       try {
         const histData = await api.getHistory();
+        if (!live) return;
         setHistoryItems(histData.items);
         setTotalEarnings(histData.totalEarnings);
         setHasUninformed(histData.hasUninformedFees);
       } catch (e) {
-        console.error('Erro ao buscar histórico:', e);
+        if (live) setError(true);
       } finally {
-        setLoading(false);
+        if (live) setLoading(false);
       }
     };
     fetchData();
-  }, []);
+    return () => { live = false; };
+  }, [attempt]);
 
   return (
     <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -126,6 +132,8 @@ export const ScreenHistory: React.FC = () => {
               Carregando histórico...
             </p>
           </div>
+        ) : error ? (
+          <div className="card-surface" role="alert" style={{ padding: 24 }}><p>Não foi possível carregar o histórico. Confira sua conexão.</p><button type="button" onClick={() => setAttempt(value => value + 1)}>Tentar novamente</button></div>
         ) : historyItems.length === 0 ? (
           <div className="card-surface" style={{ textAlign: 'center', padding: '24px' }}>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
@@ -145,7 +153,7 @@ export const ScreenHistory: React.FC = () => {
                   </span>
                 </div>
 
-                {item.deliveryFee !== null ? (
+                {typeof item.deliveryFee === 'number' && Number.isFinite(item.deliveryFee) ? (
                   <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--nw-emerald)' }}>
                     R$ {item.deliveryFee.toFixed(2).replace('.', ',')}
                   </span>
@@ -162,10 +170,10 @@ export const ScreenHistory: React.FC = () => {
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', fontSize: '11px', color: 'var(--text-subtle)' }}>
                 <span>
-                  {new Date(item.completedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  {Number.isFinite(Date.parse(item.completedAt)) ? new Date(item.completedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Horário não informado'}
                 </span>
-                <span style={{ color: item.confirmedVia.includes('offline') ? 'var(--nw-amber)' : 'var(--nw-emerald)' }}>
-                  {item.confirmedVia === 'pin_offline_synced' ? 'PIN (Sincronizado Offline)' : 'PIN Validado Online'}
+                <span style={{ color: item.confirmedVia === 'pin_offline_synced' ? 'var(--nw-amber)' : 'var(--text-muted)' }}>
+                  {item.confirmedVia === 'pin_offline_synced' ? 'PIN (Sincronizado Offline)' : item.confirmedVia === 'pin_online' ? 'PIN Validado Online' : item.confirmedVia === 'store_override' ? 'Confirmado pela loja' : 'Confirmação não informada'}
                 </span>
               </div>
             </div>
