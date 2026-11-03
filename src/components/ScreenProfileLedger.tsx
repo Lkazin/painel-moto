@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AppUpdateSettings } from './AppUpdateNotice';
+import { ExperienceSettings } from './ExperienceSettings';
 import {
   X,
   User,
@@ -365,6 +366,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
           )}
         </div>
 
+        <ExperienceSettings />
         <AppUpdateSettings />
         {/* Botão de Logout da Conta */}
         <button

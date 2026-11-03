@@ -30,6 +30,10 @@ import { offlineQueue } from './services/offlineQueue';
 import { trackingService } from './services/trackingService';
 import { audioAlert } from './utils/audioAlert';
 import { pushService } from './services/pushService';
+import { startupSound } from './services/startupSound';
+import { publishNotice, clearNotices, removeNotice } from './services/inAppNotices';
+import { StartupSplash } from './components/StartupSplash';
+import { InAppNotice } from './components/InAppNotice';
 import { triggerOfferNotification, requestScreenWakeLock, releaseScreenWakeLock } from './utils/mobileWake';
 
 import { ScreenAuthDriver } from './components/ScreenAuthDriver';
@@ -48,6 +52,12 @@ import { ModalRouteCompleted } from './components/ModalRouteCompleted';
 import { PWAInstallModal } from './components/PWAInstallModal';
 
 export const App: React.FC = () => {
+  const [startupAnimationDone, setStartupAnimationDone] = useState(false);
+  useEffect(() => {
+    const stopSound = startupSound.play();
+    const timer = setTimeout(() => { stopSound(); setStartupAnimationDone(true); }, 2000);
+    return () => { clearTimeout(timer); stopSound(); };
+  }, []);
   // Autenticação Pessoal do Entregador e Sessão de Plantão na Loja
   const [accountReady, setAccountReady] = useState(false);
   const [accountNotice, setAccountNotice] = useState(accountClient.getNotice());
@@ -67,6 +77,9 @@ export const App: React.FC = () => {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [currentOffer, setCurrentOffer] = useState<Offer | null>(null);
   const handledOfferIdsRef = useRef<Set<string>>(new Set());
+  const noticedOfferIdsRef = useRef<Set<string>>(new Set());
+  const noticeSequence = useRef(0);
+  const noticeAssignmentStates = useRef<Map<string, string>>(new Map());
   const assignmentsRevision = useRef(0);
   const [pendingSyncCount, setPendingSyncCount] = useState<number>(offlineQueue.getPendingCount());
   const [historySummary, setHistorySummary] = useState({ totalEarnings: 0, itemsCount: 0 });
@@ -84,14 +97,15 @@ export const App: React.FC = () => {
   );
 
   // Toast de Notificação
-  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
-
   const showToast = useCallback((text: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setToastMessage({ text, type });
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 4000);
+    publishNotice({ id: `message:${++noticeSequence.current}`, kind: type, title: type === 'error' ? 'Atenção' : type === 'success' ? 'Tudo certo' : 'NovaesWeb Entregador', message: text });
   }, []);
+
+  useEffect(() => {
+    for (const id of noticedOfferIdsRef.current) removeNotice(`offer:${id}`);
+    noticedOfferIdsRef.current.clear();
+    noticeAssignmentStates.current.clear();
+  }, [account?.id, session?.membershipId]);
 
   const syncAccount = useCallback(async () => {
     if (!api.hasAccountAccess()) return;
@@ -100,7 +114,12 @@ export const App: React.FC = () => {
       setAccount(result.account); setSession(result.session); setPresence(api.getPresence());
       setAccountReady(true); setSyncError('');
       if (result.session) await api.flushOfflineQueue();
-    } catch {
+    } catch (error) {
+      if ((error as {status?: number})?.status === 401 && api.hasAccountAccess()) {
+        accountClient.clear('Sua sessão expirou. Entre novamente para continuar.');
+        setAccount(null); setSession(null); setAccountReady(false);
+        return;
+      }
       if (api.hasAccountAccess()) setSyncError('Não foi possível sincronizar sua conta. Verifique a internet e tente novamente.');
     }
   }, []);
@@ -109,6 +128,7 @@ export const App: React.FC = () => {
     const changed = (event: Event) => {
       const message = (event as CustomEvent).detail?.message || '';
       trackingService.stop(false); audioAlert.stopOfferAlert();
+      clearNotices(); noticedOfferIdsRef.current.clear();
       setAccount(api.getDriverAccount()); setSession(null); setAccountReady(false);
       setAssignments([]); setCurrentOffer(null); setActiveDelivery(null); setPinTarget(null);
       setIsStoreModalOpen(false); setIsProfileLedgerOpen(false); setWithdrawTarget(null);
@@ -147,7 +167,8 @@ export const App: React.FC = () => {
     const received = (event: Event) => {
       if (!accountClient.getToken()) return;
       const detail = (event as CustomEvent).detail || {};
-      showToast([detail.title, detail.body].filter(Boolean).join(' — ') || 'Você recebeu uma nova notificação.', 'info');
+      // Offer details come from the authenticated poll, not the push payload.
+      if (detail.type !== 'NEW_OFFER') showToast([detail.title, detail.body].filter(Boolean).join(' — ') || 'Você recebeu uma nova notificação.', 'info');
       window.dispatchEvent(new Event('focus'));
     };
     const refresh = () => { void pushService.initializeNative(); };
@@ -196,6 +217,13 @@ export const App: React.FC = () => {
       ]);
       if (requestRevision !== assignmentsRevision.current || !api.getSession() ||
         api.getSession()?.driverId !== session.driverId || api.getSession()?.membershipId !== session.membershipId) return;
+      for (const item of data) {
+        const id = item.assignmentId || item.id || '';
+        if (item.status === 'canceled_by_store' && noticeAssignmentStates.current.has(id) && noticeAssignmentStates.current.get(id) !== 'canceled_by_store') {
+          publishNotice({ id: `assignment:${id}:canceled`, kind: 'error', title: 'Entrega cancelada', message: `A loja cancelou o pedido ${item.orderNumber || ''}. Confira suas entregas.`, onOpen: () => { setActiveTab('orders'); setActiveDelivery(null); setPinTarget(null); } });
+        }
+        noticeAssignmentStates.current.set(id, item.status);
+      }
       setAssignments(data);
       if (hist) setHistorySummary({
         totalEarnings: hist.totalEarnings,
@@ -234,13 +262,28 @@ export const App: React.FC = () => {
   // Polling em tempo real para verificar novas ofertas disparadas pela loja e retirar imediatamente ofertas já aceitas por outro motoboy
   useEffect(() => {
     if (!session || !presence.manualEnabled) return;
-
+    let live = true;
+    const token = accountClient.getToken();
     const interval = setInterval(async () => {
       try {
         const offers = await api.getOffers();
+        if (!live || accountClient.getToken() !== token || api.getSession()?.membershipId !== session.membershipId) return;
         const availableOffers = (offers || []).filter(
           (o) => !handledOfferIdsRef.current.has(o.offerId || o.id || '')
         );
+        const availableIds = new Set(availableOffers.map(offer => offer.offerId || offer.id || ''));
+        for (const id of noticedOfferIdsRef.current) if (!availableIds.has(id)) { removeNotice(`offer:${id}`); noticedOfferIdsRef.current.delete(id); }
+        for (const offer of availableOffers) {
+          const id = offer.offerId || offer.id;
+          if (!id) continue;
+          noticedOfferIdsRef.current.add(id);
+          publishNotice({ id: `offer:${id}`, kind: 'offer', title: 'Nova entrega disponível!', message: `Você recebeu uma solicitação de ${offer.storeName || 'sua loja parceira'}.`, expiresAt: offer.expiresAt,
+            onOpen: () => {
+              if (accountClient.getToken() !== token || api.getSession()?.membershipId !== session.membershipId || handledOfferIdsRef.current.has(id) || Date.parse(offer.expiresAt) <= Date.now()) return;
+              setActiveTab('orders'); setActiveDelivery(null); setPinTarget(null); setCurrentOffer(offer);
+            },
+          });
+        }
 
         if (currentOffer) {
           const currentId = currentOffer.offerId || currentOffer.id;
@@ -258,7 +301,7 @@ export const App: React.FC = () => {
       } catch {}
     }, 2500);
 
-    return () => clearInterval(interval);
+    return () => { live = false; clearInterval(interval); };
   }, [session, presence.manualEnabled, currentOffer, showToast]);
 
   // Modo Manter Tela Acesa (Screen Wake Lock) enquanto o entregador estiver ligado no suporte
@@ -321,6 +364,7 @@ export const App: React.FC = () => {
       audioAlert.stopOfferAlert();
       handledOfferIdsRef.current.add(offerId);
       const res = await api.respondOffer(offerId, 'accepted');
+      removeNotice(`offer:${offerId}`);
       setCurrentOffer(null);
       if (res && (res.assignment || (res as any).assignments)) {
         const newItems: Assignment[] = (res as any).assignments || (res.assignment ? [res.assignment] : []);
@@ -333,7 +377,7 @@ export const App: React.FC = () => {
         });
       }
       await refreshAssignments();
-      showToast('Corrida aceita! O pedido está aguardando retirada no balcão da pizzaria.', 'success');
+      publishNotice({ id: `offer:${offerId}:accepted`, kind: 'success', title: 'Entrega aceita!', message: 'Confira as informações para retirada.', onOpen: () => setActiveTab('orders') });
       setActiveTab('orders');
     } catch (err: any) {
       audioAlert.stopOfferAlert();
@@ -349,6 +393,7 @@ export const App: React.FC = () => {
       audioAlert.stopOfferAlert();
       handledOfferIdsRef.current.add(offerId);
       await api.respondOffer(offerId, 'rejected');
+      removeNotice(`offer:${offerId}`);
       setCurrentOffer(null);
       showToast('Oferta recusada e devolvida ao despacho da loja.', 'info');
     } catch {
@@ -360,6 +405,7 @@ export const App: React.FC = () => {
 
   // Oferta Expirada pelos 60s
   const handleOfferExpired = (offerId: string) => {
+    removeNotice(`offer:${offerId}`);
     audioAlert.stopOfferAlert();
     handledOfferIdsRef.current.add(offerId);
     setCurrentOffer(null);
@@ -405,7 +451,7 @@ export const App: React.FC = () => {
     if (isOfflinePending) {
       showToast('Entrega gravada no aparelho! Pendente de validação online com a loja.', 'info');
     } else {
-      showToast('Entrega validada com sucesso pelo servidor da loja!', 'success');
+      publishNotice({ id: `delivery:${completedAssignment?.assignmentId || completedAssignment?.id}:completed`, kind: 'success', title: 'Entrega finalizada!', message: 'Pedido entregue e validado pelo servidor da loja.', onOpen: () => setActiveTab('history') });
     }
 
     // Se concluiu a última entrega da rota, encerra sessão de GPS e abre a tela de Resumo de Rota
@@ -451,6 +497,8 @@ export const App: React.FC = () => {
   const activeDeliveries = assignments.filter((a) => a.status === 'picked_up' || a.status === 'in_transit');
 
   // FLUXO 1: Entregador NÃO está logado na sua conta pessoal -> Tela de Login / Cadastro
+  if (!startupAnimationDone) return <StartupSplash />;
+
   if (!account) {
     return (
       <div className="app-container">
@@ -462,31 +510,7 @@ export const App: React.FC = () => {
           }}
         />
 
-        {toastMessage && (
-          <div
-            style={{
-              position: 'fixed',
-              top: '20px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 200,
-              background: toastMessage.type === 'error' ? 'var(--nw-red)' : toastMessage.type === 'success' ? 'var(--nw-emerald)' : 'var(--bg-card)',
-              border: '1px solid var(--border-strong)',
-              color: '#ffffff',
-              padding: '12px 20px',
-              borderRadius: '16px',
-              fontSize: '13px',
-              fontWeight: 800,
-              boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-          >
-            {toastMessage.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
-            <span>{toastMessage.text}</span>
-          </div>
-        )}
+        <InAppNotice />
       </div>
     );
   }
@@ -528,31 +552,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {toastMessage && (
-          <div
-            style={{
-              position: 'fixed',
-              top: '20px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 200,
-              background: toastMessage.type === 'error' ? 'var(--nw-red)' : toastMessage.type === 'success' ? 'var(--nw-emerald)' : 'var(--bg-card)',
-              border: '1px solid var(--border-strong)',
-              color: '#ffffff',
-              padding: '12px 20px',
-              borderRadius: '16px',
-              fontSize: '13px',
-              fontWeight: 800,
-              boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-          >
-            {toastMessage.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
-            <span>{toastMessage.text}</span>
-          </div>
-        )}
+        <InAppNotice />
       </div>
     );
   }
@@ -797,42 +797,7 @@ export const App: React.FC = () => {
       />
 
       {/* Toast Notifier Flutuante */}
-      {toastMessage && (
-        <div
-          style={{
-            position: 'fixed',
-            top: '80px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 150,
-            background:
-              toastMessage.type === 'error'
-                ? 'var(--nw-red)'
-                : toastMessage.type === 'success'
-                ? 'var(--nw-emerald)'
-                : 'var(--bg-elevated)',
-            border: '1px solid var(--border-strong)',
-            color: '#ffffff',
-            padding: '12px 18px',
-            borderRadius: '16px',
-            fontSize: '13px',
-            fontWeight: 800,
-            boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            maxWidth: '90%',
-            animation: 'slide-up 0.2s ease'
-          }}
-        >
-          {toastMessage.type === 'error' ? (
-            <AlertCircle size={18} style={{ flexShrink: 0 }} />
-          ) : (
-            <CheckCircle size={18} style={{ flexShrink: 0 }} />
-          )}
-          <span>{toastMessage.text}</span>
-        </div>
-      )}
+      <InAppNotice />
 
       {/* Navegação Inferior Fixa (Polegar / Luva) */}
       <nav className="bottom-nav">

@@ -140,7 +140,7 @@ class PushNotificationService {
     try {
       await PushNotifications.addListener('pushNotificationReceived', notification => {
         if (!accountClient.getToken() || localStorage.getItem('novaesweb_push_enabled') !== 'true') return;
-        window.dispatchEvent(new CustomEvent('novaesweb:push-received', { detail: { title: notification.title, body: notification.body } }));
+        window.dispatchEvent(new CustomEvent('novaesweb:push-received', { detail: { title: notification.title, body: notification.body, type: notification.data?.type } }));
       });
       await PushNotifications.addListener('pushNotificationActionPerformed', () => {
         // Open authenticated orders, never a URL or customer data from the payload.

@@ -1,0 +1,120 @@
+.nw-startup {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  color: #fbf7ff;
+  background: radial-gradient(ellipse at 18% 28%, #44205666, transparent 58%), radial-gradient(ellipse at 88% 75%, #811e443b, transparent 55%), linear-gradient(155deg, #0d0915, #1c0d23 57%, #220d19);
+  font-family: inherit;
+}
+
+.nw-startup__glow {
+  position: absolute;
+  width: min(80vw, 420px);
+  height: min(80vw, 420px);
+  top: 17%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #be3ed91c, transparent 70%);
+  pointer-events: none;
+}
+
+.nw-startup__content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 460px;
+  text-align: center;
+}
+
+.nw-startup__logo {
+  display: block;
+  width: min(100%, 320px);
+  height: auto;
+  object-fit: contain;
+  margin: 0 auto 24px;
+}
+
+.nw-startup__name {
+  margin: 0;
+  font-size: clamp(22px, 6vw, 34px);
+  font-weight: 850;
+  letter-spacing: -.035em;
+  line-height: 1.2;
+}
+
+.nw-startup__name span { color: #ff89cd; }
+.nw-startup__tagline { margin: 10px 0 0; color: #c5b4cf; font-size: clamp(12px, 3.5vw, 15px); line-height: 1.5; }
+
+.nw-startup__road {
+  position: relative;
+  flex: 0 0 145px;
+  width: calc(100% + 48px);
+  margin-top: 20px;
+}
+
+.nw-startup__road-line {
+  position: absolute;
+  top: 117px;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #9b45b866 25%, #e657a477 65%, transparent);
+}
+
+.nw-startup__vehicle {
+  position: absolute;
+  left: 0;
+  width: 205px;
+  height: 122px;
+  transform: translateX(calc(-100% - 40px));
+  animation: nw-startup-ride 2s cubic-bezier(.3, .04, .7, 1) both;
+  will-change: transform;
+}
+
+.nw-startup__motorcycle { display: block; width: 100%; height: 100%; overflow: visible; }
+.nw-startup__wheel { transform-box: fill-box; transform-origin: center; animation: nw-startup-wheel .4s linear 5; }
+.nw-startup__speed { animation: nw-startup-speed .2s ease-in-out 10 alternate; }
+
+.nw-startup__status {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 26px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #d4c2df;
+  text-align: center;
+}
+
+.nw-startup__indicator { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: #ed6bbb; }
+.nw-startup--loading .nw-startup__status { margin-top: 38px; }
+.nw-startup--loading .nw-startup__indicator { animation: nw-startup-wait 1.2s ease-in-out infinite; }
+
+@keyframes nw-startup-ride {
+  0% { transform: translateX(calc(-100% - 40px)); }
+  100% { transform: translateX(calc(100vw + 40px)); }
+}
+@keyframes nw-startup-wheel { to { transform: rotate(360deg); } }
+@keyframes nw-startup-speed { to { opacity: .25; } }
+@keyframes nw-startup-wait { 50% { opacity: .35; } }
+
+@media (max-height: 560px) {
+  .nw-startup__logo { width: min(34vh, 190px); margin-bottom: 12px; }
+  .nw-startup__road { flex-basis: 125px; margin-top: 4px; }
+  .nw-startup__name { font-size: 22px; }
+  .nw-startup--loading .nw-startup__status { margin-top: 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nw-startup__vehicle { animation: none; transform: translateX(calc(50vw - 102.5px)); will-change: auto; }
+  .nw-startup__wheel, .nw-startup__speed, .nw-startup--loading .nw-startup__indicator { animation: none; }
+}
