@@ -516,11 +516,20 @@ export const App: React.FC = () => {
   }
 
   if (!accountReady) {
-    return <main className="app-container" style={{padding:24,textAlign:'center'}} aria-live="polite">
-      <h1>Sincronizando sua conta</h1>
-      <p>{syncError || 'Buscando suas informações e o plantão no servidor.'}</p>
-      <button className="btn-glove btn-glove-accent" onClick={() => void syncAccount()}>Tentar novamente</button>
-      <button className="btn-glove" onClick={() => void handleLogoutAccount()}>Sair da conta</button>
+    return <main className="app-container nw-account-wait" aria-label="NovaesWeb Entregador">
+      <img className="nw-account-wait-brand" src="/brand/novaesweb-entregador-ui.png" alt="NovaesWeb Entregador" />
+      <aside className="nw-notice-host nw-notice-simple" aria-label="Conexão da conta">
+        <div className="nw-notice">
+          <div className="nw-notice-content" role="status" aria-live="polite" aria-atomic="true" aria-busy={!syncError}>
+            <span className="nw-notice-icon" aria-hidden="true">{syncError ? <WifiOff size={21} /> : <span className="nw-account-wait-pulse" />}</span>
+            <div className="nw-notice-copy"><strong>{syncError ? 'Vamos reconectar?' : 'Preparando seu acesso'}</strong><p>{syncError || 'Sincronizando sua conta com segurança. Só um instante…'}</p></div>
+          </div>
+          {syncError && <div className="nw-notice-actions">
+            <button type="button" className="nw-notice-open" onClick={() => void syncAccount()}>Tentar novamente</button>
+            <button type="button" onClick={() => void handleLogoutAccount()}>Sair da conta</button>
+          </div>}
+        </div>
+      </aside>
     </main>;
   }
 

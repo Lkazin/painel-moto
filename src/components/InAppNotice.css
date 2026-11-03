@@ -21,3 +21,8 @@
 @keyframes nw-notice-collapse{to{transform:translateY(-8px) scale(.8,.5);opacity:0}}
 @media(prefers-reduced-motion:reduce){.nw-notice-animated .nw-notice,.nw-notice-animated .nw-notice-content,.nw-notice-animated .nw-notice-actions{animation:none!important;transform:none!important}}
 @media(max-width:350px){.nw-notice-host{inset-inline:8px}.nw-notice{padding:12px 10px 8px}.nw-notice-actions button{font-size:11px}}
+.nw-account-wait{min-height:100dvh;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 40%,#55205b38,transparent 65%),#100a16}
+.nw-account-wait-brand{width:min(50vw,230px);height:auto;object-fit:contain;opacity:.42}
+.nw-account-wait-pulse{width:13px;height:13px;border-radius:50%;background:#ff80cb;box-shadow:0 0 16px #ff2e9a88;animation:nw-account-pulse 1.2s ease-in-out infinite}
+@keyframes nw-account-pulse{50%{opacity:.35;transform:scale(.75)}}
+@media(prefers-reduced-motion:reduce){.nw-account-wait-pulse{animation:none}}
