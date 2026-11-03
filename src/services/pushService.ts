@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { accountClient } from './accountClient';
 import { logisticsApiUrl } from './logisticsConfig';
 
@@ -19,8 +21,12 @@ export const DEFAULT_VAPID_PUBLIC_KEY =
 
 class PushNotificationService {
   private cachedVapidKey: string | null = null;
+  private nativeListenersConfigured = false;
 
   public isSupported(): boolean {
+    if (Capacitor.isNativePlatform()) {
+      return true;
+    }
     if (typeof window === 'undefined') return false;
     return (
       'serviceWorker' in navigator &&
@@ -30,6 +36,9 @@ class PushNotificationService {
   }
 
   public getPermissionStatus(): PushPermissionStatus {
+    if (Capacitor.isNativePlatform()) {
+      return localStorage.getItem('novaesweb_push_enabled') === 'true' ? 'granted' : 'default';
+    }
     if (!this.isSupported()) return 'unsupported';
     return Notification.permission;
   }
@@ -66,7 +75,13 @@ class PushNotificationService {
     return DEFAULT_VAPID_PUBLIC_KEY;
   }
 
-  public async getExistingSubscription(): Promise<PushSubscription | null> {
+  public async getExistingSubscription(): Promise<PushSubscription | { endpoint: string } | null> {
+    if (Capacitor.isNativePlatform()) {
+      return localStorage.getItem('novaesweb_push_enabled') === 'true'
+        ? ({ endpoint: 'fcm:native' } as any)
+        : null;
+    }
+
     if (!this.isSupported()) return null;
     try {
       const reg = await navigator.serviceWorker.ready;
@@ -76,20 +91,108 @@ class PushNotificationService {
     }
   }
 
+  private setupNativeListeners() {
+    if (this.nativeListenersConfigured || !Capacitor.isNativePlatform()) return;
+    this.nativeListenersConfigured = true;
+
+    PushNotifications.addListener('pushNotificationReceived', (notification) => {
+      console.log('[PushService] Notificação recebida em 1º plano:', notification);
+    });
+
+    PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+      console.log('[PushService] Notificação tocada pelo motoboy:', notification);
+    });
+  }
+
   public async subscribe(): Promise<{
     success: boolean;
     reason?: 'unsupported' | 'denied' | 'no_key' | 'failed' | 'unauthenticated';
     error?: string;
   }> {
     if (!this.isSupported()) {
-      return { success: false, reason: 'unsupported', error: 'Web Push não é suportado neste navegador.' };
+      return { success: false, reason: 'unsupported', error: 'Notificações não suportadas neste ambiente.' };
     }
 
     if (!accountClient.getToken()) {
       return { success: false, reason: 'unauthenticated', error: 'Entre na sua conta para ativar notificações.' };
     }
 
-    // 1. Solicita permissão explícita ao usuário (requer interação do usuário)
+    // ==========================================
+    // FLUXO NATIVO ANDROID (FIREBASE CLOUD MESSAGING)
+    // ==========================================
+    if (Capacitor.isNativePlatform()) {
+      try {
+        let perm = await PushNotifications.checkPermissions();
+        if (perm.receive !== 'granted') {
+          perm = await PushNotifications.requestPermissions();
+        }
+
+        if (perm.receive !== 'granted') {
+          return {
+            success: false,
+            reason: 'denied',
+            error: 'Permissão de notificação negada no Android. Permita nas configurações do aparelho.',
+          };
+        }
+
+        // Cria o canal com prioridade máxima e som
+        await PushNotifications.createChannel({
+          id: 'pedidos_entregas',
+          name: 'Chamados e Entregas',
+          description: 'Avisos sonoros e vibração de novas corridas',
+          importance: 5,
+          visibility: 1,
+          vibration: true,
+          lights: true,
+        }).catch(() => {});
+
+        this.setupNativeListeners();
+
+        // Registra e aguarda o token FCM
+        const fcmToken = await new Promise<string>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Tempo esgotado ao registrar no Firebase FCM. Verifique sua conexão.'));
+          }, 15000);
+
+          PushNotifications.addListener('registration', (token) => {
+            clearTimeout(timeout);
+            resolve(token.value);
+          });
+
+          PushNotifications.addListener('registrationError', (err) => {
+            clearTimeout(timeout);
+            reject(new Error(err.error || 'Falha ao registrar token no Firebase.'));
+          });
+
+          PushNotifications.register().catch(reject);
+        });
+
+        // Envia o token FCM para o backend autenticado
+        await accountClient.request(this.getPushApiUrl('subscribe'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fcmToken,
+            deviceType: 'android',
+            userAgent: navigator.userAgent,
+          }),
+        });
+
+        localStorage.setItem('novaesweb_push_enabled', 'true');
+        return { success: true };
+      } catch (err: any) {
+        console.error('[PushService] Falha no registro nativo FCM:', err);
+        return {
+          success: false,
+          reason: 'failed',
+          error: err?.message || 'Falha ao ativar notificações nativas no Android.',
+        };
+      }
+    }
+
+    // ==========================================
+    // FLUXO WEB PUSH / PWA (VAPID)
+    // ==========================================
     let permission = Notification.permission;
     if (permission !== 'granted') {
       try {
@@ -108,7 +211,6 @@ class PushNotificationService {
       };
     }
 
-    // 2. Obtém a chave pública VAPID
     const vapidKey = await this.getVapidPublicKey();
     if (!vapidKey) {
       return {
@@ -122,7 +224,6 @@ class PushNotificationService {
       const reg = await navigator.serviceWorker.ready;
       let subscription = await reg.pushManager.getSubscription();
 
-      // Se já existe uma inscrição ativa, renova se a chave for compatível
       if (!subscription) {
         const convertedKey = urlBase64ToUint8Array(vapidKey);
         subscription = await reg.pushManager.subscribe({
@@ -131,7 +232,6 @@ class PushNotificationService {
         });
       }
 
-      // 3. Envia os dados da inscrição para o servidor autenticado
       const subJson = subscription.toJSON();
       await accountClient.request(this.getPushApiUrl('subscribe'), {
         method: 'POST',
@@ -166,6 +266,14 @@ class PushNotificationService {
   }
 
   public async unsubscribe(): Promise<boolean> {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await PushNotifications.removeAllListeners();
+      } catch {}
+      localStorage.removeItem('novaesweb_push_enabled');
+      return true;
+    }
+
     if (!this.isSupported()) return false;
 
     try {
@@ -221,4 +329,3 @@ class PushNotificationService {
 }
 
 export const pushService = new PushNotificationService();
-
