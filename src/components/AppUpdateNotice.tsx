@@ -51,6 +51,8 @@ export function AppUpdateSettings() {
   return <section className="nwa-update-settings" aria-label="Atualizações do aplicativo">
     <h3>Atualizações do aplicativo</h3>
     <p className="nwa-update-help">Versão instalada: {state.currentVersion || 'verificando…'}</p>
+    <label className="nwa-update-help"><input type="checkbox" checked={state.automatic} onChange={event => appUpdates.setAutomatic(event.target.checked)} /> Verificar novas versões automaticamente</label>
+    <p className="nwa-update-help">Avisamos quando houver uma versão nova. Toque em baixar e confirme a instalação no Android.</p>
     <button type="button" className="nwa-update-check" disabled={state.checking} onClick={() => void appUpdates.check(true)}><RefreshCw size={17} aria-hidden="true" />{state.checking ? 'Verificando…' : 'Verificar atualização'}</button>
     {state.release ? <div className="nwa-update-available"><p>Versão {state.release.version} disponível para baixar.</p><DownloadUpdate /><p className="nwa-update-help">Instale fora de uma entrega. Seus dados continuam na sua conta.</p></div>
       : !state.checking && !state.error && state.checkedAt && <p className="nwa-update-help" role="status">Nenhuma atualização publicada disponível para este aplicativo.</p>}

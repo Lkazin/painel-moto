@@ -24,7 +24,7 @@ export const SectionPushNotifications: React.FC<SectionPushNotificationsProps> =
   const [testing, setTesting] = useState<boolean>(false);
 
   const checkStatus = async () => {
-    const currentPerm = pushService.getPermissionStatus();
+    const currentPerm = await pushService.refreshPermission();
     setPermission(currentPerm);
     if (currentPerm === 'granted') {
       const sub = await pushService.getExistingSubscription();

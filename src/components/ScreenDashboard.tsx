@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import React, { useState, useEffect } from 'react';
 import {
   Power,
@@ -16,6 +17,7 @@ import { DriverSession, DriverPresence, Assignment, TrackingSessionState } from 
 import { audioAlert } from '../utils/audioAlert';
 import { requestNotificationPermission, getNotificationPermission } from '../utils/mobileWake';
 import { trackingService } from '../services/trackingService';
+import { pushService } from '../services/pushService';
 
 interface ScreenDashboardProps {
   session: DriverSession;
@@ -216,7 +218,7 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
       </div>
 
       {/* Banner de Instalação do Aplicativo (PWA) no Celular */}
-      <PwaInstallCard />
+      {!Capacitor.isNativePlatform() && <PwaInstallCard />}
 
       {/* Nota Legal Obrigatória (Documento 02 - Seção 13) */}
       <div
@@ -253,16 +255,18 @@ const DriverPermissionsCard: React.FC<{ driverId: string; hasActiveRoute: boolea
 
   useEffect(() => {
     setNotifPerm(getNotificationPermission());
+    let mounted = true;
+    if (Capacitor.isNativePlatform()) void pushService.refreshPermission().then(permission => { if (mounted) setNotifPerm(permission); });
     const unsub = trackingService.subscribe((st) => {
       setTrackingState(st);
       setGpsPermStatus(trackingService.getPermissionStatus());
     });
-    return () => unsub();
+    return () => { mounted = false; unsub(); };
   }, []);
 
   const handleEnableNotif = async () => {
     audioAlert.playClickSound();
-    const granted = await requestNotificationPermission();
+    const granted = Capacitor.isNativePlatform() ? (await pushService.subscribe()).success : await requestNotificationPermission();
     setNotifPerm(granted ? 'granted' : 'denied');
     if (granted) audioAlert.playSuccessSound();
   };

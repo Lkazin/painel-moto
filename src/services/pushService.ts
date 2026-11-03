@@ -1,3 +1,4 @@
+import type { PluginListenerHandle } from '@capacitor/core';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { accountClient } from './accountClient';
@@ -22,6 +23,47 @@ export const DEFAULT_VAPID_PUBLIC_KEY =
 class PushNotificationService {
   private cachedVapidKey: string | null = null;
   private nativeListenersConfigured = false;
+  private nativePermission: PushPermissionStatus = 'default';
+  private nativeRegistration: Promise<string> | null = null;
+
+  public async refreshPermission(): Promise<PushPermissionStatus> {
+    if (!Capacitor.isNativePlatform()) return this.getPermissionStatus();
+    try {
+      const permission = await PushNotifications.checkPermissions();
+      this.nativePermission = permission.receive === 'granted' ? 'granted' : permission.receive === 'denied' ? 'denied' : 'default';
+    } catch { this.nativePermission = 'default'; }
+    return this.nativePermission;
+  }
+
+  public async initializeNative(): Promise<void> {
+    if (!Capacitor.isNativePlatform()) return;
+    await this.setupNativeListeners();
+    if (await this.refreshPermission() === 'granted' && accountClient.getToken() && localStorage.getItem('novaesweb_push_enabled') === 'true') {
+      await this.subscribe();
+    }
+  }
+
+  private async registerNative(): Promise<string> {
+    if (this.nativeRegistration) return this.nativeRegistration;
+    this.nativeRegistration = (async () => {
+      const handles: PluginListenerHandle[] = [];
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        return await new Promise<string>((resolve, reject) => {
+          timeout = setTimeout(() => reject(new Error('Tempo esgotado ao registrar no Firebase. Verifique sua conexão.')), 15000);
+          void (async () => {
+            handles.push(await PushNotifications.addListener('registration', token => resolve(token.value)));
+            handles.push(await PushNotifications.addListener('registrationError', () => reject(new Error('Falha ao registrar no Firebase.'))));
+            await PushNotifications.register();
+          })().catch(reject);
+        });
+      } finally {
+        clearTimeout(timeout);
+        await Promise.all(handles.map(handle => handle.remove()));
+      }
+    })().finally(() => { this.nativeRegistration = null; });
+    return this.nativeRegistration;
+  }
 
   public isSupported(): boolean {
     if (Capacitor.isNativePlatform()) {
@@ -37,7 +79,7 @@ class PushNotificationService {
 
   public getPermissionStatus(): PushPermissionStatus {
     if (Capacitor.isNativePlatform()) {
-      return localStorage.getItem('novaesweb_push_enabled') === 'true' ? 'granted' : 'default';
+      return this.nativePermission;
     }
     if (!this.isSupported()) return 'unsupported';
     return Notification.permission;
@@ -77,9 +119,10 @@ class PushNotificationService {
 
   public async getExistingSubscription(): Promise<PushSubscription | { endpoint: string } | null> {
     if (Capacitor.isNativePlatform()) {
-      return localStorage.getItem('novaesweb_push_enabled') === 'true'
-        ? ({ endpoint: 'fcm:native' } as any)
-        : null;
+      const token = localStorage.getItem('novaesweb_fcm_token');
+      return await this.refreshPermission() === 'granted' && token && localStorage.getItem('novaesweb_push_enabled') === 'true'
+        && localStorage.getItem('novaesweb_fcm_account') === accountClient.getAccount()?.id
+        ? { endpoint: 'fcm:' + token } : null;
     }
 
     if (!this.isSupported()) return null;
@@ -91,17 +134,19 @@ class PushNotificationService {
     }
   }
 
-  private setupNativeListeners() {
+  private async setupNativeListeners() {
     if (this.nativeListenersConfigured || !Capacitor.isNativePlatform()) return;
     this.nativeListenersConfigured = true;
-
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('[PushService] Notificação recebida em 1º plano:', notification);
-    });
-
-    PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-      console.log('[PushService] Notificação tocada pelo motoboy:', notification);
-    });
+    try {
+      await PushNotifications.addListener('pushNotificationReceived', notification => {
+        if (!accountClient.getToken() || localStorage.getItem('novaesweb_push_enabled') !== 'true') return;
+        window.dispatchEvent(new CustomEvent('novaesweb:push-received', { detail: { title: notification.title, body: notification.body } }));
+      });
+      await PushNotifications.addListener('pushNotificationActionPerformed', () => {
+        // Open authenticated orders, never a URL or customer data from the payload.
+        if (accountClient.getToken()) window.dispatchEvent(new CustomEvent('novaesweb:push-open'));
+      });
+    } catch { this.nativeListenersConfigured = false; }
   }
 
   public async subscribe(): Promise<{
@@ -127,6 +172,7 @@ class PushNotificationService {
           perm = await PushNotifications.requestPermissions();
         }
 
+        this.nativePermission = perm.receive === 'granted' ? 'granted' : 'denied';
         if (perm.receive !== 'granted') {
           return {
             success: false,
@@ -146,26 +192,11 @@ class PushNotificationService {
           lights: true,
         }).catch(() => {});
 
-        this.setupNativeListeners();
-
-        // Registra e aguarda o token FCM
-        const fcmToken = await new Promise<string>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error('Tempo esgotado ao registrar no Firebase FCM. Verifique sua conexão.'));
-          }, 15000);
-
-          PushNotifications.addListener('registration', (token) => {
-            clearTimeout(timeout);
-            resolve(token.value);
-          });
-
-          PushNotifications.addListener('registrationError', (err) => {
-            clearTimeout(timeout);
-            reject(new Error(err.error || 'Falha ao registrar token no Firebase.'));
-          });
-
-          PushNotifications.register().catch(reject);
-        });
+        await this.setupNativeListeners();
+        const accountId = accountClient.getAccount()?.id;
+        const accountSession = accountClient.getToken();
+        const fcmToken = await this.registerNative();
+        if (accountSession !== accountClient.getToken()) throw new Error('A conta mudou. Ative as notificações novamente.');
 
         // Envia o token FCM para o backend autenticado
         await accountClient.request(this.getPushApiUrl('subscribe'), {
@@ -179,9 +210,11 @@ class PushNotificationService {
         });
 
         localStorage.setItem('novaesweb_push_enabled', 'true');
+        localStorage.setItem('novaesweb_fcm_token', fcmToken);
+        localStorage.setItem('novaesweb_fcm_account', accountId || '');
         return { success: true };
       } catch (err: any) {
-        console.error('[PushService] Falha no registro nativo FCM:', err);
+        console.warn('[PushService] Não foi possível ativar notificações Android.');
         return {
           success: false,
           reason: 'failed',
@@ -267,11 +300,20 @@ class PushNotificationService {
 
   public async unsubscribe(): Promise<boolean> {
     if (Capacitor.isNativePlatform()) {
+      const token = localStorage.getItem('novaesweb_fcm_token');
       try {
-        await PushNotifications.removeAllListeners();
-      } catch {}
-      localStorage.removeItem('novaesweb_push_enabled');
-      return true;
+        if (token && accountClient.getToken()) {
+          await accountClient.request(this.getPushApiUrl('unsubscribe'), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: 'fcm:' + token }),
+          });
+        }
+        await PushNotifications.unregister();
+        localStorage.removeItem('novaesweb_push_enabled');
+        localStorage.removeItem('novaesweb_fcm_token');
+        localStorage.removeItem('novaesweb_fcm_account');
+        return true;
+      } catch { throw new Error('Não foi possível desativar as notificações. Verifique a conexão e tente novamente.'); }
     }
 
     if (!this.isSupported()) return false;

@@ -4,6 +4,8 @@ import { DriverLocationUpdate, TrackingSessionState } from '../types';
 import { logisticsApiUrl } from './logisticsConfig';
 import { accountClient } from './accountClient';
 
+const GPS_PREFERENCE_KEY = 'novaesweb_gps_enabled_v1';
+
 type StateListener = (state: TrackingSessionState) => void;
 
 interface StoredDriverIdentity {
@@ -75,7 +77,11 @@ class TrackingService {
 
   constructor() {
     this.initPermissionMonitor();
-    accountClient.subscribe(() => this.stop(false));
+    accountClient.subscribe(() => {
+      this.stop(false);
+      this.restoreLocationPreference();
+    });
+    this.restoreLocationPreference();
     if (typeof window !== 'undefined') {
       window.addEventListener('offline', () => {
         if (!this.currentState.isActive) return;
@@ -83,6 +89,7 @@ class TrackingService {
         this.notify();
       });
       const recover = () => {
+        if (!this.currentState.isActive) this.restoreLocationPreference();
         if (this.currentState.isActive && navigator.onLine !== false && (supportsBackgroundTracking() || document.visibilityState !== 'hidden')) {
           void this.requestLocationPermission();
         }
@@ -90,6 +97,23 @@ class TrackingService {
       window.addEventListener('online', recover);
       document.addEventListener('visibilitychange', recover);
     }
+  }
+
+  private restoringPreference = false;
+
+  /** Restores consent with a fresh device position; never starts route sharing. */
+  private restoreLocationPreference() {
+    if (!supportsBackgroundTracking() || !accountClient.getToken() || this.restoringPreference || this.currentState.isActive) return;
+    try { if (localStorage.getItem(GPS_PREFERENCE_KEY) !== 'true') return; } catch { return; }
+    this.restoringPreference = true;
+    void this.requestLocationPermission({ onlyCheckPermission: true }).finally(() => { this.restoringPreference = false; });
+  }
+
+  private rememberLocationPermission(granted: boolean) {
+    try {
+      if (granted) localStorage.setItem(GPS_PREFERENCE_KEY, 'true');
+      else localStorage.removeItem(GPS_PREFERENCE_KEY);
+    } catch { /* Device storage may be unavailable. */ }
   }
 
   private validLocation(loc: DriverLocationUpdate): boolean {
@@ -153,7 +177,7 @@ class TrackingService {
     error?: string;
   }> {
     return new Promise((resolve) => {
-      if (typeof window === 'undefined' || !('geolocation' in navigator)) {
+      if (typeof window === 'undefined' || (!supportsBackgroundTracking() && !('geolocation' in navigator))) {
         const msg = 'Este navegador ou aparelho não suporta geolocalização GPS.';
         this.currentState.error = msg;
         this.notify();
@@ -167,7 +191,9 @@ class TrackingService {
       const getPosition = supportsBackgroundTracking() ? nativeCurrentPosition : navigator.geolocation.getCurrentPosition.bind(navigator.geolocation);
       getPosition(
         (pos) => {
+          if (generation !== this.generation) { resolve({ granted: false }); return; }
           this.permissionState = 'granted';
+          this.rememberLocationPermission(true);
           const loc: DriverLocationUpdate = {
             driverId: identity.driverId,
             assignmentId: this.activeAssignmentId || undefined,
@@ -213,6 +239,7 @@ class TrackingService {
           if (generation !== this.generation) { resolve({ granted: false }); return; }
           if (err.code === err.PERMISSION_DENIED) {
             this.permissionState = 'denied';
+            this.rememberLocationPermission(false);
             this.currentState.error =
               'Permissão de localização negada. Clique no cadeado da barra de endereço do navegador e permita Localização.';
           } else {
@@ -240,12 +267,13 @@ class TrackingService {
       void this.nativeWatcher.start(location => {
         if (generation !== this.generation || !this.currentState.isActive) return;
         this.permissionState = 'granted';
+        this.rememberLocationPermission(true);
         this.handleNewLocation({ driverId, assignmentId: this.activeAssignmentId || undefined,
           latitude: location.latitude, longitude: location.longitude, accuracy: location.accuracy,
           heading: location.bearing, speed: location.speed, timestamp: Number(location.time) });
       }, (message, denied) => {
         if (generation !== this.generation || !this.currentState.isActive) return;
-        if (denied) this.permissionState = 'denied';
+        if (denied) { this.permissionState = 'denied'; this.rememberLocationPermission(false); }
         this.currentState.error = message;
         this.nativeWatching = false;
         this.notify();

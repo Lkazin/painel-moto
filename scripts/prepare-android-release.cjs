@@ -71,6 +71,8 @@ SHA256: ${sha256}
 
 - Aviso no aplicativo quando houver uma versão Android mais recente publicada.
 - Botão para baixar a atualização oficial, mediante ação do entregador.
+- Opção de verificar novas versões automaticamente.
+- Notificações Android via Firebase e preferência de GPS restaurada ao abrir o aplicativo.
 - Mantém conta, pedidos, histórico e GPS existentes.
 
 ## Instalação

@@ -9,13 +9,28 @@ const rawCode = fs.readFileSync('src/services/pushService.ts', 'utf8')
   .replace(/import\s+[^;]+from\s+['"][^'"]+['"];/g, '');
 const source = stripTypeScriptTypes(rawCode);
 
-function createHarness({ backendKey = null, backendFails = false, envKey = '' } = {}) {
+function createHarness({ backendKey = null, backendFails = false, envKey = '', native = false, receive = 'granted', registerFails = false } = {}) {
   let fetchUrl = null;
+  const listeners = new Map(), removed = [], requests = [], events = [], storage = new Map();
+  let unregistered = false;
+  const accountClient = { getToken: () => 'session', getAccount: () => ({id:'account1'}), request: async (url, options) => { requests.push({url, body: JSON.parse(options.body)}); return {}; } };
+  const PushNotifications = {
+    checkPermissions: async () => ({receive}), requestPermissions: async () => ({receive}),
+    createChannel: async () => {},
+    addListener: async (name, handler) => { listeners.set(name, handler); return {remove: async () => {listeners.delete(name); removed.push(name);}}; },
+    register: async () => { if(registerFails) throw new Error('register failed'); listeners.get('registration')({value:'fcm-device-token'}); },
+    unregister: async () => { unregistered = true; },
+  };
   const context = {
     exports: {},
+    Capacitor: {isNativePlatform: () => native}, PushNotifications, accountClient,
+    setTimeout, clearTimeout,
+    CustomEvent: class { constructor(type, options) {this.type=type;this.detail=options?.detail;} },
+    localStorage: { getItem: key => storage.get(key) || null, setItem: (key,value) => storage.set(key,value), removeItem: key => storage.delete(key) },
     console,
     Date,
     window: {
+      dispatchEvent: event => events.push(event),
       atob: (s) => Buffer.from(s, 'base64').toString('binary'),
     },
     Notification: { permission: 'default' },
@@ -57,7 +72,7 @@ function createHarness({ backendKey = null, backendFails = false, envKey = '' } 
   return {
     pushService: context.exports.pushService,
     DEFAULT_VAPID_PUBLIC_KEY: context.exports.DEFAULT_VAPID_PUBLIC_KEY,
-    getFetchUrl: () => fetchUrl,
+    getFetchUrl: () => fetchUrl, listeners, removed, requests, events, storage, isUnregistered: () => unregistered,
   };
 }
 
@@ -91,4 +106,42 @@ test('5. getVapidPublicKey usa DEFAULT_VAPID_PUBLIC_KEY quando backend falha na 
   const h = createHarness({ backendFails: true, envKey: '' });
   const key = await h.pushService.getVapidPublicKey();
   assert.equal(key, h.DEFAULT_VAPID_PUBLIC_KEY);
+});
+
+
+test('native permission comes from OS, not saved enabled flag', async () => {
+  const h=createHarness({native:true,receive:'denied'});
+  h.storage.set('novaesweb_push_enabled','true');
+  assert.equal(await h.pushService.refreshPermission(),'denied');
+  assert.equal(h.pushService.getPermissionStatus(),'denied');
+  assert.equal(await h.pushService.getExistingSubscription(),null);
+});
+test('native registration persists token and removes temporary listeners', async () => {
+  const h=createHarness({native:true});
+  assert.equal((await h.pushService.subscribe()).success,true);
+  assert.equal(h.requests[0].body.fcmToken,'fcm-device-token');
+  assert.equal(h.listeners.has('registration'),false);
+  assert.equal(h.listeners.has('registrationError'),false);
+  assert.equal((await h.pushService.getExistingSubscription()).endpoint,'fcm:fcm-device-token');
+  h.listeners.get('pushNotificationActionPerformed')({notification:{data:{url:'https://untrusted.invalid'}}});
+  assert.equal(h.events[0].type,'novaesweb:push-open');
+  h.listeners.get('pushNotificationReceived')({title:'Pedido',body:'Nova entrega'});
+  assert.equal(h.events[1].type,'novaesweb:push-received');
+});
+test('native unsubscribe revokes server endpoint and FCM without destroying permanent listeners', async () => {
+  const h=createHarness({native:true}); await h.pushService.subscribe();
+  await h.pushService.unsubscribe();
+  assert.equal(h.requests[1].body.endpoint,'fcm:fcm-device-token');
+  assert.equal(h.isUnregistered(),true);
+  assert.equal(h.storage.has('novaesweb_fcm_token'),false);
+  assert.equal(h.listeners.has('pushNotificationActionPerformed'),true);
+  await h.pushService.subscribe();
+  assert.equal((await h.pushService.getExistingSubscription()).endpoint,'fcm:fcm-device-token');
+});
+test('registration failure cleans listeners and does not mark notifications enabled', async () => {
+  const h=createHarness({native:true,registerFails:true});
+  assert.equal((await h.pushService.subscribe()).success,false);
+  assert.equal(h.listeners.has('registration'),false);
+  assert.equal(h.listeners.has('registrationError'),false);
+  assert.equal(h.storage.has('novaesweb_push_enabled'),false);
 });

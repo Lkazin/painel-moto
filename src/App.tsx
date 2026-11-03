@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { deliveryTrackingDecision } from './services/deliveryTrackingLifecycle';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -134,6 +135,31 @@ export const App: React.FC = () => {
     window.addEventListener('focus',check); window.addEventListener('online',check);
     return () => {clearInterval(interval);window.removeEventListener('focus',check);window.removeEventListener('online',check);};
   }, [account?.id,syncAccount]);
+
+  useEffect(() => {
+    void pushService.initializeNative();
+    const opened = () => {
+      if (!accountClient.getToken()) return;
+      setActiveTab('orders'); setActiveDelivery(null); setPinTarget(null);
+      setIsProfileLedgerOpen(false); setIsStoreModalOpen(false);
+      window.dispatchEvent(new Event('focus'));
+    };
+    const received = (event: Event) => {
+      if (!accountClient.getToken()) return;
+      const detail = (event as CustomEvent).detail || {};
+      showToast([detail.title, detail.body].filter(Boolean).join(' — ') || 'Você recebeu uma nova notificação.', 'info');
+      window.dispatchEvent(new Event('focus'));
+    };
+    const refresh = () => { void pushService.initializeNative(); };
+    window.addEventListener('novaesweb:push-open', opened);
+    window.addEventListener('novaesweb:push-received', received);
+    window.addEventListener('online', refresh);
+    return () => {
+      window.removeEventListener('novaesweb:push-open', opened);
+      window.removeEventListener('novaesweb:push-received', received);
+      window.removeEventListener('online', refresh);
+    };
+  }, [account?.id, showToast]);
 
   // Inicializa áudio no primeiro clique do usuário
   useEffect(() => {
@@ -583,7 +609,7 @@ export const App: React.FC = () => {
             </button>
 
             {/* Botão Instalar App no Celular (quando rodando no navegador) */}
-            {!isStandalone && (
+            {!isStandalone && !Capacitor.isNativePlatform() && (
               <button
                 onClick={() => {
                   audioAlert.playClickSound();

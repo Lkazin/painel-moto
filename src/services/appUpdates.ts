@@ -18,10 +18,15 @@ export interface AppUpdateState {
   dismissed: boolean;
   error: string | null;
   checkedAt: number | null;
+  automatic: boolean;
 }
 
 export const ANDROID_RELEASES_API = 'https://api.github.com/repos/Lkazin/painel-moto/releases?per_page=10';
 const DISMISS_KEY = 'nw:android-update-dismiss:v1';
+const AUTOMATIC_KEY = 'nw:android-update-automatic:v1';
+function automaticUpdatesEnabled() {
+  try { return localStorage.getItem(AUTOMATIC_KEY) !== 'false'; } catch { return true; }
+}
 const SUCCESS_INTERVAL = 6 * 60 * 60 * 1000;
 const FAILURE_INTERVAL = 60 * 1000;
 const RATE_LIMIT_INTERVAL = 30 * 60 * 1000;
@@ -79,7 +84,7 @@ function bounded<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
 class AppUpdates {
   private state: AppUpdateState = {
     supported: Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android',
-    checking: false, currentVersion: '', currentBuild: 0, release: null, dismissed: false, error: null, checkedAt: null,
+    checking: false, currentVersion: '', currentBuild: 0, release: null, dismissed: false, error: null, checkedAt: null, automatic: automaticUpdatesEnabled(),
   };
   private listeners = new Set<(state: AppUpdateState) => void>();
   private generation = 0;
@@ -96,6 +101,12 @@ class AppUpdates {
     return () => { this.listeners.delete(listener); };
   }
   private notify() { for (const listener of this.listeners) listener(this.getState()); }
+  setAutomatic(enabled: boolean) {
+    try { localStorage.setItem(AUTOMATIC_KEY, String(enabled)); } catch {}
+    this.state.automatic = enabled;
+    this.notify();
+    if (enabled) void this.check();
+  }
   private isDismissed(release: AndroidRelease | null): boolean {
     if (!release) return false;
     try {
@@ -131,6 +142,7 @@ class AppUpdates {
   }
   check(force = false): Promise<void> {
     if (!this.state.supported) return Promise.resolve();
+    if (!force && !this.state.automatic) return Promise.resolve();
     if (this.pending) return this.pending;
     if (!force && Date.now() < this.nextCheckAt) {
       const dismissed = this.isDismissed(this.state.release);

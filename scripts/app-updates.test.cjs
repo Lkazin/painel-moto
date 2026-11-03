@@ -116,3 +116,11 @@ test('foreground and online events recheck when due, while hidden periodic check
  h.context.document.visibilityState='visible';h.emit('visibilitychange');await tick();assert.equal(h.calls.length,2);
  h.options.response={status:503,data:{}};await h.appUpdates.check(true);h.advance(61000);h.options.response={status:200,data:[]};h.emit('online');await tick();assert.equal(h.appUpdates.getState().error,null);stop();
 });
+
+test('automatic checks can be disabled without blocking a manual check',async()=>{
+ const h=harness();h.appUpdates.setAutomatic(false);
+ const stop=h.appUpdates.start();await tick();assert.equal(h.calls.length,0);
+ await h.appUpdates.check(true);assert.equal(h.calls.length,1);
+ assert.equal(h.storage.get('nw:android-update-automatic:v1'),'false');
+ h.advance(6*3600000+1);h.appUpdates.setAutomatic(true);await tick();assert.equal(h.calls.length,2);stop();
+});
