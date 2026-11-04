@@ -118,7 +118,7 @@ class AccountClient {
     const data = await response.json().catch(() => ({}));
     if (revision !== this.revision) throw new AccountRequestError('A conta foi alterada. Tente novamente.', 'STALE_REQUEST');
     if (!response.ok || !data.success || !data.account?.id || !data.accountToken) throw new AccountRequestError(data.error || 'Não foi possível entrar na conta.', data.code, response.status);
-    this.revision++; this.token = data.accountToken; this.account = data.account; localStorage.removeItem(NOTICE_KEY); await this.save(); this.notify();
+    this.revision++; this.token = data.accountToken; this.account = data.account; this.locked = false; localStorage.removeItem(NOTICE_KEY); await this.save(); this.notify();
     return this.account!;
   }
   async request(url: string, options: RequestInit = {}) {
@@ -168,7 +168,7 @@ class AccountClient {
     if (revision !== this.revision || onboardingRevision !== this.onboardingRevision) throw new AccountRequestError('O primeiro acesso foi cancelado. Entre com sua senha se já concluiu o cadastro.', 'STALE_REQUEST');
     if (!response.ok || !data.success || !data.account?.id || !data.accountToken) throw new AccountRequestError(data.error || 'Não foi possível concluir seu cadastro.', data.code, response.status);
     this.onboarding = null; this.onboardingRequest = null; this.onboardingRevision++;
-    this.revision++; this.token = data.accountToken; this.account = data.account;
+    this.revision++; this.token = data.accountToken; this.account = data.account; this.locked = false;
     localStorage.removeItem(NOTICE_KEY); await this.save(); this.notify();
     return this.account!;
   }
