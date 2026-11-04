@@ -18,7 +18,7 @@ export function ExperienceSettings() {
       <span>Som de abertura <small style={{ display: 'block', color: 'var(--text-muted)' }}>{sound ? 'Ativado' : 'Desativado'}</small></span>
       <input type="checkbox" checked={sound} onChange={event => startupSound.setEnabled(event.target.checked)} />
     </label>
-    <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Som discreto de motor na próxima abertura. O aparelho pode bloquear a reprodução automática. Os sons de novos pedidos continuam independentes.</p>
+    <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Toca o som escolhido em "Som de novos pedidos" (padrão: Tecnológico) ao abrir o app. O aparelho pode bloquear a reprodução automática. Os sons de novos pedidos continuam independentes.</p>
     <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 44 }}>
       <span>Notificações animadas <small style={{ display: 'block', color: 'var(--text-muted)' }}>{animated ? 'Ativadas' : 'Desativadas'}</small></span>
       <input type="checkbox" checked={animated} onChange={event => setAnimatedNotices(event.target.checked)} />
