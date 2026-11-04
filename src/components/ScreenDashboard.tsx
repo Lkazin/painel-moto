@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import React, { useState, useEffect } from 'react';
 import {
+  BatteryCharging,
   Power,
   Navigation,
   Package,
@@ -99,7 +100,10 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
       </div>
 
       {/* Painel de Permissões Essenciais: Notificações + Localização GPS Real */}
-      <DriverPermissionsCard driverId={session.driverId} hasActiveRoute={activeDeliveries.length > 0} />
+      <DriverPermissionsCard driverId={session.driverId} hasActiveRoute={activeDeliveries.length > 0} isAvailable={isAvailable} />
+
+      {/* Dica de Bateria e Segundo Plano Android */}
+      <AndroidBatteryOptimizationCard />
 
       {/* Rota Ativa em Andamento (Aparece se houver entregas retiradas) */}
       {activeDeliveries.length > 0 && (
@@ -245,7 +249,7 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
 };
 
 // Card Duplo de Permissões: 1. Notificações (Tela Bloqueada) + 2. Localização Real (GPS)
-const DriverPermissionsCard: React.FC<{ driverId: string; hasActiveRoute: boolean }> = ({ driverId, hasActiveRoute }) => {
+const DriverPermissionsCard: React.FC<{ driverId: string; hasActiveRoute: boolean; isAvailable?: boolean }> = ({ driverId, hasActiveRoute, isAvailable }) => {
   const [notifPerm, setNotifPerm] = useState<'granted' | 'denied' | 'default' | 'unsupported'>('default');
   const [trackingState, setTrackingState] = useState<TrackingSessionState>(trackingService.getState());
   const [gpsPermStatus, setGpsPermStatus] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>(
@@ -310,7 +314,37 @@ const DriverPermissionsCard: React.FC<{ driverId: string; hasActiveRoute: boolea
         <span style={{ fontSize: '12px', fontWeight: 900, color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Permissões do Aparelho (Notificação & GPS)
         </span>
-        {isNotifOk && isGpsOk ? (
+        {/* Alerta quando disponível com recursos essenciais desligados */}
+      {isAvailable && (!isNotifOk || !isGpsOk) && (
+        <div
+          role="alert"
+          style={{
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(245, 158, 11, 0.15))',
+            border: '2px solid var(--nw-amber)',
+            borderRadius: '12px',
+            padding: '12px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--nw-amber)' }}>
+            <AlertCircle size={20} />
+            <strong style={{ fontSize: '13px', color: '#ffffff' }}>
+              Você está DISPONÍVEL com recursos essenciais desativados!
+            </strong>
+          </div>
+          <p style={{ fontSize: '12px', color: '#fde68a', margin: 0, lineHeight: 1.4 }}>
+            {!isNotifOk && !isGpsOk
+              ? 'GPS e Notificações estão inativos. Ative ambos abaixo para não perder ofertas de corridas.'
+              : !isNotifOk
+              ? 'Notificações estão inativas. O aparelho não tocará ofertas com a tela bloqueada.'
+              : 'GPS em tempo real inativo. A loja não consegue visualizar sua moto no mapa.'}
+          </p>
+        </div>
+      )}
+
+      {isNotifOk && isGpsOk ? (
           <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--nw-emerald)', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <CheckCircle2 size={14} /> Tudo Ativo
           </span>
@@ -571,6 +605,102 @@ const PwaInstallCard: React.FC = () => {
             <li>Role para baixo e selecione <strong>Adicionar à Tela de Início</strong> ⊞</li>
             <li>Toque em <strong>Adicionar</strong> no canto superior direito</li>
           </ol>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Componente de Otimização de Bateria e Segundo Plano Android
+const AndroidBatteryOptimizationCard: React.FC = () => {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  return (
+    <div
+      className="card-surface"
+      style={{
+        padding: '14px 16px',
+        borderRadius: '16px',
+        border: '1px solid var(--border-subtle)',
+        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.06) 0%, var(--bg-card) 100%)'
+      }}
+    >
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              backgroundColor: 'rgba(245, 158, 11, 0.2)',
+              color: 'var(--nw-amber)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}
+          >
+            <BatteryCharging size={18} />
+          </div>
+          <div>
+            <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff', margin: 0 }}>
+              Bateria e Segundo Plano (Android)
+            </h4>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+              Dica para o app não fechar com a tela apagada
+            </p>
+          </div>
+        </div>
+
+        <span style={{ fontSize: '12px', color: 'var(--nw-pink)', fontWeight: 800 }}>
+          {isOpen ? 'Ocultar' : 'Ver Dica'}
+        </span>
+      </div>
+
+      {isOpen && (
+        <div
+          style={{
+            marginTop: '12px',
+            paddingTop: '12px',
+            borderTop: '1px solid var(--border-subtle)',
+            fontSize: '12px',
+            color: 'var(--text-secondary)',
+            lineHeight: 1.5,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}
+        >
+          <p style={{ margin: 0, color: '#ffffff', fontWeight: 700 }}>
+            Para receber ofertas e manter o GPS ativo no suporte sem cortes do Android:
+          </p>
+          <ol style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <li>Abra as <strong>Configurações</strong> do aparelho.</li>
+            <li>Vá em <strong>Aplicativos</strong> → <strong>NovaesWeb Entregador</strong>.</li>
+            <li>Toque em <strong>Bateria</strong> e escolha <strong>"Sem restrições"</strong> (ou desative a economia).</li>
+            <li>Em celulares Xiaomi/Redmi: ative também o <strong>Início Automático</strong>.</li>
+          </ol>
+          <div
+            style={{
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: '10px',
+              padding: '8px 10px',
+              color: 'var(--nw-emerald)',
+              fontSize: '11px',
+              fontWeight: 700
+            }}
+          >
+            ✓ Isso evita que o celular durma e silencie as chamadas de novas entregas!
+          </div>
         </div>
       )}
     </div>

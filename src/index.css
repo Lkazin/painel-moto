@@ -307,6 +307,12 @@ body {
   border: 1px solid var(--border-strong);
 }
 
+.btn-glove-warning {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1.5px solid rgba(245, 158, 11, 0.55);
+  color: var(--nw-amber);
+}
+
 .btn-glove-waze {
   background: #33ccff;
   color: #0b1a2f;

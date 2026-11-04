@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AppUpdateSettings } from './AppUpdateNotice';
+import { VersionChangelogModal } from './VersionChangelogModal';
 import { ExperienceSettings } from './ExperienceSettings';
 import {
   X,
@@ -16,7 +17,10 @@ import {
   Power,
   TrendingUp,
   AlertCircle,
-  MessageCircle
+  MessageCircle,
+  Copy,
+  Check,
+  Sparkles
 } from 'lucide-react';
 import { DriverAccount, DriverSession, StoreShiftSummary } from '../types';
 import { api } from '../services/api';
@@ -42,6 +46,8 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
 }) => {
   const [ledger, setLedger] = useState<StoreShiftSummary[]>([]);
   const [closingShift, setClosingShift] = useState(false);
+  const [copiedSummary, setCopiedSummary] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -67,6 +73,37 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
       audioAlert.playErrorSound();
     } finally {
       setClosingShift(false);
+    }
+  };
+
+  const formatSummaryText = () => {
+    const storeName = activeSession?.storeName || 'Pizzaria';
+    const nowStr = new Date().toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    return `📋 *FECHAMENTO DE PLANTÃO - ${account.name.toUpperCase()}*\n` +
+      `🏍️ Veículo: ${account.vehicleModel || 'Moto'} (Placa ${account.vehiclePlate})\n` +
+      `🏪 Estabelecimento: ${storeName}\n` +
+      `📅 Data/Hora: ${nowStr}\n\n` +
+      `✅ *Entregas concluídas com PIN:* ${totalCompleted}\n` +
+      `💵 *Total de Valores das entregas:* R$ ${totalToReceive.toFixed(2).replace('.', ',')}\n\n` +
+      `_Enviado pelo App do Entregador_`;
+  };
+
+  const handleCopySummary = async () => {
+    audioAlert.playClickSound();
+    try {
+      await navigator.clipboard.writeText(formatSummaryText());
+      setCopiedSummary(true);
+      if (onShowToast) onShowToast('Extrato copiado para a área de transferência!', 'success');
+      setTimeout(() => setCopiedSummary(false), 3000);
+    } catch {
+      if (onShowToast) onShowToast('Erro ao copiar extrato.', 'error');
     }
   };
 
@@ -368,6 +405,20 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
 
         <ExperienceSettings />
         <AppUpdateSettings />
+        <button
+          type="button"
+          onClick={() => {
+            audioAlert.playClickSound();
+            setShowChangelog(true);
+          }}
+          className="btn-glove btn-glove-secondary"
+          style={{ height: '48px', fontSize: '13px' }}
+        >
+          <Sparkles size={16} color="var(--nw-pink)" />
+          <span>✨ O que há de novo no app (Novidades)</span>
+        </button>
+
+        {showChangelog && <VersionChangelogModal onClose={() => setShowChangelog(false)} />}
         {/* Botão de Logout da Conta */}
         <button
           onClick={() => {

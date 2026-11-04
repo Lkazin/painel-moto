@@ -710,20 +710,49 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Banner de Conexão Offline Real */}
-        {!isOnline && (
-          <div className="offline-banner">
+        {/* Banner de Conexão Offline e Sincronização */}
+        {!isOnline ? (
+          <div className="offline-banner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <WifiOff size={16} />
-              <span>Sem Conexão com a Internet</span>
+              <span>Modo Off-line</span>
             </div>
-            {pendingSyncCount > 0 && (
+            {pendingSyncCount > 0 ? (
               <span style={{ fontSize: '11px', background: 'rgba(0,0,0,0.3)', padding: '2px 8px', borderRadius: '10px' }}>
-                {pendingSyncCount} {pendingSyncCount === 1 ? 'pendência local' : 'pendências locais'}
+                {pendingSyncCount} {pendingSyncCount === 1 ? 'entrega gravada no aparelho' : 'entregas gravadas no aparelho'}
               </span>
+            ) : (
+              <span style={{ fontSize: '11px', opacity: 0.8 }}>Sem conexão</span>
             )}
           </div>
-        )}
+        ) : pendingSyncCount > 0 ? (
+          <div className="offline-banner" style={{ background: 'rgba(37, 99, 235, 0.95)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Wifi size={16} />
+              <span>{pendingSyncCount} confirmação(ões) na fila</span>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                audioAlert.playClickSound();
+                const res = await api.flushOfflineQueue();
+                if (res.syncedCount > 0) showToast(`${res.syncedCount} entrega(s) sincronizada(s) com sucesso!`, 'success');
+              }}
+              style={{
+                background: '#ffffff',
+                color: '#1d4ed8',
+                border: 'none',
+                padding: '4px 10px',
+                borderRadius: '8px',
+                fontSize: '11px',
+                fontWeight: 900,
+                cursor: 'pointer'
+              }}
+            >
+              Sincronizar Agora
+            </button>
+          </div>
+        ) : null}
       </header>
 
       {/* Conteúdo Principal conforme Fluxo & Telas */}

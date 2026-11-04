@@ -4,6 +4,13 @@
 export type OfferSound = 'classic' | 'soft' | 'tech';
 const OFFER_SOUND_KEY = 'nw:driver-offer-sound:v1';
 const TECH_SOUND_DEFAULT_MIGRATION_KEY = 'nw:driver-offer-sound:tech-default-v2';
+const VIBRATION_KEY = 'nw:driver-vibration:v1';
+function storedVibrationEnabled(): boolean {
+  try {
+    const val = localStorage.getItem(VIBRATION_KEY);
+    return val !== 'false';
+  } catch { return true; }
+}
 function storedOfferSound(): OfferSound {
   try {
     // One-time migration: replace the former classic/soft choice with the
@@ -19,6 +26,12 @@ function storedOfferSound(): OfferSound {
 
 class AudioAlertManager {
   private offerSound: OfferSound = storedOfferSound();
+  private vibrationEnabled: boolean = storedVibrationEnabled();
+  public getVibrationEnabled(): boolean { return this.vibrationEnabled; }
+  public setVibrationEnabled(enabled: boolean): void {
+    this.vibrationEnabled = enabled;
+    try { localStorage.setItem(VIBRATION_KEY, String(enabled)); } catch {}
+  }
   public getOfferSound(): OfferSound { return this.offerSound; }
   public setOfferSound(sound: OfferSound): void {
     if (!['classic', 'soft', 'tech'].includes(sound)) return;
@@ -28,7 +41,7 @@ class AudioAlertManager {
   public testOfferSound(): boolean {
     if (this.isMuted) return false;
     this.init();
-    this.playOfferChime(false);
+    this.playOfferChime(this.vibrationEnabled);
     return true;
   }
   private synthOfferTone(ctx: AudioContext, frequency: number, offset: number, duration: number, wave: OscillatorType, volume: number, target?: number): void {
@@ -115,7 +128,7 @@ class AudioAlertManager {
     if (this.isMuted) return;
 
     // Disparar vibração no celular do motoboy (se suportado pelo navegador)
-    if (vibrate && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    if (vibrate && this.vibrationEnabled && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
         navigator.vibrate([400, 150, 400, 150, 700]);
       } catch {}

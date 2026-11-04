@@ -237,25 +237,19 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({
         </button>
       </div>
 
-      {/* Opção Secundária: Solicitar Desistência / Relatar Problema */}
-      <div style={{ textAlign: 'center', marginTop: '6px' }}>
+      {/* Botão de Problema na Entrega / Exceção / Cliente Ausente (Glove-friendly) */}
+      <div style={{ marginTop: '8px' }}>
         <button
-          onClick={() => onRequestWithdraw(assignment)}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--text-subtle)',
-            fontSize: '12px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            textDecoration: 'underline'
+          type="button"
+          onClick={() => {
+            audioAlert.playClickSound();
+            onRequestWithdraw(assignment);
           }}
+          className="btn-glove btn-glove-warning"
+          style={{ height: '56px', fontSize: '15px' }}
         >
-          <AlertTriangle size={15} color="var(--nw-amber)" />
-          <span>Cliente ausente ou problema na entrega? Solicitar à loja</span>
+          <AlertTriangle size={22} color="var(--nw-amber)" />
+          <span>Relatar Problema • Cliente Ausente / Erro</span>
         </button>
       </div>
     </div>
