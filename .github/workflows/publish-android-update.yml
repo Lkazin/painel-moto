@@ -25,7 +25,7 @@ jobs:
           ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$ANDROID_DEBUG_KEYSTORE_BASE64" ]; then
-            echo "::error::Cannot publish Android 1.1.6: original v1.1.5 signing key is not configured as ANDROID_DEBUG_KEYSTORE_BASE64. Never generate a new key for an in-place update."
+            echo "::error::Cannot publish Android 1.1.7: original v1.1.6 signing key is not configured as ANDROID_DEBUG_KEYSTORE_BASE64. Never generate a new key for an in-place update."
             exit 1
           else
             echo "available=true" >> "$GITHUB_OUTPUT"
@@ -76,7 +76,7 @@ jobs:
           test -f "$apk"
           test -n "$aapt" && test -n "$apksigner"
           olddir="$(mktemp -d)"
-          gh release download android-v1.1.5 --repo "${GITHUB_REPOSITORY}" --pattern '*.apk' --dir "$olddir"
+          gh release download android-v1.1.6 --repo "${GITHUB_REPOSITORY}" --pattern '*.apk' --dir "$olddir"
           oldapk="$(find "$olddir" -maxdepth 1 -name '*.apk' -type f | head -1)"
           test -n "$oldapk"
           oldcert="$("$apksigner" verify --print-certs "$oldapk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
@@ -87,9 +87,9 @@ jobs:
             exit 1
           fi
           "$aapt" dump badging "$apk" > /tmp/novaes-badging.txt
-          grep -q "^package: name='br.com.novaesweb.entregador' versionCode='8' versionName='1.1.6'" /tmp/novaes-badging.txt
+          grep -q "^package: name='br.com.novaesweb.entregador' versionCode='9' versionName='1.1.7'" /tmp/novaes-badging.txt
           mkdir -p /tmp/novaes-release
-          asset="/tmp/novaes-release/NovaesWeb-Entregador-v1.1.6-code8.apk"
+          asset="/tmp/novaes-release/NovaesWeb-Entregador-v1.1.7-code9.apk"
           cp "$apk" "$asset"
           (cd /tmp/novaes-release && sha256sum "$(basename "$asset")" > "$(basename "$asset").sha256")
           echo "signature match confirmed; Android versionCode 8"
@@ -99,10 +99,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if gh release view android-v1.1.6 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            echo "::error::Release android-v1.1.6 already exists; no silent overwrite allowed."
+          if gh release view android-v1.1.7 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::error::Release android-v1.1.7 already exists; no silent overwrite allowed."
             exit 1
           fi
-          gh release create android-v1.1.6 /tmp/novaes-release/*.apk /tmp/novaes-release/*.sha256 \
+          gh release create android-v1.1.7 /tmp/novaes-release/*.apk /tmp/novaes-release/*.sha256 \
             --repo "${GITHUB_REPOSITORY}" --target "${GITHUB_SHA}" --title "NovaesWeb Entregador 1.1.6" \
-            --notes "Atualização 1.1.6 (código 8): biometria opcional por digital ou rosto no Android, proteção de sessão criptografada, migração de sessão e proteção das confirmações offline. Instale fora de uma entrega ativa."
+            --notes "Atualização 1.1.7 (código 9): biometria opcional por digital ou rosto no Android, proteção de sessão criptografada, migração de sessão e proteção das confirmações offline. Instale fora de uma entrega ativa."
