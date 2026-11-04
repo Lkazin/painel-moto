@@ -34,6 +34,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
       - run: npm ci
       - name: Verify Android SDK
         run: |

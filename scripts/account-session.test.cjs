@@ -51,7 +51,7 @@ function browser(server, memory = new Map()) {
   function load(file) {
     if (modules[file]) return modules[file];
     let source = fs.readFileSync('src/services/' + file + '.ts', 'utf8').replace(/import\s+\{[^}]*\}\s+from\s+['"]\.\.\/types['"];?/g, '');
-    source = stripTypeScriptTypes(source).replace(/import \{([^}]+)\} from '(.+)';/g, (_all, names, path) => 'const {' + names + '}=require(' + JSON.stringify(path) + ');').replaceAll('export class ', 'class ').replaceAll('export const ', 'const ');
+    source = stripTypeScriptTypes(source).replace(/import \{([^}]+)\} from '(.+)';/g, (_all, names, path) => 'const {' + names + '}=require(' + JSON.stringify(path) + ');').replaceAll('export class ', 'class ').replaceAll('export const ', 'const ').replace(/^\s*export\s*\{\s*\};?\s*$/gm, '').replace(/^\s*export\s+/gm, '');
     const exported = file === 'accountClient' ? 'accountClient,AccountRequestError,ACCOUNT_REPLACED_MESSAGE' : file === 'api' ? 'api,ApiClient' : 'offlineQueue';
     source += ';Object.assign(exports,{' + exported + '});';
     const context = { exports: {}, console, Date, URL, URLSearchParams, Headers, AbortController, crypto: require('node:crypto').webcrypto, localStorage: storage, navigator: { get onLine() { return online; } }, window: { addEventListener() { }, dispatchEvent(event) { events.push(event); } }, CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } }, fetch: server.fetch.bind(server), require: name => name === './nativeTracking' ? { supportsBackgroundTracking: () => false } : name === './driverSecurity' ? { nativeSecureAccess: () => false, driverSecurity: {} } : name === './logisticsConfig' ? { logisticsApiUrl: () => BASE } : load(name.replace('./', '')) };
