@@ -70,4 +70,4 @@ jobs:
           gh release create android-v1.1.9 release-assets/*.apk release-assets/*.sha256 \
             --title "NovaesWeb Entregador v1.1.9" \
             --notes-file release-assets/release-notes.md \
-            --latest --verify-tag=false
+            --latest --target main
