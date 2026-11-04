@@ -64,6 +64,7 @@ export const App: React.FC = () => {
   const [biometricLocked, setBiometricLocked] = useState(false);
   const [unlockError, setUnlockError] = useState('');
   const backgroundAt = useRef<number | null>(null);
+  const hasActiveDeliveryRef = useRef(false);
   const [accountNotice, setAccountNotice] = useState(accountClient.getNotice());
   const [syncError, setSyncError] = useState('');
   const [account, setAccount] = useState<DriverAccount | null>(api.getDriverAccount());
@@ -99,7 +100,7 @@ export const App: React.FC = () => {
       backgroundAt.current = null;
       // Não interromper GPS, retirada nem confirmação de entrega durante serviço ativo.
       if (trackingService.getState().isActive ||
-        assignments.some(item => ['waiting_pickup', 'picked_up', 'in_transit'].includes(item.status))) return;
+        hasActiveDeliveryRef.current) return;
       if (elapsed < 5 * 60_000 || biometricLocked || !accountClient.getAccount()) return;
       void accountClient.lockWithBiometrics().then(locked => {
         if (locked) { setBiometricLocked(true); setAccountReady(false); setUnlockError(''); }
@@ -107,7 +108,7 @@ export const App: React.FC = () => {
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [biometricLocked, assignments]);
+  }, [biometricLocked]);
 
   async function unlockBiometric() {
     setUnlockError('');
@@ -130,6 +131,7 @@ export const App: React.FC = () => {
 
   // Estados de Dados
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  hasActiveDeliveryRef.current = assignments.some(item => ['waiting_pickup', 'picked_up', 'in_transit'].includes(item.status));
   const [currentOffer, setCurrentOffer] = useState<Offer | null>(null);
   const handledOfferIdsRef = useRef<Set<string>>(new Set());
   const noticedOfferIdsRef = useRef<Set<string>>(new Set());
