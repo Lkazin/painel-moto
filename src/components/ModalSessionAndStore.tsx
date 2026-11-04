@@ -15,6 +15,7 @@ import { DriverSession } from '../types';
 import { offlineQueue } from '../services/offlineQueue';
 import { audioAlert } from '../utils/audioAlert';
 import { api } from '../services/api';
+import { DriverSecuritySettings } from './DriverSecuritySettings';
 
 interface ModalSessionAndStoreProps {
   session: DriverSession;
@@ -136,6 +137,8 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
             Fingerprint do Aparelho: <code style={{ color: '#FFB3E0' }}>{session.deviceFingerprint}</code>
           </div>
         </div>
+
+        <div style={{ marginBottom: 14 }}><DriverSecuritySettings /></div>
 
         {/* Status de Conexão Real */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>

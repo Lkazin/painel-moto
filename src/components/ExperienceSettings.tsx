@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { DriverSecuritySettings } from './DriverSecuritySettings';
 import { startupSound } from '../services/startupSound';
 import { getAnimatedNotices, setAnimatedNotices, subscribeNotices } from '../services/inAppNotices';
 
@@ -10,7 +11,7 @@ export function ExperienceSettings() {
     const stopNotices = subscribeNotices(() => setAnimated(getAnimatedNotices()));
     return () => { stopSound(); stopNotices(); };
   }, []);
-  return <section className="card-surface" aria-label="Abertura e avisos" style={{ padding: 16, display: 'grid', gap: 14 }}>
+  return <><DriverSecuritySettings /><section className="card-surface" aria-label="Abertura e avisos" style={{ padding: 16, display: 'grid', gap: 14 }}>
     <h3 style={{ fontSize: 16 }}>Abertura e avisos</h3>
     <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 44 }}>
       <span>Som de abertura <small style={{ display: 'block', color: 'var(--text-muted)' }}>{sound ? 'Ativado' : 'Desativado'}</small></span>
@@ -22,5 +23,5 @@ export function ExperienceSettings() {
       <input type="checkbox" checked={animated} onChange={event => setAnimatedNotices(event.target.checked)} />
     </label>
     <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Controla a animação dos avisos dentro do app. Pedidos, notificações push e seus sons continuam ativos conforme as configurações existentes.</p>
-  </section>;
+  </section></>;
 }
