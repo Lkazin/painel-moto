@@ -575,6 +575,18 @@ html, #root { width: 100%; min-height: 100%; }
 .route-metric-grid span { display:block; font-size:11px; color:var(--text-muted); }
 .route-metric-grid strong { display:block; font-size:24px; font-weight:900; color:var(--text-main); line-height:1.4; }
 .route-metric-grid small { font-size:13px; font-weight:600; }
+@keyframes offerStrobe {
+  0%, 100% {
+    box-shadow: 0 0 0 2px var(--nw-pink), 0 0 35px rgba(255, 46, 154, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 0 6px #ffffff, 0 0 60px rgba(255, 255, 255, 0.85);
+  }
+}
+.offer-strobe {
+  animation: offerStrobe 1s ease-in-out infinite;
+}
+
 @media (max-width:1024px) { .modal-content { max-width:100%; } .top-header { padding-top:calc(10px + env(safe-area-inset-top,0px)); } }
 
 .route-summary { display:flex; flex-direction:column; gap:6px; padding-top:10px; border-top:1px solid var(--border-subtle); }

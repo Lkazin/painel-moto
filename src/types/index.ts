@@ -137,6 +137,9 @@ export interface Assignment {
   forcedAt?: string;
   isPendingSync?: boolean; // Para confirmações offline
   pinCandidateOffline?: string;
+  waitingGateStartedAt?: string | null;
+  waitingGateLimitMinutes?: number | null;
+  gateWaitExtendedMinutes?: number;
 }
 
 export type RouteOptimizationMode = 'shortest_distance' | 'oldest_wait';

@@ -25,6 +25,16 @@ export const VersionChangelogModal: React.FC<VersionChangelogModalProps> = ({ on
       desc: 'Novo som moderno de ofertas com opção de alternar entre Clássico, Suave e Tecnológico.'
     },
     {
+      icon: <CheckCircle2 size={20} color="var(--nw-amber)" />,
+      title: 'Cronômetro no Portão com a Loja',
+      desc: 'Contagem regressiva de tolerância ao chegar no cliente, com acréscimo de tempo em tempo real pela loja.'
+    },
+    {
+      icon: <Vibrate size={20} color="var(--nw-purple)" />,
+      title: 'Alertas Contínuos no Trânsito',
+      desc: 'Som e vibração em repetição cadenciada a cada 3,5s com alerta visual para não perder chamadas na moto.'
+    },
+    {
       icon: <Vibrate size={20} color="var(--nw-purple)" />,
       title: 'Vibração Configurável',
       desc: 'Ative ou desative a vibração do aparelho ao receber pedidos, direto nas configurações.'

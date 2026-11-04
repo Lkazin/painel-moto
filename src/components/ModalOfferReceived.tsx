@@ -89,7 +89,7 @@ export const ModalOfferReceived: React.FC<ModalOfferReceivedProps> = ({
   return (
     <div className="modal-overlay">
       <div
-        className="modal-content"
+        className="modal-content offer-strobe"
         style={{
           borderTop: isUrgent ? '4px solid var(--nw-red)' : '4px solid var(--nw-pink)',
           position: 'relative'

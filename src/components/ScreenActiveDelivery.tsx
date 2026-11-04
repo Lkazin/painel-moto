@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { api } from '../services/api';
 import {
   MapPin,
   Phone,
@@ -28,6 +29,73 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({
   onOpenPinConfirmation,
   onRequestWithdraw
 }) => {
+  const assignmentKey = assignment.assignmentId || assignment.id || assignment.orderId;
+  const storageKey = `nw:gate-wait:${assignmentKey}`;
+  const [waitingStartedAt, setWaitingStartedAt] = useState<number | null>(() => {
+    if (assignment.waitingGateStartedAt) {
+      const parsed = Date.parse(assignment.waitingGateStartedAt);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    try {
+      const local = localStorage.getItem(storageKey);
+      return local ? Number(local) : null;
+    } catch { return null; }
+  });
+  const [localExtraMinutes, setLocalExtraMinutes] = useState(0);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (assignment.waitingGateStartedAt) {
+      const parsed = Date.parse(assignment.waitingGateStartedAt);
+      if (Number.isFinite(parsed) && (!waitingStartedAt || parsed < waitingStartedAt)) {
+        setWaitingStartedAt(parsed);
+      }
+    }
+  }, [assignment.waitingGateStartedAt]);
+
+  useEffect(() => {
+    if (!waitingStartedAt) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [waitingStartedAt]);
+
+  const baseMinutes = assignment.waitingGateLimitMinutes || 5;
+  const storeExtraMinutes = assignment.gateWaitExtendedMinutes || 0;
+  const totalMinutes = baseMinutes + storeExtraMinutes + localExtraMinutes;
+  const totalSeconds = totalMinutes * 60;
+  const elapsedSeconds = waitingStartedAt ? Math.floor((now - waitingStartedAt) / 1000) : 0;
+  const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+  const isExpired = waitingStartedAt !== null && remainingSeconds === 0;
+  const isWarning = waitingStartedAt !== null && remainingSeconds > 0 && remainingSeconds <= 60;
+  const progressPercent = totalSeconds > 0 ? Math.min(100, (remainingSeconds / totalSeconds) * 100) : 0;
+
+  const formatCountdown = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  const handleStartGateWait = () => {
+    audioAlert.playClickSound();
+    const timestamp = Date.now();
+    setWaitingStartedAt(timestamp);
+    try { localStorage.setItem(storageKey, String(timestamp)); } catch {}
+    void api.setGateWait(assignment.assignmentId || assignment.id || '', new Date(timestamp).toISOString(), baseMinutes);
+  };
+
+  const handleExtend3Min = () => {
+    audioAlert.playClickSound();
+    setLocalExtraMinutes(prev => prev + 3);
+  };
+
+  const handleQuickIntercomWhatsApp = () => {
+    if (!assignment.customerPhone) return;
+    audioAlert.playClickSound();
+    const raw = assignment.customerPhone.replace(/\D/g, '');
+    const msg = encodeURIComponent(`Olá ${assignment.customerName}! Sou o entregador da ${assignment.storeName || 'loja'} e estou no seu portão/portaria aguardando com o pedido #${assignment.orderNumber}.`);
+    window.open(`https://wa.me/55${raw}?text=${msg}`, '_blank');
+  };
+
   const fullAddress = `${assignment.address}, ${assignment.addressNumber}, ${assignment.neighborhood}, ${assignment.city}`;
   const encodedAddress = encodeURIComponent(fullAddress);
 
@@ -219,6 +287,130 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({
       ) : (
         <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-subtle)' }}>
           Telefone do cliente não informado no cadastro do pedido
+        </div>
+      )}
+
+      {/* Cronômetro de Espera no Portão (Integrado com a Loja) */}
+      {!waitingStartedAt ? (
+        <div
+          className="card-surface"
+          style={{
+            padding: '14px 16px',
+            border: '1px solid rgba(245, 158, 11, 0.4)',
+            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, var(--bg-card) 100%)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Clock size={18} color="var(--nw-amber)" />
+              <span style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>
+                Tolerância no Portão
+              </span>
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Tempo base: {baseMinutes} min
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleStartGateWait}
+            className="btn-glove btn-glove-warning"
+            style={{ height: '52px', fontSize: '14px' }}
+          >
+            <Clock size={20} />
+            <span>🔔 Cheguei no Portão • Iniciar Espera</span>
+          </button>
+        </div>
+      ) : (
+        <div
+          className="card-surface"
+          style={{
+            padding: '16px',
+            border: isExpired
+              ? '2px solid var(--nw-red)'
+              : isWarning
+              ? '2px solid var(--nw-amber)'
+              : '1.5px solid rgba(16, 185, 129, 0.45)',
+            background: isExpired
+              ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, var(--bg-card) 100%)'
+              : isWarning
+              ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, var(--bg-card) 100%)'
+              : 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, var(--bg-card) 100%)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Clock size={20} color={isExpired ? 'var(--nw-red)' : isWarning ? 'var(--nw-amber)' : 'var(--nw-emerald)'} />
+              <div>
+                <strong style={{ fontSize: '14px', color: '#ffffff', display: 'block' }}>
+                  {isExpired ? 'Tempo de Portão Esgotado' : 'Aguardando no Portão'}
+                </strong>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Tolerância: {totalMinutes} min {storeExtraMinutes > 0 ? `(Loja deu +${storeExtraMinutes}m)` : ''}
+                </span>
+              </div>
+            </div>
+            <span
+              style={{
+                fontSize: '26px',
+                fontWeight: 900,
+                fontFamily: 'monospace',
+                color: isExpired ? 'var(--nw-red)' : isWarning ? 'var(--nw-amber)' : 'var(--nw-emerald)'
+              }}
+            >
+              {formatCountdown(remainingSeconds)}
+            </span>
+          </div>
+
+          {/* Barra de Progresso Regressiva */}
+          <div style={{ height: '6px', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+            <div
+              style={{
+                height: '100%',
+                width: `${progressPercent}%`,
+                background: isExpired ? 'var(--nw-red)' : isWarning ? 'var(--nw-amber)' : 'var(--nw-emerald)',
+                transition: 'width 1s linear'
+              }}
+            />
+          </div>
+
+          {isExpired && (
+            <p style={{ margin: 0, fontSize: '12px', color: '#fca5a5', fontWeight: 700, lineHeight: 1.35 }}>
+              ⚠️ Tempo de espera esgotado! Se o cliente não atender, você pode registrar o problema ou acionar a loja abaixo.
+            </p>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px' }}>
+            <button
+              type="button"
+              onClick={handleExtend3Min}
+              className="btn-glove btn-glove-secondary"
+              style={{ height: '42px', fontSize: '12px' }}
+            >
+              ➕ Dar +3 min
+            </button>
+            <button
+              type="button"
+              onClick={handleQuickIntercomWhatsApp}
+              className="btn-glove"
+              style={{
+                height: '42px',
+                fontSize: '12px',
+                background: 'rgba(37, 211, 102, 0.15)',
+                border: '1px solid rgba(37, 211, 102, 0.45)',
+                color: '#25D366'
+              }}
+            >
+              💬 "No Portão"
+            </button>
+          </div>
         </div>
       )}
 

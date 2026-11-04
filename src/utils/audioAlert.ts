@@ -210,7 +210,7 @@ class AudioAlertManager {
     this.alertIntervalId = setInterval(() => {
       if (!this.isAlertRunning) return;
       this.playOfferChime();
-    }, 1400);
+    }, 3500);
   }
 
   // Interrompe imediatamente o alerta de oferta e para a vibração

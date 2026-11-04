@@ -153,6 +153,13 @@ export class ApiClient {
     return this.request('delivery-confirm', body);
   }
   public async requestWithdrawal(assignmentId: string, reason: string): Promise<{ success: boolean; message: string }> { if (!offlineQueue.getIsOnline()) throw new Error('Conecte-se à internet para solicitar a desistência.'); return this.request('assignment-withdraw', { ...this.identity(), assignmentId, reason }); }
+  public async setGateWait(assignmentId: string, waitingGateStartedAt: string, waitingGateLimitMinutes = 5): Promise<boolean> {
+    try {
+      if (!this.session) return false;
+      await this.request('gate-wait-start', { ...this.identity(), assignmentId, waitingGateStartedAt, waitingGateLimitMinutes });
+      return true;
+    } catch { return false; }
+  }
   public async getHistory(): Promise<{ items: DeliveryHistoryItem[]; totalEarnings: number; hasUninformedFees: boolean }> {
     if (!this.session) return normalizeDeliveryHistory([]);
     return normalizeDeliveryHistory(await this.request(this.query('history')));
