@@ -3,8 +3,15 @@
 
 export type OfferSound = 'classic' | 'soft' | 'tech';
 const OFFER_SOUND_KEY = 'nw:driver-offer-sound:v1';
+const TECH_SOUND_DEFAULT_MIGRATION_KEY = 'nw:driver-offer-sound:tech-default-v2';
 function storedOfferSound(): OfferSound {
   try {
+    // One-time migration: replace the former classic/soft choice with the
+    // technological alert on existing installs. Later manual selections stick.
+    if (localStorage.getItem(TECH_SOUND_DEFAULT_MIGRATION_KEY) !== 'done') {
+      localStorage.setItem(OFFER_SOUND_KEY, 'tech');
+      localStorage.setItem(TECH_SOUND_DEFAULT_MIGRATION_KEY, 'done');
+    }
     const value = localStorage.getItem(OFFER_SOUND_KEY);
     return value === 'classic' || value === 'soft' || value === 'tech' ? value : 'tech';
   } catch { return 'tech'; }
