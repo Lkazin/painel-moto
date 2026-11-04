@@ -104,5 +104,5 @@ jobs:
             exit 1
           fi
           gh release create android-v1.1.7 /tmp/novaes-release/*.apk /tmp/novaes-release/*.sha256 \
-            --repo "${GITHUB_REPOSITORY}" --target "${GITHUB_SHA}" --title "NovaesWeb Entregador 1.1.6" \
+            --repo "${GITHUB_REPOSITORY}" --target "${GITHUB_SHA}" --title "NovaesWeb Entregador 1.1.7" \
             --notes "Atualização 1.1.7 (código 9): biometria opcional por digital ou rosto no Android, proteção de sessão criptografada, migração de sessão e proteção das confirmações offline. Instale fora de uma entrega ativa."
