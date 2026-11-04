@@ -31,7 +31,8 @@ class OfflineQueueManager {
       // No Android o token de cada comando fica criptografado no Keystore.
       if (nativeSecureAccess()) return;
       const storage = typeof sessionStorage === 'undefined' ? localStorage : sessionStorage;
-      const stored = storage.getItem(QUEUE_STORAGE_KEY);
+      const stored = storage.getItem(QUEUE_STORAGE_KEY) || (storage !== localStorage ? localStorage.getItem(QUEUE_STORAGE_KEY) : null);
+      if (stored && storage !== localStorage) storage.setItem(QUEUE_STORAGE_KEY, stored);
       if (storage !== localStorage) localStorage.removeItem(QUEUE_STORAGE_KEY);
       if (stored) {
         this.queue = JSON.parse(stored);

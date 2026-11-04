@@ -27,7 +27,9 @@ class AccountClient {
     try {
       // Web/PWA: sessão dura somente até fechar o navegador (não fica no localStorage).
       const storage = typeof sessionStorage === 'undefined' ? localStorage : sessionStorage;
-      const stored = JSON.parse(storage.getItem(KEY) || 'null');
+      const previous = storage.getItem(KEY) || (storage !== localStorage ? localStorage.getItem(KEY) : null);
+      if (previous && storage !== localStorage) storage.setItem(KEY, previous);
+      const stored = JSON.parse(previous || 'null');
       if (stored?.accountToken && stored?.account?.id) { this.token = stored.accountToken; this.account = stored.account; }
       if (storage !== localStorage) localStorage.removeItem(KEY);
     } catch { /* Cache inválido é ignorado. */ }
