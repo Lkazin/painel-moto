@@ -12,8 +12,7 @@ import {
   Settings,
   CheckCircle,
   AlertCircle,
-  Wallet,
-  Smartphone
+  Wallet
 } from 'lucide-react';
 
 import {
