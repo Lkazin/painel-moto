@@ -97,6 +97,9 @@ export const App: React.FC = () => {
       if (document.visibilityState === 'hidden') { backgroundAt.current = Date.now(); return; }
       const elapsed = backgroundAt.current === null ? 0 : Date.now() - backgroundAt.current;
       backgroundAt.current = null;
+      // Não interromper GPS, retirada nem confirmação de entrega durante serviço ativo.
+      if (trackingService.getState().isActive ||
+        assignments.some(item => ['waiting_pickup', 'picked_up', 'in_transit'].includes(item.status))) return;
       if (elapsed < 5 * 60_000 || biometricLocked || !accountClient.getAccount()) return;
       void accountClient.lockWithBiometrics().then(locked => {
         if (locked) { setBiometricLocked(true); setAccountReady(false); setUnlockError(''); }
@@ -104,7 +107,7 @@ export const App: React.FC = () => {
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [biometricLocked]);
+  }, [biometricLocked, assignments]);
 
   async function unlockBiometric() {
     setUnlockError('');
