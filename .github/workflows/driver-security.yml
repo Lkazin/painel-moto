@@ -5,6 +5,7 @@ on:
       - feat/driver-optional-biometric-secure-session
       - fix/driver-hide-legacy-install-prompt
       - main
+      - feat/driver-tech-offer-sound-settings
   pull_request:
     branches:
       - main

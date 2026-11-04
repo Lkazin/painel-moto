@@ -25,3 +25,22 @@ test('Keep optional biometric and protected session flow unchanged', () => {
   assert.match(app, /biometricLocked/);
   assert.match(app, /unlockBiometric/);
 });
+
+test('Login never offers the obsolete browser PWA installer', () => {
+  const auth = fs.readFileSync('src/components/ScreenAuthDriver.tsx', 'utf8');
+  assert.doesNotMatch(auth, /nwl-install-app-btn|PWAInstallModal|showInstallModal|Instalar no celular/);
+});
+test('Sound options are user-selectable and previewable while keeping authentication protected', () => {
+  const audio = fs.readFileSync('src/utils/audioAlert.ts', 'utf8');
+  const sound = fs.readFileSync('src/components/OfferSoundSettings.tsx', 'utf8');
+  const experience = fs.readFileSync('src/components/ExperienceSettings.tsx', 'utf8');
+  const settings = fs.readFileSync('src/components/ModalSessionAndStore.tsx', 'utf8');
+  assert.match(audio, /getOfferSound/);
+  assert.match(audio, /setOfferSound/);
+  assert.match(audio, /testOfferSound/);
+  assert.match(sound, /3\. Tecnológico/);
+  assert.match(sound, /Testar som/);
+  assert.match(experience, /<OfferSoundSettings/);
+  assert.match(settings, /<OfferSoundSettings/);
+  assert.match(experience, /DriverSecuritySettings/);
+});
