@@ -18,6 +18,7 @@ export class ApiClient {
     try {
       this.legacySession = JSON.parse(localStorage.getItem(LEGACY_SESSION_KEY) || 'null');
     } catch { /* Dados locais antigos não autorizam acesso. */ }
+    localStorage.removeItem(LEGACY_SESSION_KEY);
     // Nunca restaura tokens de plantão de um cache web: o servidor valida cada sessão.
     localStorage.removeItem(CACHE_KEY);
     accountClient.subscribe(message => {

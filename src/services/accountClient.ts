@@ -122,6 +122,7 @@ class AccountClient {
     return this.account!;
   }
   async request(url: string, options: RequestInit = {}) {
+    if (this.locked) throw new AccountRequestError('Desbloqueie o aplicativo para continuar.', 'BIOMETRIC_REQUIRED', 423);
     const token = this.token, revision = this.revision;
     if (!token) throw new AccountRequestError('Entre na sua conta para continuar.', 'ACCOUNT_SESSION_REQUIRED', 401);
     const requestOptions = {...options, cache: 'no-store' as RequestCache, headers: {...Object.fromEntries(new Headers(options.headers).entries()), 'x-account-session': token}};

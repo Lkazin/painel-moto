@@ -8,6 +8,7 @@ class OfflineQueueManager {
   private queue: OfflineCommand[] = [];
   private listeners: ((queue: OfflineCommand[]) => void)[] = [];
   private nativeLoaded = false;
+  private persistence = Promise.resolve();
 
   constructor() {
     this.loadQueue();
@@ -73,8 +74,11 @@ class OfflineQueueManager {
     if (typeof window === 'undefined') return;
     try {
       if (nativeSecureAccess()) {
-        if (this.nativeLoaded) void driverSecurity.save('offline', JSON.stringify(this.queue))
-          .catch(() => console.error('Falha ao proteger a fila offline.'));
+        if (this.nativeLoaded) {
+          const snapshot = JSON.stringify(this.queue);
+          this.persistence = this.persistence.then(() => driverSecurity.save('offline', snapshot))
+            .catch(() => console.error('Falha ao proteger a fila offline.'));
+        }
         localStorage.removeItem(QUEUE_STORAGE_KEY);
       } else {
         const storage = typeof sessionStorage === 'undefined' ? localStorage : sessionStorage;

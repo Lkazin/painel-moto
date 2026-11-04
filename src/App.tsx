@@ -80,7 +80,7 @@ export const App: React.FC = () => {
     void (async () => {
       try {
         const result = await accountClient.restore();
-        if (result === 'ready') await offlineQueue.initialize();
+        if (result !== 'locked') await offlineQueue.initialize();
         if (!alive) return;
         setAccount(accountClient.getAccount());
         setBiometricLocked(result === 'locked');
