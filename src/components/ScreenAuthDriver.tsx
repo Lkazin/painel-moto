@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Phone, Lock, ArrowRight, LogIn, AlertCircle, Eye, EyeOff, Shield, FileText, Package, ShieldCheck, Headphones, Smartphone, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Phone, Lock, ArrowRight, LogIn, AlertCircle, Eye, EyeOff, Shield, FileText, Package, ShieldCheck, Headphones, CheckCircle, ArrowLeft } from 'lucide-react';
 import './ScreenAuthDriver.css';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
 import { DriverAccount, FirstAccessChallenge } from '../types';
-import { PWAInstallModal } from './PWAInstallModal';
 import { AccountInformationModal } from './AccountInformationModal';
 
 interface ScreenAuthDriverProps { onLoginSuccess: (account: DriverAccount) => void; notice?: string; }
@@ -27,7 +26,6 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({onLoginSucces
   const [loading,setLoading] = useState(false);
   const [errorMessage,setErrorMessage] = useState<string|null>(null);
   const [activeModal,setActiveModal] = useState<'privacy'|'terms'|'support'|null>(null);
-  const [showInstallModal,setShowInstallModal] = useState(false);
   const requestRevision = useRef(0);
   const detailsHeading = useRef<HTMLHeadingElement>(null);
   useEffect(() => () => { requestRevision.current++; api.cancelFirstAccess(); },[]);
@@ -112,20 +110,6 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({onLoginSucces
             <span>Conexão protegida. Uma conta, um aparelho conectado por vez.</span>
           </div>
 
-          {/* Botão Oficial para Instalar no Celular (Android / iOS) */}
-          <div style={{ width: '100%', marginTop: '4px' }}>
-            <button
-              type="button"
-              onClick={() => {
-                audioAlert.playClickSound();
-                setShowInstallModal(true);
-              }}
-              className="nwl-install-app-btn"
-            >
-              <Smartphone size={19} color="#FFB3E0" />
-              <span>Instalar no celular (Android / iPhone)</span>
-            </button>
-          </div>
         </div>
 
         {/* RODAPÉ OFICIAL NOVAESWEB */}
@@ -178,8 +162,6 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({onLoginSucces
       </div>
 
       {activeModal && <AccountInformationModal page={activeModal} onClose={() => setActiveModal(null)} />}
-      {/* MODAL DE INSTALAÇÃO PWA MOBILE (ANDROID & IOS) */}
-      <PWAInstallModal isOpen={showInstallModal} onClose={() => setShowInstallModal(false)} />
     </div>
   );
 };
