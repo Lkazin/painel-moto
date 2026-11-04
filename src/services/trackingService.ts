@@ -3,6 +3,7 @@ import { DriverLocationUpdate, TrackingSessionState } from '../types';
 
 import { logisticsApiUrl } from './logisticsConfig';
 import { accountClient } from './accountClient';
+import { api } from './api';
 
 const GPS_PREFERENCE_KEY = 'novaesweb_gps_enabled_v1';
 
@@ -17,40 +18,15 @@ interface StoredDriverIdentity {
 }
 
 function getStoredDriverIdentity(fallbackDriverId?: string | null): StoredDriverIdentity {
-  if (typeof window === 'undefined') {
-    return { driverId: '' };
-  }
-
-  let sessionObj: any = null;
-  let accountObj: any = null;
-
-  try {
-    const rawSession = localStorage.getItem('novaesweb_driver_session_v2');
-    if (rawSession) sessionObj = JSON.parse(rawSession);
-  } catch {}
-
-  try {
-    const rawAccount = localStorage.getItem('novaesweb_driver_account_v2');
-    if (rawAccount) accountObj = JSON.parse(rawAccount);
-  } catch {}
-
-  const driverId =
-    sessionObj?.driverId ||
-    accountObj?.id ||
-    (fallbackDriverId && fallbackDriverId !== 'drv_default' ? fallbackDriverId : null) ||
-    sessionObj?.membershipId ||
-    '';
-
-  const membershipId = sessionObj?.membershipId || undefined;
-  const driverName = sessionObj?.driverName || accountObj?.name || undefined;
-  const token =
-    sessionObj?.token || undefined;
-
+  // O token de plantão vem da sessão autorizada em memória, nunca do localStorage.
+  const session = api.getSession();
+  const account = api.getDriverAccount();
+  if (!session || !accountClient.getToken()) return { driverId: '' };
   return {
-    driverId,
-    membershipId,
-    driverName,
-    token,
+    driverId: session.driverId || (fallbackDriverId && fallbackDriverId !== 'drv_default' ? fallbackDriverId : ''),
+    membershipId: session.membershipId,
+    driverName: session.driverName || account?.name,
+    token: session.token,
   };
 }
 

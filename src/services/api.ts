@@ -17,9 +17,10 @@ export class ApiClient {
   constructor() {
     try {
       this.legacySession = JSON.parse(localStorage.getItem(LEGACY_SESSION_KEY) || 'null');
-      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-      if (cached?.accountId === accountClient.getAccount()?.id) { this.session = cached.session; this.ledger = cached.ledger || []; }
     } catch { /* Dados locais antigos não autorizam acesso. */ }
+    localStorage.removeItem(LEGACY_SESSION_KEY);
+    // Nunca restaura tokens de plantão de um cache web: o servidor valida cada sessão.
+    localStorage.removeItem(CACHE_KEY);
     accountClient.subscribe(message => {
       this.accountSync = null;
       this.bootstrapped = false; this.session = null; this.ledger = []; offlineQueue.clearQueue();
@@ -33,12 +34,10 @@ export class ApiClient {
     localStorage.removeItem('novaesweb_driver_registered_accounts');
   }
   private persist() {
-    const account = accountClient.getAccount();
-    if (!account) return;
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ accountId: account.id, session: this.session, ledger: this.ledger }));
-    // Identidade usada somente pelo serviço GPS; autorização vem dos tokens do servidor.
-    if (this.session) localStorage.setItem(LEGACY_SESSION_KEY, JSON.stringify(this.session)); else localStorage.removeItem(LEGACY_SESSION_KEY);
-    localStorage.setItem('novaesweb_driver_account_v2', JSON.stringify(account));
+    // Tokens de plantão e dados pessoais permanecem em memória, não no localStorage.
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(LEGACY_SESSION_KEY);
+    localStorage.removeItem('novaesweb_driver_account_v2');
   }
   public getDriverAccount() { return accountClient.getAccount(); }
   public getSession() { return this.bootstrapped ? this.session : null; }

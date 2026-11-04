@@ -60,6 +60,11 @@ export const App: React.FC = () => {
   }, []);
   // Autenticação Pessoal do Entregador e Sessão de Plantão na Loja
   const [accountReady, setAccountReady] = useState(false);
+  const [authHydrated, setAuthHydrated] = useState(!Capacitor.isNativePlatform());
+  const [biometricLocked, setBiometricLocked] = useState(false);
+  const [unlockError, setUnlockError] = useState('');
+  const backgroundAt = useRef<number | null>(null);
+  const hasActiveDeliveryRef = useRef(false);
   const [accountNotice, setAccountNotice] = useState(accountClient.getNotice());
   const [syncError, setSyncError] = useState('');
   const [account, setAccount] = useState<DriverAccount | null>(api.getDriverAccount());
@@ -68,6 +73,57 @@ export const App: React.FC = () => {
   const [isOnline, setIsOnline] = useState<boolean>(offlineQueue.getIsOnline());
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
+  // Restaura a sessão Android somente a partir do Keystore.
+  // A opção biométrica não abre uma autenticação sem toque explícito do entregador.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const result = await accountClient.restore();
+        if (result !== 'locked') await offlineQueue.initialize();
+        if (!alive) return;
+        setAccount(accountClient.getAccount());
+        setBiometricLocked(result === 'locked');
+      } catch {
+        if (alive) setAccountNotice('Entre com sua senha para restaurar seu acesso.');
+      } finally { if (alive) setAuthHydrated(true); }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') { backgroundAt.current = Date.now(); return; }
+      const elapsed = backgroundAt.current === null ? 0 : Date.now() - backgroundAt.current;
+      backgroundAt.current = null;
+      // Não interromper GPS, retirada nem confirmação de entrega durante serviço ativo.
+      if (trackingService.getState().isActive ||
+        hasActiveDeliveryRef.current) return;
+      if (elapsed < 5 * 60_000 || biometricLocked || !accountClient.getAccount()) return;
+      void accountClient.lockWithBiometrics().then(locked => {
+        if (locked) { setBiometricLocked(true); setAccountReady(false); setUnlockError(''); }
+      }).catch(() => { /* Não encerra entregas por erro do sensor. */ });
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [biometricLocked]);
+
+  async function unlockBiometric() {
+    setUnlockError('');
+    try {
+      const restored = await accountClient.unlockWithBiometrics();
+      await offlineQueue.initialize();
+      setAccount(restored);
+      setBiometricLocked(false);
+      setAccountReady(false);
+      void syncAccount();
+    } catch {
+      setUnlockError('Não foi possível confirmar sua digital ou rosto. Tente novamente ou entre com a senha.');
+    }
+  }
+
   // Estados de Navegação
   const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'route' | 'history'>('dashboard');
   const [activeDelivery, setActiveDelivery] = useState<Assignment | null>(null);
@@ -75,6 +131,7 @@ export const App: React.FC = () => {
 
   // Estados de Dados
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  hasActiveDeliveryRef.current = assignments.some(item => ['waiting_pickup', 'picked_up', 'in_transit'].includes(item.status));
   const [currentOffer, setCurrentOffer] = useState<Offer | null>(null);
   const handledOfferIdsRef = useRef<Set<string>>(new Set());
   const noticedOfferIdsRef = useRef<Set<string>>(new Set());
@@ -498,6 +555,24 @@ export const App: React.FC = () => {
 
   // FLUXO 1: Entregador NÃO está logado na sua conta pessoal -> Tela de Login / Cadastro
   if (!startupAnimationDone) return <StartupSplash />;
+
+  if (!authHydrated) return <StartupSplash />;
+
+  if (biometricLocked) return <main className="app-container nw-account-wait" aria-label="Acesso protegido">
+    <img className="nw-account-wait-brand" src="/brand/novaesweb-entregador-ui.png" alt="NovaesWeb Entregador" />
+    <div className="card-surface" style={{ margin: 20, padding: 22, textAlign: 'center', display: 'grid', gap: 14 }}>
+      <h2 style={{ fontSize: 22 }}>Seu acesso está protegido</h2>
+      <p>Use a digital ou o reconhecimento facial do seu aparelho para continuar.</p>
+      <button type="button" className="btn-glove btn-glove-accent" onClick={() => void unlockBiometric()}>Desbloquear com digital ou rosto</button>
+      <button type="button" className="btn-glove" onClick={() => {
+        setBiometricLocked(false);
+        setAccount(null);
+        setUnlockError('');
+        setAccountNotice('Entre com seu telefone e senha para recuperar o acesso.');
+      }}>Entrar com telefone e senha</button>
+      {unlockError && <p role="alert" style={{ color: 'var(--nw-red)' }}>{unlockError}</p>}
+    </div>
+  </main>;
 
   if (!account) {
     return (
