@@ -1,6 +1,7 @@
 import { DriverAccount, FirstAccessChallenge, FirstAccessDetails } from '../types';
 import { logisticsApiUrl } from './logisticsConfig';
 import { supportsBackgroundTracking, nativeAccountRequest } from './nativeTracking';
+import { driverSecurity, nativeSecureAccess } from './driverSecurity';
 
 
 const KEY = 'novaesweb_account_access_v1';
@@ -15,27 +16,100 @@ class AccountClient {
   private token = '';
   private account: DriverAccount | null = null;
   private revision = 0;
+  private locked = false;
+  private restored = false;
   private onboardingRevision = 0;
   private onboarding: FirstAccessChallenge | null = null;
   private onboardingRequest: AbortController | null = null;
   private listeners = new Set<(message?: string) => void>();
   constructor() {
-    try { const stored = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (nativeSecureAccess()) return; // Android: nunca restaura token diretamente do armazenamento web.
+    try {
+      // Web/PWA: sessão dura somente até fechar o navegador (não fica no localStorage).
+      const storage = typeof sessionStorage === 'undefined' ? localStorage : sessionStorage;
+      const stored = JSON.parse(storage.getItem(KEY) || 'null');
       if (stored?.accountToken && stored?.account?.id) { this.token = stored.accountToken; this.account = stored.account; }
+      if (storage !== localStorage) localStorage.removeItem(KEY);
     } catch { /* Cache inválido é ignorado. */ }
+  }
+  /** Executar antes de liberar a interface do Android. Não solicita biometria sem ação do usuário. */
+  async restore(): Promise<'ready' | 'locked' | 'none'> {
+    if (!nativeSecureAccess()) return this.account ? 'ready' : 'none';
+    if (this.restored) return this.locked ? 'locked' : this.account ? 'ready' : 'none';
+    this.restored = true;
+    try {
+      const status = await driverSecurity.status();
+      if (status.enabled && status.hasAccount) { this.locked = true; return 'locked'; }
+      let saved = status.hasAccount ? await driverSecurity.read('account') : null;
+      if (!saved) {
+        // Migração única de token legado para Android Keystore.
+        const legacy = localStorage.getItem(KEY);
+        if (legacy) { await driverSecurity.save('account', legacy); saved = legacy; }
+      }
+      localStorage.removeItem(KEY);
+      if (!saved) return 'none';
+      const parsed = JSON.parse(saved);
+      if (!parsed?.accountToken || !parsed?.account?.id) return 'none';
+      this.token = parsed.accountToken; this.account = parsed.account;
+      return 'ready';
+    } catch {
+      // Falha fechada: senha sempre continua disponível.
+      localStorage.removeItem(KEY);
+      return 'none';
+    }
+  }
+  isLocked() { return this.locked; }
+  async biometricStatus() {
+    if (!nativeSecureAccess()) return { available: false, enabled: false, hasAccount: false };
+    return driverSecurity.status();
+  }
+  async configureBiometric(enabled: boolean) {
+    if (!nativeSecureAccess() || !this.token || !this.account || this.locked) throw new Error('Entre na sua conta para configurar a biometria.');
+    await driverSecurity.configure(enabled);
+    return this.biometricStatus();
+  }
+  async lockWithBiometrics() {
+    if (!nativeSecureAccess()) return false;
+    const status = await driverSecurity.status();
+    if (!status.enabled || !status.hasAccount) return false;
+    this.locked = true;
+    await driverSecurity.lock();
+    return true;
+  }
+  async unlockWithBiometrics(): Promise<DriverAccount> {
+    if (!nativeSecureAccess()) throw new Error('Biometria disponível apenas no aplicativo Android.');
+    const raw = await driverSecurity.unlock();
+    const parsed = JSON.parse(raw || 'null');
+    if (!parsed?.accountToken || !parsed?.account?.id) throw new Error('A sessão não está disponível. Entre com sua senha.');
+    this.revision++;
+    this.token = parsed.accountToken; this.account = parsed.account; this.locked = false;
+    return this.account!;
   }
   getAccount() { return this.account; }
   getNotice() { return localStorage.getItem(NOTICE_KEY) || ''; }
-  getToken() { return this.token; }
+  getToken() { return this.locked ? '' : this.token; }
   subscribe(listener: (message?: string) => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
   private notify(message?: string) { this.listeners.forEach(listener => listener(message)); }
   clear(message?: string) {
     this.cancelFirstAccess();
-    this.revision++; this.token = ''; this.account = null; localStorage.removeItem(KEY);
+    this.revision++; this.token = ''; this.account = null; this.locked = false;
+    localStorage.removeItem(KEY);
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(KEY);
+    if (nativeSecureAccess()) void driverSecurity.remove('account');
     if (message) localStorage.setItem(NOTICE_KEY,message); else localStorage.removeItem(NOTICE_KEY);
     this.notify(message);
   }
-  private save() { localStorage.setItem(KEY, JSON.stringify({accountToken: this.token, account: this.account})); }
+  private async save() {
+    const saved = JSON.stringify({ accountToken: this.token, account: this.account });
+    if (nativeSecureAccess()) {
+      await driverSecurity.save('account', saved);
+      localStorage.removeItem(KEY);
+    } else {
+      const storage = typeof sessionStorage === 'undefined' ? localStorage : sessionStorage;
+      storage.setItem(KEY, saved);
+      if (storage !== localStorage) localStorage.removeItem(KEY);
+    }
+  }
   async authenticate(action: 'login', body: unknown) {
     this.cancelFirstAccess();
     const revision = this.revision;
@@ -44,7 +118,7 @@ class AccountClient {
     const data = await response.json().catch(() => ({}));
     if (revision !== this.revision) throw new AccountRequestError('A conta foi alterada. Tente novamente.', 'STALE_REQUEST');
     if (!response.ok || !data.success || !data.account?.id || !data.accountToken) throw new AccountRequestError(data.error || 'Não foi possível entrar na conta.', data.code, response.status);
-    this.revision++; this.token = data.accountToken; this.account = data.account; localStorage.removeItem(NOTICE_KEY); this.save(); this.notify();
+    this.revision++; this.token = data.accountToken; this.account = data.account; localStorage.removeItem(NOTICE_KEY); await this.save(); this.notify();
     return this.account!;
   }
   async request(url: string, options: RequestInit = {}) {
@@ -95,17 +169,18 @@ class AccountClient {
     if (!response.ok || !data.success || !data.account?.id || !data.accountToken) throw new AccountRequestError(data.error || 'Não foi possível concluir seu cadastro.', data.code, response.status);
     this.onboarding = null; this.onboardingRequest = null; this.onboardingRevision++;
     this.revision++; this.token = data.accountToken; this.account = data.account;
-    localStorage.removeItem(NOTICE_KEY); this.save(); this.notify();
+    localStorage.removeItem(NOTICE_KEY); await this.save(); this.notify();
     return this.account!;
   }
   async validate() {
     const data = await this.request(logisticsApiUrl().replace('/api/v1/logistics', '/api/v1/driver-account') + '/me');
     if (!data.account?.id || data.account.id !== this.account?.id) throw new AccountRequestError('Resposta de conta inválida.');
-    this.account = data.account; this.save(); return this.account!;
+    this.account = data.account; await this.save(); return this.account!;
   }
   async logout() {
     const token = this.token;
     this.clear();
+    if (nativeSecureAccess()) await driverSecurity.remove('account');
     if (token) {
       const response = await fetch(logisticsApiUrl().replace('/api/v1/logistics', '/api/v1/driver-account') + '/logout', {method:'POST', headers: {'x-account-session': token}});
       if (!response.ok && response.status !== 401) throw new Error('Não foi possível encerrar o acesso no servidor. Entre novamente e tente sair.');
