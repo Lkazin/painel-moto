@@ -15,6 +15,7 @@ import { DriverSession } from '../types';
 import { offlineQueue } from '../services/offlineQueue';
 import { audioAlert } from '../utils/audioAlert';
 import { api } from '../services/api';
+import { OfferSoundSettings } from './OfferSoundSettings';
 import { DriverSecuritySettings } from './DriverSecuritySettings';
 
 interface ModalSessionAndStoreProps {
@@ -139,6 +140,7 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
         </div>
 
         <div style={{ marginBottom: 14 }}><DriverSecuritySettings /></div>
+        <div style={{ marginBottom: 14 }}><OfferSoundSettings /></div>
 
         {/* Status de Conexão Real */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>

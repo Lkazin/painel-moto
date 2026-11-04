@@ -1,7 +1,59 @@
 // Sintetizador de áudio nativo usando Web Audio API + Vibração Tátil
 // Otimizado para entregadores na rua: volume alto, padrão sonoro de corrida contínuo e vibração
 
+export type OfferSound = 'classic' | 'soft' | 'tech';
+const OFFER_SOUND_KEY = 'nw:driver-offer-sound:v1';
+function storedOfferSound(): OfferSound {
+  try {
+    const value = localStorage.getItem(OFFER_SOUND_KEY);
+    return value === 'classic' || value === 'soft' || value === 'tech' ? value : 'tech';
+  } catch { return 'tech'; }
+}
+
 class AudioAlertManager {
+  private offerSound: OfferSound = storedOfferSound();
+  public getOfferSound(): OfferSound { return this.offerSound; }
+  public setOfferSound(sound: OfferSound): void {
+    if (!['classic', 'soft', 'tech'].includes(sound)) return;
+    this.offerSound = sound;
+    try { localStorage.setItem(OFFER_SOUND_KEY, sound); } catch {}
+  }
+  public testOfferSound(): boolean {
+    if (this.isMuted) return false;
+    this.init();
+    this.playOfferChime(false);
+    return true;
+  }
+  private synthOfferTone(ctx: AudioContext, frequency: number, offset: number, duration: number, wave: OscillatorType, volume: number, target?: number): void {
+    const at = ctx.currentTime + offset;
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = wave;
+    oscillator.frequency.setValueAtTime(frequency, at);
+    if (target) oscillator.frequency.exponentialRampToValueAtTime(target, at + duration);
+    gain.gain.setValueAtTime(volume, at);
+    gain.gain.exponentialRampToValueAtTime(0.001, at + duration);
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.start(at);
+    oscillator.stop(at + duration);
+  }
+  private playSelectedOfferSound(): void {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      if (this.offerSound === 'soft') {
+        this.synthOfferTone(ctx, 660, 0, 0.18, 'sine', 0.35);
+        this.synthOfferTone(ctx, 880, 0.20, 0.25, 'sine', 0.35);
+      } else {
+        this.synthOfferTone(ctx, 520, 0, 0.13, 'square', 0.37, 780);
+        this.synthOfferTone(ctx, 780, 0.17, 0.13, 'square', 0.40, 1040);
+        this.synthOfferTone(ctx, 1040, 0.34, 0.20, 'triangle', 0.48, 1560);
+        this.synthOfferTone(ctx, 1318.5, 0.57, 0.26, 'sine', 0.43);
+      }
+    } catch (error) { console.warn('Falha ao tocar toque de oferta:', error); }
+  }
+
   private ctx: AudioContext | null = null;
   private isAlertRunning = false;
   private alertIntervalId: any = null;
@@ -52,16 +104,17 @@ class AudioAlertManager {
   }
 
   // Toca um toque estridente e chamativo (toque tipo sirene de entrega iFood/Rappi com volume alto)
-  public playOfferChime(): void {
+  public playOfferChime(vibrate = true): void {
     if (this.isMuted) return;
 
     // Disparar vibração no celular do motoboy (se suportado pelo navegador)
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    if (vibrate && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
         navigator.vibrate([400, 150, 400, 150, 700]);
       } catch {}
     }
 
+    if (this.offerSound !== 'classic') { this.playSelectedOfferSound(); return; }
     const ctx = this.getContext();
     if (!ctx) return;
 
