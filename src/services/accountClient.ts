@@ -118,6 +118,9 @@ class AccountClient {
     const data = await response.json().catch(() => ({}));
     if (revision !== this.revision) throw new AccountRequestError('A conta foi alterada. Tente novamente.', 'STALE_REQUEST');
     if (!response.ok || !data.success || !data.account?.id || !data.accountToken) throw new AccountRequestError(data.error || 'Não foi possível entrar na conta.', data.code, response.status);
+    // Senha validada no servidor recupera a conta quando a biometria antiga não funciona.
+    // Em recuperação, remove o bloqueio antigo; o motoboy pode reativá-lo em Configurações.
+    if (nativeSecureAccess() && (await driverSecurity.status()).enabled && this.locked) await driverSecurity.remove('account');
     this.revision++; this.token = data.accountToken; this.account = data.account; this.locked = false; localStorage.removeItem(NOTICE_KEY); await this.save(); this.notify();
     return this.account!;
   }
