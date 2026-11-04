@@ -9,7 +9,19 @@ permissions:
   contents: read
 
 jobs:
-  security-validation:
+  web-and-auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node --test scripts/account-session.test.cjs scripts/startup-flow.test.cjs
+  android:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -22,10 +34,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - run: npm ci
-      - run: npm run build
-      - run: node --test scripts/account-session.test.cjs scripts/startup-flow.test.cjs
+      - name: Verify Android SDK
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME}"
+          command -v sdkmanager
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - run: npm run android:sync
       - run: chmod +x android/gradlew && cd android && ./gradlew :app:assembleDebug --no-daemon
