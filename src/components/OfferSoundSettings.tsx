@@ -5,6 +5,8 @@ export function OfferSoundSettings() {
   const [chosen, setChosen] = useState<OfferSound>(() => audioAlert.getOfferSound());
   const [vibration, setVibration] = useState<boolean>(() => audioAlert.getVibrationEnabled());
   const [feedback, setFeedback] = useState('');
+  const [saved, setSaved] = useState(() => ({ sound: audioAlert.getOfferSound(), vibration: audioAlert.getVibrationEnabled() }));
+  const dirty = chosen !== saved.sound || vibration !== saved.vibration;
   const options: {id: OfferSound; title: string; subtitle: string}[] = [
     {id: 'classic', title: '1. Clássico', subtitle: 'Sirene original'},
     {id: 'soft', title: '2. Suave', subtitle: 'Dois toques discretos'},
@@ -23,9 +25,8 @@ export function OfferSoundSettings() {
           value={chosen}
           onChange={event => {
             const sound = event.target.value as OfferSound;
-            audioAlert.setOfferSound(sound);
             setChosen(sound);
-            setFeedback('Som salvo neste aparelho.');
+            setFeedback('Toque escolhido para a prévia. Teste e salve quando estiver pronto.');
           }}
           style={{
             minHeight: 48,
@@ -59,9 +60,8 @@ export function OfferSoundSettings() {
           checked={vibration}
           onChange={event => {
             const enabled = event.target.checked;
-            audioAlert.setVibrationEnabled(enabled);
             setVibration(enabled);
-            setFeedback(enabled ? 'Vibração ativada.' : 'Vibração desativada.');
+            setFeedback('Vibração alterada na prévia. Salve para aplicar.');
           }}
           style={{ width: 22, height: 22, accentColor: 'var(--nw-pink)' }}
         />
@@ -69,14 +69,25 @@ export function OfferSoundSettings() {
 
       <button
         type="button"
+        data-no-haptic
         className="btn-glove btn-glove-secondary"
         onClick={() => {
-          setFeedback(audioAlert.testOfferSound() ? 'Prévia reproduzida. Confira o volume de mídia.' : 'Som silenciado: ative o áudio antes de testar.');
+          setFeedback(audioAlert.previewOfferSound(chosen, vibration) ? 'Prévia solicitada. Confira o volume de mídia. Som e vibração dependem do suporte e das permissões do aparelho.' : 'Som silenciado: ative o áudio antes de testar.');
         }}
         style={{ minHeight: 50, fontSize: 14 }}
       >
         ▶ Testar som {vibration ? 'e vibração' : ''}
       </button>
+
+      <div className="nw-settings-actions">
+        <button type="button" className="btn-glove btn-glove-accent" disabled={!dirty} onClick={() => {
+          audioAlert.setOfferSound(chosen); audioAlert.setVibrationEnabled(vibration);
+          setSaved({ sound: chosen, vibration }); setFeedback('Som e vibração salvos neste aparelho.');
+        }}>Salvar som e vibração</button>
+        <button type="button" className="btn-glove btn-glove-secondary" disabled={!dirty} onClick={() => {
+          setChosen(saved.sound); setVibration(saved.vibration); setFeedback('Prévia descartada.');
+        }}>Descartar</button>
+      </div>
 
       <p role="status" style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
         {feedback || 'A escolha fica salva neste aparelho. Com o app fechado, o Android pode usar o som do canal de notificações do sistema.'}

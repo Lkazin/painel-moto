@@ -1,4 +1,7 @@
 import { Capacitor } from '@capacitor/core';
+import { ConnectionIsland } from './components/ConnectionIsland';
+import { useExperiencePreferences } from './services/experiencePreferences';
+import { transitionDelivery } from './utils/viewTransition';
 import { deliveryTrackingDecision } from './services/deliveryTrackingLifecycle';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -7,11 +10,8 @@ import {
   Navigation,
   History,
   Store,
-  Wifi,
   WifiOff,
   Settings,
-  CheckCircle,
-  AlertCircle,
   Wallet
 } from 'lucide-react';
 
@@ -70,7 +70,9 @@ export const App: React.FC = () => {
   const [session, setSession] = useState<DriverSession | null>(api.getSession());
   const [presence, setPresence] = useState<DriverPresence>(api.getPresence());
   const [isOnline, setIsOnline] = useState<boolean>(offlineQueue.getIsOnline());
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const { preferences, updatePreferences } = useExperiencePreferences();
+  const theme: 'dark' | 'light' = preferences.theme === 'system'
+    ? (window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : preferences.theme;
 
   // Restaura a sessão Android somente a partir do Keystore.
   // A opção biométrica não abre uma autenticação sem toque explícito do entregador.
@@ -138,7 +140,6 @@ export const App: React.FC = () => {
   const noticeSequence = useRef(0);
   const noticeAssignmentStates = useRef<Map<string, string>>(new Map());
   const assignmentsRevision = useRef(0);
-  const [pendingSyncCount, setPendingSyncCount] = useState<number>(offlineQueue.getPendingCount());
   const [historySummary, setHistorySummary] = useState({ totalEarnings: 0, itemsCount: 0 });
 
   // Modais de Apoio
@@ -251,9 +252,8 @@ export const App: React.FC = () => {
 
   // Monitora conectividade e fila offline real
   useEffect(() => {
-    const unsubscribe = offlineQueue.subscribe((queue) => {
+    const unsubscribe = offlineQueue.subscribe(() => {
       setIsOnline(offlineQueue.getIsOnline());
-      setPendingSyncCount(queue.filter((q) => q.status === 'pending' || q.status === 'syncing').length);
     });
     return () => unsubscribe();
   }, []);
@@ -404,10 +404,6 @@ export const App: React.FC = () => {
     return () => clearInterval(heartbeat);
   }, [session, showToast]);
 
-  // Aplica tema CSS no body
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
 
   // Handler de Ligado/Desligado
   const handleTogglePresence = async () => {
@@ -729,49 +725,7 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Banner de Conexão Offline e Sincronização */}
-        {!isOnline ? (
-          <div className="offline-banner" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <WifiOff size={16} />
-              <span>Modo Off-line</span>
-            </div>
-            {pendingSyncCount > 0 ? (
-              <span style={{ fontSize: '11px', background: 'rgba(0,0,0,0.3)', padding: '2px 8px', borderRadius: '10px' }}>
-                {pendingSyncCount} {pendingSyncCount === 1 ? 'entrega gravada no aparelho' : 'entregas gravadas no aparelho'}
-              </span>
-            ) : (
-              <span style={{ fontSize: '11px', opacity: 0.8 }}>Sem conexão</span>
-            )}
-          </div>
-        ) : pendingSyncCount > 0 ? (
-          <div className="offline-banner" style={{ background: 'rgba(37, 99, 235, 0.95)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Wifi size={16} />
-              <span>{pendingSyncCount} confirmação(ões) na fila</span>
-            </div>
-            <button
-              type="button"
-              onClick={async () => {
-                audioAlert.playClickSound();
-                const res = await api.flushOfflineQueue();
-                if (res.syncedCount > 0) showToast(`${res.syncedCount} entrega(s) sincronizada(s) com sucesso!`, 'success');
-              }}
-              style={{
-                background: '#ffffff',
-                color: '#1d4ed8',
-                border: 'none',
-                padding: '4px 10px',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: 900,
-                cursor: 'pointer'
-              }}
-            >
-              Sincronizar Agora
-            </button>
-          </div>
-        ) : null}
+        <ConnectionIsland online={isOnline} />
       </header>
 
       {/* Conteúdo Principal conforme Fluxo & Telas */}
@@ -788,7 +742,7 @@ export const App: React.FC = () => {
           /* Tela 6: Entrega Ativa */
           <ScreenActiveDelivery
             assignment={activeDelivery}
-            onBack={() => setActiveDelivery(null)}
+            onBack={() => transitionDelivery(() => setActiveDelivery(null))}
             onOpenPinConfirmation={(asg) => setPinTarget(asg)}
             onRequestWithdraw={(asg) => setWithdrawTarget({ assignment: asg, isException: false })}
           />
@@ -832,7 +786,7 @@ export const App: React.FC = () => {
               <ScreenRoute
                 assignments={assignments}
                 onReorder={handleReorderRoute}
-                onSelectDelivery={(asg) => setActiveDelivery(asg)}
+                onSelectDelivery={(asg) => transitionDelivery(() => setActiveDelivery(asg))}
                 onNavigateToOrders={() => setActiveTab('orders')}
               />
             )}
@@ -879,7 +833,7 @@ export const App: React.FC = () => {
           onClose={() => setIsStoreModalOpen(false)}
           onLogout={handleLogoutAccount}
           onCloseShift={handleCloseStoreShift}
-          onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          onToggleTheme={() => updatePreferences({ theme: theme === 'dark' ? 'light' : 'dark' })}
           currentTheme={theme}
         />
       )}

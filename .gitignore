@@ -29,6 +29,7 @@ dist-ssr
 # Local visual tests and screenshots
 .qa-route/
 .qa-branding/
+.qa-experience/
 
 # Android signing credentials remain local.
 *.jks

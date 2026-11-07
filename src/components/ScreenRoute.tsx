@@ -22,6 +22,7 @@ import { audioAlert } from '../utils/audioAlert';
 import { trackingService } from '../services/trackingService';
 import TrackingBadge from './TrackingBadge';
 import {recentRouteOrigin,routeStaleReason} from '../services/routeEstimate';
+import { RoutePreview, RouteSwipeCard } from './RouteExperience';
 
 interface ScreenRouteProps {
   assignments: Assignment[];
@@ -38,6 +39,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
 }) => {
   const [stops, setStops] = useState<Assignment[]>(() => activeRouteAssignments(assignments));
   const [hasChanges, setHasChanges] = useState(false);
+  const [undoOrder, setUndoOrder] = useState<{ ids: string[]; hadChanges: boolean; routeIds: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [routeMode, setRouteMode] = useState<RouteOptimizationMode>('shortest_distance');
@@ -59,7 +61,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
 
   useEffect(() => {
     setStops(previous => reconcileRouteStops(previous,assignments,hasChangesRef.current));
-    if (previousRouteIds.current !== routeIds) {requestRevision.current++;setIsOptimizing(false);setSuggestion(null);previousRouteIds.current = routeIds;}
+    if (previousRouteIds.current !== routeIds) {requestRevision.current++;setIsOptimizing(false);setSuggestion(null);setUndoOrder(null);previousRouteIds.current = routeIds;}
   },[assignments,routeIds]);
   useEffect(() => () => {requestRevision.current++;},[]);
 
@@ -72,6 +74,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
       const result = await api.getOptimizeRoute(mode,origin);
       if (revision !== requestRevision.current) return;
       const optimized = mapOptimizedStops(result,assignmentsRef.current);
+      setUndoOrder({ ids: stops.map(assignmentKey), hadChanges: hasChanges, routeIds });
       setStops(optimized); setHasChanges(true); setSuggestion({...result,calculatedAt:result.calculatedAt || new Date().toISOString()}); setRouteNow(Date.now()); audioAlert.playSuccessSound();
     } catch(error) {
       if (revision !== requestRevision.current) return;
@@ -110,12 +113,14 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
 
   // Reordenação por setas Subir/Descer
   const moveStop = (index: number, direction: 'up' | 'down') => {
+    if (isSaving) return;
     requestRevision.current++; setIsOptimizing(false); setSuggestion(null); setRouteError('');
     audioAlert.playClickSound();
     const newStops = [...stops];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
 
     if (targetIndex < 0 || targetIndex >= newStops.length) return;
+    setUndoOrder({ ids: stops.map(assignmentKey), hadChanges: hasChanges, routeIds });
 
     const temp = newStops[index];
     newStops[index] = newStops[targetIndex];
@@ -138,12 +143,13 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
 
   const handleDrop = (e: React.DragEvent, targetIndex: number) => {
     e.preventDefault();
-    if (draggedIndex === null || draggedIndex === targetIndex) return;
+    if (isSaving || draggedIndex === null || draggedIndex === targetIndex) return;
 
     requestRevision.current++; setIsOptimizing(false); setSuggestion(null); setRouteError('');
     const newStops = [...stops];
     const [removed] = newStops.splice(draggedIndex, 1);
     newStops.splice(targetIndex, 0, removed);
+    setUndoOrder({ ids: stops.map(assignmentKey), hadChanges: hasChanges, routeIds });
 
     setStops(newStops);
     setHasChanges(true);
@@ -152,6 +158,8 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
   };
 
   const handleSaveOrder = async () => {
+    if (isSaving || isOptimizing) return;
+    setUndoOrder(null);
     setIsSaving(true);
     audioAlert.playClickSound();
     try {
@@ -168,6 +176,16 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleUndoOrder = () => {
+    if (!undoOrder || isSaving || isOptimizing || undoOrder.routeIds !== routeIds) return;
+    const restored = undoOrder.ids.map(id => stops.find(stop => assignmentKey(stop) === id));
+    if (restored.length !== stops.length || restored.some(stop => !stop)) { setUndoOrder(null); return; }
+    requestRevision.current++;
+    setStops(undoOrder.hadChanges ? restored as Assignment[] : activeRouteAssignments(assignmentsRef.current));
+    setHasChanges(undoOrder.hadChanges); setSuggestion(null); setRouteError(''); setUndoOrder(null);
+    audioAlert.playClickSound();
   };
 
   return (
@@ -232,7 +250,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
           <Navigation size={48} color="var(--nw-purple)" style={{ margin: '0 auto 12px' }} />
           <h3 style={{ fontSize: '18px', fontWeight: 800 }}>Nenhum pedido na rota</h3>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px', maxWidth: '300px', margin: '4px auto 0' }}>
-            Retire as pizzas preparadas na aba "Pedidos" para organizar e iniciar suas entregas.
+            Confirme a retirada dos pedidos preparados na aba "Pedidos" para organizar e iniciar suas entregas.
           </p>
           <button
             onClick={onNavigateToOrders}
@@ -245,6 +263,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
         </div>
       ) : (
         <>
+          <RoutePreview stops={stops} pending={hasChanges} suggestion={staleReason ? null : suggestion} />
           {/* Alerta de Alterações Pendentes */}
           {hasChanges && (
             <div
@@ -292,14 +311,17 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
               const isDragging = draggedIndex === index;
 
               return (
-                <div
-                  key={stop.assignmentId}
+                <RouteSwipeCard
+                  key={assignmentKey(stop)}
+                  stop={stop}
+                  onDetails={() => onSelectDelivery(stop)}
                   draggable={!isSaving}
                   onDragStart={(e) => handleDragStart(e, index)}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, index)}
                   className={`card-surface ${isFirst ? 'card-highlight' : ''}`}
                   style={{
+                    viewTransitionName: `delivery-${assignmentKey(stop).replace(/[^a-zA-Z0-9_-]/g, '')}`,
                     borderLeft: isFirst ? '5px solid var(--nw-emerald)' : '5px solid var(--border-strong)',
                     padding: '16px',
                     opacity: isDragging ? 0.4 : 1,
@@ -333,7 +355,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                         {index + 1}º
                       </span>
                       <div>
-                        <span style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff' }}>
+                        <span style={{ fontSize: '16px', fontWeight: 900, color: 'var(--text-main)' }}>
                           {stop.orderNumber}
                         </span>
                         {isFirst && (
@@ -366,7 +388,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                           borderRadius: '12px',
                           background: 'var(--bg-elevated)',
                           border: '1px solid var(--border-subtle)',
-                          color: isFirst ? 'var(--text-subtle)' : '#ffffff',
+                          color: isFirst ? 'var(--text-subtle)' : 'var(--text-main)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -387,7 +409,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                           borderRadius: '12px',
                           background: 'var(--bg-elevated)',
                           border: '1px solid var(--border-subtle)',
-                          color: isLast ? 'var(--text-subtle)' : '#ffffff',
+                          color: isLast ? 'var(--text-subtle)' : 'var(--text-main)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -519,10 +541,11 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                       <ArrowRight size={16} />
                     </button>
                   </div>
-                </div>
+                </RouteSwipeCard>
               );
             })}
           </div>
+          {undoOrder && <div className="route-undo" role="status" aria-live="polite"><div>Sequência ajustada neste aparelho.<span>Desfazer só restaura a alteração local antes de salvar.</span></div><button type="button" disabled={isSaving || isOptimizing} onClick={handleUndoOrder}>Desfazer</button></div>}
         </>
       )}
     </div>

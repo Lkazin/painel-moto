@@ -44,6 +44,14 @@ class AudioAlertManager {
     this.playOfferChime(this.vibrationEnabled);
     return true;
   }
+  public previewOfferSound(sound: OfferSound, vibration: boolean): boolean {
+    if (!['classic', 'soft', 'tech'].includes(sound) || this.isMuted) return false;
+    this.init();
+    const previous = this.offerSound;
+    const previousVibration = this.vibrationEnabled;
+    try { this.offerSound = sound; this.vibrationEnabled = vibration; this.playOfferChime(vibration); return true; }
+    finally { this.offerSound = previous; this.vibrationEnabled = previousVibration; }
+  }
   private synthOfferTone(ctx: AudioContext, frequency: number, offset: number, duration: number, wave: OscillatorType, volume: number, target?: number): void {
     const at = ctx.currentTime + offset;
     const oscillator = ctx.createOscillator();

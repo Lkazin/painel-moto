@@ -1,24 +1,12 @@
 import { Capacitor } from '@capacitor/core';
-import React, { useState, useEffect } from 'react';
-import {
-  BatteryCharging,
-  Power,
-  Navigation,
-  Package,
-  TrendingUp,
-  AlertCircle,
-  ArrowRight,
-  Info,
-  Smartphone,
-  BellRing,
-  MapPin,
-  CheckCircle2
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { BatteryCharging, Power, Navigation, Package, TrendingUp, AlertCircle, ArrowRight, Info, Smartphone, BellRing, MapPin, CheckCircle2 } from 'lucide-react';
 import { DriverSession, DriverPresence, Assignment, TrackingSessionState } from '../types';
 import { audioAlert } from '../utils/audioAlert';
 import { requestNotificationPermission, getNotificationPermission } from '../utils/mobileWake';
 import { trackingService } from '../services/trackingService';
 import { pushService } from '../services/pushService';
+import './DashboardExperience.css';
 
 interface ScreenDashboardProps {
   session: DriverSession;
@@ -26,228 +14,112 @@ interface ScreenDashboardProps {
   assignments: Assignment[];
   completedTodayCount: number;
   earningsEstimated: number;
-  onTogglePresence: () => void;
+  onTogglePresence: () => void | Promise<void>;
   onNavigateToRoute: () => void;
   onNavigateToOrders: () => void;
 }
 
-export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({
-  session,
-  presence,
-  assignments,
-  completedTodayCount,
-  earningsEstimated,
-  onTogglePresence,
-  onNavigateToRoute,
-  onNavigateToOrders
-}) => {
+// A leitura assistiva recebe o valor real; somente a representação visual anima.
+function AnimatedMetric({ value, money = false }: { value: number; money?: boolean }) {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const [display, setDisplay] = useState(safeValue);
+  const previous = useRef(safeValue);
+  const format = (number: number) => money
+    ? number.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    : Math.round(number).toLocaleString('pt-BR');
+  useEffect(() => {
+    const startValue = previous.current;
+    previous.current = safeValue;
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const reduced = () => media.matches || document.documentElement.dataset.reducedMotion === 'true';
+    if (startValue === safeValue || reduced() || typeof requestAnimationFrame === 'undefined') { setDisplay(safeValue); return; }
+    let frame = 0;
+    let started: number | null = null;
+    const stop = () => { cancelAnimationFrame(frame); setDisplay(safeValue); };
+    const animate = (time: number) => {
+      if (reduced()) { stop(); return; }
+      if (started === null) started = time;
+      const progress = Math.min(1, (time - started) / 450);
+      setDisplay(startValue + (safeValue - startValue) * (1 - Math.pow(1 - progress, 3)));
+      if (progress < 1) frame = requestAnimationFrame(animate);
+    };
+    media.addEventListener?.('change', stop);
+    frame = requestAnimationFrame(animate);
+    return () => { cancelAnimationFrame(frame); media.removeEventListener?.('change', stop); };
+  }, [safeValue]);
+  return <span className="nw-dashboard-number"><span className="nw-dashboard-sr-only">{Number.isFinite(value) ? format(safeValue) : 'Não informado'}</span><span aria-hidden="true">{Number.isFinite(value) ? format(display) : '—'}</span></span>;
+}
+
+export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({ session, presence, assignments, completedTodayCount, earningsEstimated, onTogglePresence, onNavigateToRoute, onNavigateToOrders }) => {
   const [toggleLoading, setToggleLoading] = useState(false);
-
-  const activeDeliveries = assignments.filter(
-    (a) => a.status === 'picked_up' || a.status === 'in_transit'
-  );
-  const waitingPickup = assignments.filter((a) => a.status === 'waiting_pickup');
-
-  const handlePresenceClick = () => {
-    setToggleLoading(true);
-    audioAlert.playClickSound();
-    setTimeout(() => {
-      onTogglePresence();
-      setToggleLoading(false);
-    }, 150);
+  const [presenceError, setPresenceError] = useState('');
+  const activeDeliveries = assignments.filter(a => a.status === 'picked_up' || a.status === 'in_transit').sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+  const waitingPickup = assignments.filter(a => a.status === 'waiting_pickup');
+  const nextStop = activeDeliveries[0];
+  const isAvailable = presence.manualEnabled && presence.isOnline;
+  const handlePresenceClick = async () => {
+    if (toggleLoading) return;
+    setToggleLoading(true); setPresenceError(''); audioAlert.playClickSound();
+    try { await onTogglePresence(); }
+    catch (error) { setPresenceError(error instanceof Error ? error.message : 'Não foi possível alterar sua disponibilidade. Tente novamente.'); }
+    finally { setToggleLoading(false); }
+  };
+  const context = nextStop ? {
+    state: 'route', label: 'Sua próxima parada', title: `Pedido #${nextStop.orderNumber}`,
+    description: `${nextStop.customerName} • ${[nextStop.address, nextStop.addressNumber, nextStop.neighborhood].filter(Boolean).join(', ')}`,
+    action: 'Continuar minha rota', onAction: onNavigateToRoute,
+  } : waitingPickup.length ? {
+    state: 'pickup', label: 'Próximo passo', title: 'Hora de conferir a retirada',
+    description: `${waitingPickup.length} ${waitingPickup.length === 1 ? 'pedido aguarda' : 'pedidos aguardam'} sua conferência na loja.`,
+    action: 'Conferir pedidos', onAction: onNavigateToOrders,
+  } : !presence.isOnline ? {
+    state: 'offline', label: 'Conexão interrompida', title: 'Vamos reconectar?',
+    description: 'Confira o Wi-Fi ou os dados móveis. A disponibilidade depende da conexão com a loja.',
+    action: 'Consultar meus pedidos', onAction: onNavigateToOrders,
+  } : isAvailable ? {
+    state: 'available', label: 'Tudo pronto para começar', title: 'Aguardando a próxima corrida',
+    description: `Você está disponível para receber novas ofertas de ${session.storeName}.`,
+    action: 'Ver meus pedidos', onAction: onNavigateToOrders,
+  } : {
+    state: 'paused', label: 'Seu momento de pausa', title: 'Pronto para voltar?',
+    description: 'Ative sua disponibilidade quando estiver pronto para receber novas ofertas.',
+    action: 'Ficar disponível', onAction: () => void handlePresenceClick(),
   };
 
-  const isAvailable = presence.manualEnabled && presence.isOnline;
+  return <div className="nw-dashboard">
+    <section className={`nw-dashboard-next nw-dashboard-next--${context.state}`} aria-labelledby="nw-next-action-title">
+      <div className="nw-dashboard-eyebrow"><span className="nw-dashboard-status-dot" aria-hidden="true" />{context.label}</div>
+      <div className="nw-dashboard-next-heading"><h2 id="nw-next-action-title">{context.title}</h2><span className="nw-dashboard-next-icon" aria-hidden="true">{nextStop ? <Navigation size={26} /> : waitingPickup.length ? <Package size={26} /> : <Power size={26} />}</span></div>
+      <p>{context.description}</p>
+      <button type="button" className="btn-glove nw-dashboard-primary" onClick={context.onAction} disabled={context.state === 'paused' && toggleLoading}>
+        <span>{context.state === 'paused' && toggleLoading ? 'Conectando…' : context.action}</span><ArrowRight size={20} aria-hidden="true" />
+      </button>
+      {activeDeliveries.length > 0 && <div className="nw-dashboard-context-foot">{activeDeliveries.length} {activeDeliveries.length === 1 ? 'parada na sua rota' : 'paradas na sua rota'}{waitingPickup.length > 0 && ` · ${waitingPickup.length} para retirar`}</div>}
+    </section>
 
-  return (
-    <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Botão Gigante de Presença / Disponibilidade (Adequado para Luva no Suporte) */}
-      <div className="card-surface" style={{ padding: '20px', textAlign: 'center' }}>
-        <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '10px' }}>
-          Status de Disponibilidade para Ofertas
-        </p>
+    <section className="nw-dashboard-metrics" aria-label="Resumo da loja conectada">
+      <div className="nw-dashboard-metric"><span className="nw-dashboard-metric-label"><Package size={17} aria-hidden="true" />Entregas concluídas</span><AnimatedMetric value={completedTodayCount} /><small>No histórico carregado</small></div>
+      <div className="nw-dashboard-metric nw-dashboard-metric--earnings"><span className="nw-dashboard-metric-label"><TrendingUp size={17} aria-hidden="true" />Ganhos informados</span><AnimatedMetric value={earningsEstimated} money /><small>Valores informados pela loja</small></div>
+    </section>
 
-        <button
-          onClick={handlePresenceClick}
-          disabled={toggleLoading}
-          className={`btn-glove ${isAvailable ? 'btn-glove-primary' : 'btn-glove-secondary'}`}
-          style={{
-            height: '76px',
-            fontSize: '18px',
-            border: isAvailable ? 'none' : '2px solid rgba(255, 61, 110, 0.4)',
-            boxShadow: isAvailable ? '0 8px 30px var(--nw-emerald-glow)' : 'none'
-          }}
-        >
-          <Power size={28} strokeWidth={2.8} />
-          <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '20px', fontWeight: 900, lineHeight: 1.1 }}>
-              {isAvailable ? 'LIGADO • DISPONÍVEL' : 'DESLIGADO • PAUSADO'}
-            </span>
-            <span style={{ fontSize: '11px', fontWeight: 600, opacity: 0.85 }}>
-              {isAvailable
-                ? `Pronto para receber corridas de ${session.storeName}`
-                : 'Toque para ligar e receber novas ofertas'}
-            </span>
-          </div>
-        </button>
+    <section className="card-surface nw-dashboard-presence" aria-label="Disponibilidade para novas ofertas">
+      <div><span className="nw-dashboard-eyebrow">Novas ofertas</span><strong>{!presence.isOnline ? 'Sem conexão' : isAvailable ? 'Você está disponível' : 'Disponibilidade pausada'}</strong><small>{session.storeName}</small></div>
+      <button type="button" onClick={() => void handlePresenceClick()} disabled={toggleLoading || !presence.isOnline} aria-pressed={presence.manualEnabled} className={`nw-dashboard-presence-button ${isAvailable ? 'is-on' : ''}`}>
+        <Power size={21} aria-hidden="true" /><span>{toggleLoading ? 'Aguarde…' : presence.manualEnabled ? 'Pausar' : 'Ativar'}</span>
+      </button>
+      {presenceError && <p role="alert" className="nw-dashboard-error">{presenceError}</p>}
+      {!presence.isOnline && <p className="nw-dashboard-offline"><AlertCircle size={16} aria-hidden="true" />Reconecte o aparelho para alterar sua disponibilidade.</p>}
+    </section>
 
-        {!presence.isOnline && (
-          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#fca5a5', fontSize: '12px', fontWeight: 700 }}>
-            <AlertCircle size={15} />
-            <span>Sem internet: loja visualiza entregador como indisponível</span>
-          </div>
-        )}
-      </div>
+    {nextStop && waitingPickup.length > 0 && <button type="button" className="nw-dashboard-pickup-link" onClick={onNavigateToOrders}><Package size={20} aria-hidden="true" /><span><strong>{waitingPickup.length} {waitingPickup.length === 1 ? 'pedido para retirar' : 'pedidos para retirar'}</strong><small>Conferir os pedidos na loja</small></span><ArrowRight size={18} aria-hidden="true" /></button>}
 
-      {/* Painel de Permissões Essenciais: Notificações + Localização GPS Real */}
-      <DriverPermissionsCard driverId={session.driverId} hasActiveRoute={activeDeliveries.length > 0} isAvailable={isAvailable} />
+    {!nextStop && waitingPickup.length === 0 && <section className="nw-dashboard-empty" aria-label="Nenhuma entrega em andamento"><span className="nw-dashboard-empty-icon" aria-hidden="true"><Package size={24} /></span><div><h3>Nenhuma entrega em andamento</h3><p>{!presence.isOnline ? 'Os dados podem estar desatualizados enquanto o aparelho está sem conexão.' : isAvailable ? 'Quando uma oferta chegar, ela aparecerá aqui. Confira abaixo se os avisos e o GPS estão permitidos.' : 'Seus pedidos continuam acessíveis durante a pausa. Ative a disponibilidade acima para receber novas ofertas.'}</p></div><button type="button" onClick={onNavigateToOrders}>Consultar pedidos<ArrowRight size={16} aria-hidden="true" /></button></section>}
 
-      {/* Dica de Bateria e Segundo Plano Android */}
-      <AndroidBatteryOptimizationCard />
-
-      {/* Rota Ativa em Andamento (Aparece se houver entregas retiradas) */}
-      {activeDeliveries.length > 0 && (
-        <div
-          className="card-surface card-highlight"
-          style={{
-            borderLeft: '4px solid var(--nw-pink)',
-            background: 'linear-gradient(135deg, rgba(255, 46, 154,0.15), var(--bg-card))'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Navigation size={22} color="var(--nw-pink)" />
-              <div>
-                <h3 style={{ fontSize: '16px', fontWeight: 800 }}>Rota em Execução</h3>
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  {activeDeliveries.length} {activeDeliveries.length === 1 ? 'parada pendente' : 'paradas pendentes'}
-                </p>
-              </div>
-            </div>
-            <span
-              style={{
-                background: 'var(--nw-pink)',
-                color: '#fff',
-                fontSize: '11px',
-                fontWeight: 900,
-                padding: '4px 10px',
-                borderRadius: '12px'
-              }}
-            >
-              EM ROTA
-            </span>
-          </div>
-
-          <div style={{ padding: '10px 12px', background: 'var(--bg-app)', borderRadius: '12px', fontSize: '13px' }}>
-            <span style={{ color: 'var(--text-subtle)', display: 'block', fontSize: '11px', fontWeight: 700 }}>
-              PARADA ATUAL:
-            </span>
-            <strong style={{ color: '#ffffff' }}>
-              {activeDeliveries[0].orderNumber} — {activeDeliveries[0].customerName}
-            </strong>
-            <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '2px' }}>
-              {activeDeliveries[0].address}, {activeDeliveries[0].addressNumber} • {activeDeliveries[0].neighborhood}
-            </p>
-          </div>
-
-          <button onClick={onNavigateToRoute} className="btn-glove btn-glove-accent" style={{ height: '56px' }}>
-            <Navigation size={20} />
-            <span>Abrir Minha Rota & Navegar</span>
-            <ArrowRight size={18} />
-          </button>
-        </div>
-      )}
-
-      {/* Pedidos Aguardando Retirada no Balcão da Pizzaria */}
-      {waitingPickup.length > 0 && (
-        <div
-          className="card-surface"
-          style={{
-            borderLeft: '4px solid var(--nw-amber)',
-            background: 'linear-gradient(135deg, rgba(245,158,11,0.1), var(--bg-card))'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Package size={22} color="var(--nw-amber)" />
-              <div>
-                <h3 style={{ fontSize: '15px', fontWeight: 800 }}>Retirada no Balcão</h3>
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  {waitingPickup.length} {waitingPickup.length === 1 ? 'pedido pronto' : 'pedidos prontos'} para conferência
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={onNavigateToOrders}
-              style={{
-                background: 'var(--nw-amber)',
-                color: '#000',
-                border: 'none',
-                padding: '8px 14px',
-                borderRadius: '12px',
-                fontWeight: 800,
-                fontSize: '12px',
-                cursor: 'pointer'
-              }}
-            >
-              Conferir & Retirar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Resumo Real de Corridas e Ganhos */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-        <div className="card-surface" style={{ padding: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--nw-purple)' }}>
-            <Package size={18} />
-            <span style={{ fontSize: '12px', fontWeight: 700 }}>Entregas Hoje</span>
-          </div>
-          <span style={{ fontSize: '28px', fontWeight: 900, color: '#ffffff', marginTop: '4px' }}>
-            {completedTodayCount}
-          </span>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Concluídas com PIN</span>
-        </div>
-
-        <div className="card-surface" style={{ padding: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--nw-emerald)' }}>
-            <TrendingUp size={18} />
-            <span style={{ fontSize: '12px', fontWeight: 700 }}>Ganhos Inf.</span>
-          </div>
-          <span style={{ fontSize: '28px', fontWeight: 900, color: 'var(--nw-emerald)', marginTop: '4px' }}>
-            R$ {earningsEstimated.toFixed(2).replace('.', ',')}
-          </span>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Valores informados</span>
-        </div>
-      </div>
-
-      {/* Banner de Instalação do Aplicativo (PWA) no Celular */}
-      {!Capacitor.isNativePlatform() && <PwaInstallCard />}
-
-      {/* Nota Legal Obrigatória (Documento 02 - Seção 13) */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: '8px',
-          background: 'rgba(139, 47, 232, 0.08)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: '12px',
-          padding: '10px 12px',
-          fontSize: '11px',
-          color: 'var(--text-subtle)',
-          lineHeight: 1.4
-        }}
-      >
-        <Info size={16} color="var(--nw-purple)" style={{ flexShrink: 0, marginTop: '2px' }} />
-        <span>
-          O total apresentado soma apenas valores informados pelo lojista no despacho e não comprova pagamento formal.
-        </span>
-      </div>
-    </div>
-  );
+    <div className="nw-dashboard-support"><DriverPermissionsCard driverId={session.driverId} hasActiveRoute={activeDeliveries.length > 0} isAvailable={isAvailable} /><AndroidBatteryOptimizationCard /></div>
+    {!Capacitor.isNativePlatform() && <PwaInstallCard />}
+    <div className="nw-dashboard-disclaimer"><Info size={16} aria-hidden="true" /><span>O total soma apenas valores informados pelo lojista no despacho e não comprova pagamento formal.</span></div>
+  </div>;
 };
-
 // Card Duplo de Permissões: 1. Notificações (Tela Bloqueada) + 2. Localização Real (GPS)
 const DriverPermissionsCard: React.FC<{ driverId: string; hasActiveRoute: boolean; isAvailable?: boolean }> = ({ driverId, hasActiveRoute, isAvailable }) => {
   const [notifPerm, setNotifPerm] = useState<'granted' | 'denied' | 'default' | 'unsupported'>('default');
@@ -390,7 +262,7 @@ const DriverPermissionsCard: React.FC<{ driverId: string; hasActiveRoute: boolea
             </h4>
             <p style={{ fontSize: '11px', color: isNotifOk ? 'var(--nw-emerald)' : '#fde68a', margin: '2px 0 0 0' }}>
               {isNotifOk
-                ? 'Ativado • Toca sirene mesmo com tela bloqueada'
+                ? 'Permissão concedida • Confira o som e as restrições do aparelho'
                 : 'Toque para permitir avisos de novas entregas'}
             </p>
           </div>
@@ -455,7 +327,7 @@ const DriverPermissionsCard: React.FC<{ driverId: string; hasActiveRoute: boolea
             </h4>
             <p style={{ fontSize: '11px', color: isGpsOk ? 'var(--nw-emerald)' : '#FFB3E0', margin: '2px 0 0 0' }}>
               {trackingState.lastLocation
-                ? `GPS Real Ativo (±${Math.round(trackingState.lastLocation.accuracy || 10)}m) • Posição sincronizada`
+                ? `Última posição obtida${Number.isFinite(trackingState.lastLocation.accuracy) ? ` (±${Math.round(trackingState.lastLocation.accuracy!)}m)` : ''}${trackingState.isActive ? ' • Rastreamento ativo' : ' • Sem compartilhamento ativo'}`
                 : isGpsOk
                 ? 'Permissão concedida • Toque para atualizar sua posição'
                 : 'Permita o GPS para mostrar sua localização correta no mapa'}
@@ -625,13 +497,23 @@ const AndroidBatteryOptimizationCard: React.FC = () => {
         background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.06) 0%, var(--bg-card) 100%)'
       }}
     >
-      <div
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        aria-controls="nw-dashboard-battery-tip"
         onClick={() => setIsOpen(!isOpen)}
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          cursor: 'pointer'
+          gap: '12px',
+          cursor: 'pointer',
+          width: '100%',
+          border: 0,
+          background: 'transparent',
+          textAlign: 'left',
+          font: 'inherit',
+          padding: 0
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -663,10 +545,11 @@ const AndroidBatteryOptimizationCard: React.FC = () => {
         <span style={{ fontSize: '12px', color: 'var(--nw-pink)', fontWeight: 800 }}>
           {isOpen ? 'Ocultar' : 'Ver Dica'}
         </span>
-      </div>
+      </button>
 
       {isOpen && (
         <div
+          id="nw-dashboard-battery-tip"
           style={{
             marginTop: '12px',
             paddingTop: '12px',
@@ -699,7 +582,7 @@ const AndroidBatteryOptimizationCard: React.FC = () => {
               fontWeight: 700
             }}
           >
-            ✓ Isso evita que o celular durma e silencie as chamadas de novas entregas!
+            Essas opções ajudam a manter o app ativo. O comportamento depende das permissões e das restrições do aparelho.
           </div>
         </div>
       )}

@@ -1,0 +1,24 @@
+.route-preview summary{font-size:14px;font-weight:800;cursor:pointer;padding:4px 0;min-height:36px;align-content:center}
+.route-preview>p{font-size:12px;line-height:1.6;margin-top:10px;color:var(--text-muted)}
+.route-preview ol{list-style:none;counter-reset:route-stop;display:grid;gap:0;margin:14px 0 0;padding:0}
+.route-preview li{counter-increment:route-stop;display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--border-subtle)}
+.route-preview li:before{content:counter(route-stop);flex-shrink:0;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--bg-elevated);color:var(--nw-emerald);font-weight:800}
+.route-preview li>div{flex:1;min-width:0;display:grid;gap:4px;font-size:13px;overflow-wrap:anywhere}.route-preview li span{color:var(--text-muted);font-size:12px}
+.route-preview a,.route-swipe-actions a{color:var(--nw-emerald);font-size:12px;min-height:44px;display:flex;align-items:center}
+.route-geography{margin:14px 0 0;padding:12px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:12px;color:var(--nw-emerald)}.route-geography svg{display:block;width:100%;max-height:220px}.route-geography circle{fill:var(--bg-card);stroke:currentColor;stroke-width:2}.route-geography .route-point-approximate{stroke-dasharray:3 2}.route-geography text{fill:currentColor;font-size:11px;font-weight:800}.route-geography figcaption,.route-geography p{font-size:11px;line-height:1.6;color:var(--text-muted);margin-top:6px}
+.route-swipe-controls{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-top:12px}.route-swipe-controls span{font-size:10px;color:var(--text-subtle)}
+.route-swipe-controls button,.route-swipe-actions button{border:1px solid var(--border-subtle);border-radius:10px;background:var(--bg-elevated);color:var(--text-main,var(--text-muted));padding:10px 12px;min-height:44px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.route-swipe-actions{display:flex;gap:16px;align-items:center;margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--bg-elevated);animation:route-reveal .18s ease-out}
+.route-undo{position:sticky;bottom:90px;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;margin-top:14px;border:1px solid var(--nw-emerald);border-radius:14px;background:var(--bg-card);box-shadow:0 8px 24px #0003;font-size:12px}
+.route-undo button{flex-shrink:0;border:0;border-radius:10px;padding:10px 14px;min-height:44px;background:var(--nw-emerald);color:#062c23;font-weight:800;cursor:pointer}.route-undo span{display:block;color:var(--text-muted);font-size:11px;margin-top:3px}
+@keyframes route-reveal{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+:root[data-reduced-motion="true"] .route-swipe-actions{animation:none}
+@media(prefers-reduced-motion:reduce){.route-swipe-actions{animation:none}}
+@media(max-width:360px){.route-preview li{flex-wrap:wrap}.route-preview li>a{margin-left:38px}.route-swipe-controls span{display:none}}
+:root[data-theme="light"] .route-screen .card-highlight{background:var(--bg-card);background-image:none}
+:root[data-theme="light"] .route-screen .card-highlight h3{color:var(--text-main)!important}
+:root[data-theme="light"] .route-screen button[title="Navegar com Waze"]{color:#075985!important}
+:root[data-theme="light"] .route-screen button[title="Navegar com Google Maps"]{color:#065f46!important}
+:root[data-theme="light"] .route-preview a,:root[data-theme="light"] .route-swipe-actions a,:root[data-theme="light"] .route-geography{color:#065f46}
+:root[data-text-scale="large"] .route-screen .route-mode-options{grid-template-columns:1fr}
+@media(max-width:360px){.route-screen .route-mode-options{grid-template-columns:1fr}.route-screen .route-mode{white-space:normal;overflow-wrap:normal}}

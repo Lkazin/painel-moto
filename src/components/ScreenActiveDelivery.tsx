@@ -1,20 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
-import {
-  MapPin,
-  Phone,
-  Navigation,
-  KeyRound,
-  AlertTriangle,
-  ArrowLeft,
-  Store,
-  Clock,
-  Compass,
-  FileText,
-  MessageCircle
-} from 'lucide-react';
+import { MapPin, Phone, Navigation, KeyRound, AlertTriangle, ArrowLeft, Clock, Compass, MessageCircle, Focus, ChevronDown, FileText } from 'lucide-react';
 import { Assignment } from '../types';
 import { audioAlert } from '../utils/audioAlert';
+import { useExperiencePreferences } from '../services/experiencePreferences';
+import { DeliveryBottomSheet } from './DeliveryExperience';
+import './DeliveryExperience.css';
 
 interface ScreenActiveDeliveryProps {
   assignment: Assignment;
@@ -23,12 +14,10 @@ interface ScreenActiveDeliveryProps {
   onRequestWithdraw: (assignment: Assignment) => void;
 }
 
-export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({
-  assignment,
-  onBack,
-  onOpenPinConfirmation,
-  onRequestWithdraw
-}) => {
+export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({ assignment, onBack, onOpenPinConfirmation, onRequestWithdraw }) => {
+  const { preferences } = useExperiencePreferences();
+  const [focusMode, setFocusMode] = useState(preferences.focus);
+  const [sheet, setSheet] = useState<'route' | 'contact' | 'details' | null>(null);
   const assignmentKey = assignment.assignmentId || assignment.id || assignment.orderId;
   const storageKey = `nw:gate-wait:${assignmentKey}`;
   const [waitingStartedAt, setWaitingStartedAt] = useState<number | null>(() => {
@@ -36,414 +25,109 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({
       const parsed = Date.parse(assignment.waitingGateStartedAt);
       if (Number.isFinite(parsed)) return parsed;
     }
-    try {
-      const local = localStorage.getItem(storageKey);
-      return local ? Number(local) : null;
-    } catch { return null; }
+    try { const value = Number(localStorage.getItem(storageKey)); return Number.isFinite(value) && value > 0 ? value : null; } catch { return null; }
   });
   const [localExtraMinutes, setLocalExtraMinutes] = useState(0);
-  const [now, setNow] = useState(Date.now());
-
+  const [now, setNow] = useState(Date.now);
   useEffect(() => {
-    if (assignment.waitingGateStartedAt) {
-      const parsed = Date.parse(assignment.waitingGateStartedAt);
-      if (Number.isFinite(parsed) && (!waitingStartedAt || parsed < waitingStartedAt)) {
-        setWaitingStartedAt(parsed);
-      }
-    }
+    if (!assignment.waitingGateStartedAt) return;
+    const parsed = Date.parse(assignment.waitingGateStartedAt);
+    if (Number.isFinite(parsed)) setWaitingStartedAt(previous => !previous || parsed < previous ? parsed : previous);
   }, [assignment.waitingGateStartedAt]);
-
   useEffect(() => {
     if (!waitingStartedAt) return;
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, [waitingStartedAt]);
-
   const baseMinutes = assignment.waitingGateLimitMinutes || 5;
   const storeExtraMinutes = assignment.gateWaitExtendedMinutes || 0;
   const totalMinutes = baseMinutes + storeExtraMinutes + localExtraMinutes;
   const totalSeconds = totalMinutes * 60;
-  const elapsedSeconds = waitingStartedAt ? Math.floor((now - waitingStartedAt) / 1000) : 0;
+  const elapsedSeconds = waitingStartedAt ? Math.max(0, Math.floor((now - waitingStartedAt) / 1000)) : 0;
   const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
   const isExpired = waitingStartedAt !== null && remainingSeconds === 0;
   const isWarning = waitingStartedAt !== null && remainingSeconds > 0 && remainingSeconds <= 60;
   const progressPercent = totalSeconds > 0 ? Math.min(100, (remainingSeconds / totalSeconds) * 100) : 0;
-
-  const formatCountdown = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  };
+  const formatCountdown = (secs: number) => `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
 
   const handleStartGateWait = () => {
     audioAlert.playClickSound();
     const timestamp = Date.now();
-    setWaitingStartedAt(timestamp);
-    try { localStorage.setItem(storageKey, String(timestamp)); } catch {}
+    setNow(timestamp); setWaitingStartedAt(timestamp);
+    try { localStorage.setItem(storageKey, String(timestamp)); } catch { /* O relógio continua em memória. */ }
     void api.setGateWait(assignment.assignmentId || assignment.id || '', new Date(timestamp).toISOString(), baseMinutes);
   };
-
-  const handleExtend3Min = () => {
-    audioAlert.playClickSound();
-    setLocalExtraMinutes(prev => prev + 3);
-  };
-
-  const handleQuickIntercomWhatsApp = () => {
-    if (!assignment.customerPhone) return;
-    audioAlert.playClickSound();
-    const raw = assignment.customerPhone.replace(/\D/g, '');
-    const msg = encodeURIComponent(`Olá ${assignment.customerName}! Sou o entregador da ${assignment.storeName || 'loja'} e estou no seu portão/portaria aguardando com o pedido #${assignment.orderNumber}.`);
-    window.open(`https://wa.me/55${raw}?text=${msg}`, '_blank');
-  };
-
-  const fullAddress = `${assignment.address}, ${assignment.addressNumber}, ${assignment.neighborhood}, ${assignment.city}`;
+  const handleExtend3Min = () => { audioAlert.playClickSound(); setLocalExtraMinutes(previous => previous + 3); };
+  const fullAddress = [assignment.address, assignment.addressNumber, assignment.neighborhood, assignment.city].filter(Boolean).join(', ');
   const encodedAddress = encodeURIComponent(fullAddress);
-
-  const openWaze = () => {
+  const hasAddress = Boolean(assignment.address?.trim());
+  const customerPhone = assignment.customerPhone?.replace(/\D/g, '') || '';
+  const whatsappPhone = customerPhone.startsWith('55') && customerPhone.length >= 12 ? customerPhone : `55${customerPhone}`;
+  const openWaze = () => { if (!hasAddress) return; audioAlert.playClickSound(); window.open(`https://waze.com/ul?q=${encodedAddress}&navigate=yes`, '_blank', 'noopener,noreferrer'); };
+  const openGoogleMaps = () => { if (!hasAddress) return; audioAlert.playClickSound(); window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`, '_blank', 'noopener,noreferrer'); };
+  const callCustomer = () => { if (!customerPhone) return; audioAlert.playClickSound(); window.location.href = `tel:${customerPhone}`; };
+  const openWhatsApp = (atGate = false) => {
+    if (!customerPhone) return;
     audioAlert.playClickSound();
-    window.open(`https://waze.com/ul?q=${encodedAddress}&navigate=yes`, '_blank');
+    const message = atGate
+      ? `Olá ${assignment.customerName}! Sou o entregador da ${assignment.storeName || 'loja'} e estou no seu portão/portaria aguardando com o pedido #${assignment.orderNumber}.`
+      : `Olá ${assignment.customerName}! Sou o entregador da ${assignment.storeName || 'loja'} e estou com o seu pedido #${assignment.orderNumber} a caminho.`;
+    window.open(`https://wa.me/${whatsappPhone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
   };
+  const openPin = () => { audioAlert.playClickSound(); onOpenPinConfirmation(assignment); };
+  const reportProblem = () => { audioAlert.playClickSound(); onRequestWithdraw(assignment); };
 
-  const openGoogleMaps = () => {
-    audioAlert.playClickSound();
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`, '_blank');
-  };
-
-  const callCustomer = () => {
-    if (!assignment.customerPhone) return;
-    audioAlert.playClickSound();
-    window.location.href = `tel:${assignment.customerPhone.replace(/[^0-9]/g, '')}`;
-  };
-
-  const openWhatsApp = () => {
-    if (!assignment.customerPhone) return;
-    audioAlert.playClickSound();
-    const raw = assignment.customerPhone.replace(/\D/g, '');
-    const msg = encodeURIComponent(`Olá ${assignment.customerName}! Sou o entregador da Bella Pizza e estou com o seu pedido #${assignment.orderNumber} a caminho.`);
-    window.open(`https://wa.me/55${raw}?text=${msg}`, '_blank');
-  };
-
-  return (
-    <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Botão Superior Voltar à Rota */}
-      <button
-        onClick={onBack}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: 'var(--text-muted)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          fontSize: '13px',
-          fontWeight: 700,
-          cursor: 'pointer',
-          padding: '4px 0'
-        }}
-      >
-        <ArrowLeft size={18} />
-        <span>Voltar para Minha Rota</span>
-      </button>
-
-      {/* Banner de Identificação da Parada */}
-      <div
-        className="card-surface card-highlight"
-        style={{
-          borderLeft: '5px solid var(--nw-pink)',
-          padding: '20px'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <span
-            style={{
-              background: 'var(--nw-pink)',
-              color: '#ffffff',
-              fontSize: '12px',
-              fontWeight: 900,
-              padding: '4px 10px',
-              borderRadius: '10px'
-            }}
-          >
-            PARADA ATIVA
-          </span>
-
-          <span style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff' }}>
-            {assignment.orderNumber}
-          </span>
-        </div>
-
-        {/* Nome do Cliente */}
-        <h1 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', letterSpacing: '-0.5px' }}>
-          {assignment.customerName}
-        </h1>
-
-        {/* Endereço em Destaque Absoluto (Legibilidade em Luz Solar) */}
-        <div
-          style={{
-            background: 'var(--bg-app)',
-            border: '2px solid var(--border-strong)',
-            borderRadius: '16px',
-            padding: '16px',
-            marginTop: '12px'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-            <MapPin size={26} color="var(--nw-pink)" style={{ flexShrink: 0, marginTop: '2px' }} />
-            <div>
-              <p style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', lineHeight: 1.25 }}>
-                {assignment.address}, {assignment.addressNumber}
-              </p>
-              {assignment.addressComplement && (
-                <p style={{ fontSize: '15px', fontWeight: 800, color: '#FFB3E0', marginTop: '4px' }}>
-                  {assignment.addressComplement}
-                </p>
-              )}
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                {assignment.neighborhood} • {assignment.city}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Instruções Especiais / Observações de Entrega */}
-        {assignment.instructions && (
-          <div
-            style={{
-              marginTop: '12px',
-              background: 'rgba(139, 47, 232, 0.1)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '12px',
-              padding: '12px',
-              fontSize: '13px',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '8px'
-            }}
-          >
-            <FileText size={18} color="var(--nw-purple)" style={{ flexShrink: 0, marginTop: '1px' }} />
-            <div>
-              <strong style={{ color: '#FFB3E0', display: 'block', fontSize: '11px', textTransform: 'uppercase' }}>
-                Observação do Cliente:
-              </strong>
-              <span style={{ color: '#ffffff' }}>{assignment.instructions}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Itens do Pedido */}
-        <div style={{ marginTop: '12px', fontSize: '13px', color: 'var(--text-muted)' }}>
-          🍕 <strong style={{ color: '#ffffff' }}>Itens:</strong> {assignment.itemsSummary}
-        </div>
-      </div>
-
-      {/* Botões de Ação Externa: Navegação & Telefone (Suporte de Moto) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-        <button
-          onClick={openWaze}
-          className="btn-glove btn-glove-waze"
-          style={{ height: '56px', fontSize: '15px' }}
-        >
-          <Compass size={22} />
-          <span>Abrir no Waze</span>
-        </button>
-
-        <button
-          onClick={openGoogleMaps}
-          className="btn-glove btn-glove-maps"
-          style={{ height: '56px', fontSize: '15px' }}
-        >
-          <Navigation size={22} />
-          <span>Google Maps</span>
-        </button>
-      </div>
-
-      {/* Contato Rápido com o Cliente: WhatsApp ou Ligação */}
-      {assignment.customerPhone ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          <button
-            onClick={openWhatsApp}
-            className="btn-glove"
-            style={{
-              height: '56px',
-              fontSize: '14px',
-              background: 'rgba(37, 211, 102, 0.15)',
-              border: '1px solid rgba(37, 211, 102, 0.45)',
-              color: '#25D366'
-            }}
-          >
-            <MessageCircle size={22} />
-            <span>WhatsApp</span>
-          </button>
-
-          <button
-            onClick={callCustomer}
-            className="btn-glove btn-glove-secondary"
-            style={{ height: '56px', fontSize: '14px' }}
-          >
-            <Phone size={20} color="var(--nw-emerald)" />
-            <span>Ligar</span>
-          </button>
-        </div>
-      ) : (
-        <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-subtle)' }}>
-          Telefone do cliente não informado no cadastro do pedido
-        </div>
-      )}
-
-      {/* Cronômetro de Espera no Portão (Integrado com a Loja) */}
-      {!waitingStartedAt ? (
-        <div
-          className="card-surface"
-          style={{
-            padding: '14px 16px',
-            border: '1px solid rgba(245, 158, 11, 0.4)',
-            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, var(--bg-card) 100%)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Clock size={18} color="var(--nw-amber)" />
-              <span style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff' }}>
-                Tolerância no Portão
-              </span>
-            </div>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              Tempo base: {baseMinutes} min
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleStartGateWait}
-            className="btn-glove btn-glove-warning"
-            style={{ height: '52px', fontSize: '14px' }}
-          >
-            <Clock size={20} />
-            <span>🔔 Cheguei no Portão • Iniciar Espera</span>
-          </button>
-        </div>
-      ) : (
-        <div
-          className="card-surface"
-          style={{
-            padding: '16px',
-            border: isExpired
-              ? '2px solid var(--nw-red)'
-              : isWarning
-              ? '2px solid var(--nw-amber)'
-              : '1.5px solid rgba(16, 185, 129, 0.45)',
-            background: isExpired
-              ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, var(--bg-card) 100%)'
-              : isWarning
-              ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, var(--bg-card) 100%)'
-              : 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, var(--bg-card) 100%)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Clock size={20} color={isExpired ? 'var(--nw-red)' : isWarning ? 'var(--nw-amber)' : 'var(--nw-emerald)'} />
-              <div>
-                <strong style={{ fontSize: '14px', color: '#ffffff', display: 'block' }}>
-                  {isExpired ? 'Tempo de Portão Esgotado' : 'Aguardando no Portão'}
-                </strong>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  Tolerância: {totalMinutes} min {storeExtraMinutes > 0 ? `(Loja deu +${storeExtraMinutes}m)` : ''}
-                </span>
-              </div>
-            </div>
-            <span
-              style={{
-                fontSize: '26px',
-                fontWeight: 900,
-                fontFamily: 'monospace',
-                color: isExpired ? 'var(--nw-red)' : isWarning ? 'var(--nw-amber)' : 'var(--nw-emerald)'
-              }}
-            >
-              {formatCountdown(remainingSeconds)}
-            </span>
-          </div>
-
-          {/* Barra de Progresso Regressiva */}
-          <div style={{ height: '6px', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
-            <div
-              style={{
-                height: '100%',
-                width: `${progressPercent}%`,
-                background: isExpired ? 'var(--nw-red)' : isWarning ? 'var(--nw-amber)' : 'var(--nw-emerald)',
-                transition: 'width 1s linear'
-              }}
-            />
-          </div>
-
-          {isExpired && (
-            <p style={{ margin: 0, fontSize: '12px', color: '#fca5a5', fontWeight: 700, lineHeight: 1.35 }}>
-              ⚠️ Tempo de espera esgotado! Se o cliente não atender, você pode registrar o problema ou acionar a loja abaixo.
-            </p>
-          )}
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px' }}>
-            <button
-              type="button"
-              onClick={handleExtend3Min}
-              className="btn-glove btn-glove-secondary"
-              style={{ height: '42px', fontSize: '12px' }}
-            >
-              ➕ Dar +3 min
-            </button>
-            <button
-              type="button"
-              onClick={handleQuickIntercomWhatsApp}
-              className="btn-glove"
-              style={{
-                height: '42px',
-                fontSize: '12px',
-                background: 'rgba(37, 211, 102, 0.15)',
-                border: '1px solid rgba(37, 211, 102, 0.45)',
-                color: '#25D366'
-              }}
-            >
-              💬 "No Portão"
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Botão Primário Gigante: Cheguei no Destino / Digitar PIN */}
-      <div style={{ marginTop: '8px' }}>
-        <button
-          onClick={() => {
-            audioAlert.playClickSound();
-            onOpenPinConfirmation(assignment);
-          }}
-          className="btn-glove btn-glove-primary"
-          style={{ height: '70px', fontSize: '19px' }}
-        >
-          <KeyRound size={26} strokeWidth={2.6} />
-          <span>CHEGUEI NO DESTINO • DIGITAR PIN</span>
-        </button>
-      </div>
-
-      {/* Botão de Problema na Entrega / Exceção / Cliente Ausente (Glove-friendly) */}
-      <div style={{ marginTop: '8px' }}>
-        <button
-          type="button"
-          onClick={() => {
-            audioAlert.playClickSound();
-            onRequestWithdraw(assignment);
-          }}
-          className="btn-glove btn-glove-warning"
-          style={{ height: '56px', fontSize: '15px' }}
-        >
-          <AlertTriangle size={22} color="var(--nw-amber)" />
-          <span>Relatar Problema • Cliente Ausente / Erro</span>
-        </button>
-      </div>
+  return <div className={`de-screen${focusMode ? ' de-focus' : ''}`}>
+    <div className="de-toolbar">
+      <button type="button" className="de-back" onClick={onBack}><ArrowLeft size={18} /><span>Minha rota</span></button>
+      <button type="button" className="de-focus-toggle" aria-pressed={focusMode} onClick={() => setFocusMode(previous => !previous)}><Focus size={17} /><span>{focusMode ? 'Sair do foco' : 'Modo entrega'}</span></button>
     </div>
-  );
+    {focusMode && <p className="de-focus-caption" role="status">Foco na próxima parada. Os detalhes continuam disponíveis abaixo.</p>}
+    <section className="de-card de-destination" aria-label="Destino da entrega" data-delivery-key={assignmentKey} style={{ viewTransitionName: `delivery-${assignmentKey.replace(/[^a-zA-Z0-9_-]/g, '')}` }}>
+      <div className="de-heading"><span className="de-eyebrow">Parada ativa</span><span className="de-order-number">#{assignment.orderNumber || 'Pedido sem número'}</span></div>
+      <h1 className="de-customer">{assignment.customerName || 'Cliente não informado'}</h1>
+      <div className="de-address"><MapPin size={25} /><div className="de-address-copy">
+        <strong>{hasAddress ? [assignment.address, assignment.addressNumber].filter(Boolean).join(', ') : 'Endereço não informado'}</strong>
+        {assignment.addressComplement && <p className="de-complement">{assignment.addressComplement}</p>}
+        <p>{[assignment.neighborhood, assignment.city].filter(Boolean).join(' · ') || 'Bairro e cidade não informados'}</p>
+        {!hasAddress && <p>Confira os dados com a loja antes de iniciar a navegação.</p>}
+      </div></div>
+      {assignment.instructions && <div className="de-reference"><strong>OBSERVAÇÃO DO CLIENTE</strong><p>{assignment.instructions}</p></div>}
+      <details className="de-expand" key={`${assignmentKey}-${focusMode ? 'focus' : 'full'}`}>
+        <summary><span>Itens e informações do pedido</span><ChevronDown size={18} /></summary>
+        <div className="de-expand-content"><p>{assignment.itemsSummary || 'Itens não informados pela loja. Consulte a loja se precisar conferir o pedido.'}</p></div>
+        <button type="button" className="de-link-button" onClick={() => setSheet('details')}><FileText size={16} />Ver todos os detalhes</button>
+      </details>
+    </section>
+
+    {!focusMode && <div className="de-secondary-actions">
+      <button type="button" className="de-link-button" onClick={() => setSheet('route')}><Navigation size={18} />Escolher navegador</button>
+      <button type="button" className="de-link-button" onClick={() => setSheet('contact')}><MessageCircle size={18} />Contato do cliente</button>
+    </div>}
+
+    <section className={`de-card de-wait${isExpired ? ' de-wait-expired' : isWarning ? ' de-wait-warning' : ''}`} aria-label="Espera no portão">
+      <div className="de-wait-heading"><div><h2><Clock size={18} />{waitingStartedAt ? isExpired ? 'Tempo de espera esgotado' : 'Aguardando no portão' : 'Chegou ao endereço?'}</h2><p>{waitingStartedAt ? `Tolerância: ${totalMinutes} min${storeExtraMinutes > 0 ? ` · Loja adicionou ${storeExtraMinutes} min` : ''}` : `Inicie a espera quando chegar · ${baseMinutes} min de tolerância`}</p></div>
+        {waitingStartedAt !== null && <span className="de-countdown" aria-label={`${Math.floor(remainingSeconds / 60)} minutos e ${remainingSeconds % 60} segundos restantes`}>{formatCountdown(remainingSeconds)}</span>}
+      </div>
+      {waitingStartedAt === null ? <button type="button" className="btn-glove btn-glove-warning" onClick={handleStartGateWait}><Clock size={20} />Cheguei no portão · Iniciar espera</button> : <>
+        <div className="de-wait-progress" aria-hidden="true"><span style={{ width: `${progressPercent}%` }} /></div>
+        {isExpired && <p className="de-warning-copy" role="status">Se o cliente não atender, registre o problema ou entre em contato com a loja. A entrega continua pendente.</p>}
+        <div className="de-secondary-actions"><button type="button" className="btn-glove btn-glove-secondary" onClick={handleExtend3Min}>Dar +3 min</button><button type="button" className="btn-glove btn-glove-secondary" onClick={() => openWhatsApp(true)} disabled={!customerPhone}><MessageCircle size={18} />Avisar: no portão</button></div>
+        {!customerPhone && <p className="de-empty-info">Telefone não informado. Peça à loja para contatar o cliente.</p>}
+      </>}
+    </section>
+    <button type="button" className="de-link-button de-problem" onClick={reportProblem}><AlertTriangle size={18} />Relatar problema na entrega</button>
+
+    <nav className="de-dock" aria-label="Ações desta entrega">
+      <button type="button" onClick={() => setSheet('route')} aria-label="Escolher navegador para esta entrega"><Navigation size={22} /><span>Rota</span></button>
+      <button type="button" onClick={() => setSheet('contact')} aria-label="Abrir contato do cliente"><Phone size={21} /><span>Cliente</span></button>
+      <button type="button" className="de-dock-confirm" onClick={openPin}><KeyRound size={22} /><span>Confirmar com PIN</span></button>
+    </nav>
+
+    {sheet && <DeliveryBottomSheet title={sheet === 'route' ? 'Abrir navegação' : sheet === 'contact' ? 'Falar com o cliente' : 'Detalhes do pedido'} description={`Pedido #${assignment.orderNumber || 'não informado'}`} onClose={() => setSheet(null)}>
+      {sheet === 'route' && <><p className="de-empty-info">{hasAddress ? fullAddress : 'Endereço não informado. Confirme com a loja antes de abrir a rota.'}</p><button type="button" onClick={openWaze} className="btn-glove btn-glove-waze" disabled={!hasAddress}><Compass size={22} />Abrir no Waze</button><button type="button" onClick={openGoogleMaps} className="btn-glove btn-glove-maps" disabled={!hasAddress}><Navigation size={22} />Google Maps</button></>}
+      {sheet === 'contact' && <>{customerPhone ? <><p className="de-empty-info">{assignment.customerName} · {assignment.customerPhone}</p><button type="button" onClick={() => openWhatsApp()} className="btn-glove btn-glove-secondary"><MessageCircle size={22} />Abrir WhatsApp</button><button type="button" onClick={callCustomer} className="btn-glove btn-glove-secondary"><Phone size={22} />Ligar para o cliente</button><p className="de-empty-info">O WhatsApp abre uma mensagem para você revisar antes de enviar.</p></> : <><p className="de-empty-info">O telefone do cliente não foi informado no pedido. Entre em contato com a loja para conferir os dados.</p><button type="button" className="de-link-button" onClick={() => { setSheet(null); reportProblem(); }}><AlertTriangle size={18} />Registrar problema</button></>}</>}
+      {sheet === 'details' && <dl className="de-detail-list"><div><dt>Loja</dt><dd>{assignment.storeName || 'Não informada'}</dd></div><div><dt>Cliente</dt><dd>{assignment.customerName || 'Não informado'}</dd></div><div><dt>Endereço</dt><dd>{hasAddress ? fullAddress : 'Não informado'}</dd></div><div><dt>Complemento</dt><dd>{assignment.addressComplement || 'Não informado'}</dd></div><div><dt>Observações</dt><dd>{assignment.instructions || 'Nenhuma observação informada'}</dd></div><div><dt>Itens</dt><dd>{assignment.itemsSummary || 'Não informados pela loja'}</dd></div><div><dt>Taxa de entrega</dt><dd>{typeof assignment.deliveryFee === 'number' && Number.isFinite(assignment.deliveryFee) ? assignment.deliveryFee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Não informada'}</dd></div></dl>}
+    </DeliveryBottomSheet>}
+  </div>;
 };

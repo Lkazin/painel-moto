@@ -21,7 +21,7 @@ async function component(name,props,api={}){
   const transformed=transformSync(name+'.tsx',source,{jsx:{runtime:'classic'},tsconfig:false});
   assert.equal(transformed.errors.length,0);
   const icons=new Proxy({}, {get:()=>()=>null});
-  const context={React:react,...react,exports:{},...helpers,...estimateHelpers,setInterval:()=>0,clearInterval(){},api,audioAlert:{playClickSound(){},playSuccessSound(){},playErrorSound(){}},trackingService:{getState:()=>({isActive:false,lastLocation:null}),subscribe:()=>()=>{}},TrackingBadge:()=>null,console,Date,window:{open(){}}};
+  const context={React:react,...react,exports:{},...helpers,...estimateHelpers,RoutePreview:()=>null,RouteSwipeCard:()=>null,setInterval:()=>0,clearInterval(){},api,audioAlert:{playClickSound(){},playSuccessSound(){},playErrorSound(){}},trackingService:{getState:()=>({isActive:false,lastLocation:null}),subscribe:()=>()=>{}},TrackingBadge:()=>null,console,Date,window:{open(){}}};
   for(const name of ['PackageCheck','Package','CheckSquare','Square','AlertTriangle','ArrowRight','Clock','MapPin','ChevronRight','Layers','Store','Navigation','ArrowUp','ArrowDown','GripVertical','CheckCircle','ShieldAlert','AlertCircle','Sparkles','Compass','MessageCircle','Map'])context[name]=icons[name];
   vm.runInNewContext(transformed.code+';exports.Component='+name+';',context);
   let currentProps=props,tree;
@@ -99,4 +99,61 @@ test('próxima entrega acompanha a sequência manual sem duplicar cartões ou sa
  assert.match(view.text(),/Prévia da sequência/);assert.match(view.text(),/Frete desta entrega: não informado pela loja/);
  view.find(n=>n.type==='button'&&nodeText(n).includes('Abrir próxima entrega'))[0].props.onClick();assert.deepEqual(opened,['A','B']);
  assert.equal(saved.length,0);
+});
+
+test('desfazer restaura só a ordem local usando dados atuais e polling invalida snapshot com IDs antigos',async()=>{
+ const a=assignment('A','picked_up',1),b=assignment('B','picked_up',2),saved=[],opened=[];
+ const props={assignments:[a,b],onReorder:async value=>saved.push(value),onSelectDelivery:value=>opened.push(value),onNavigateToOrders(){}};
+ const view=await component('ScreenRoute',props);view.render();
+ view.find(n=>n.type==='button'&&n.props['aria-label']==='Descer posição')[0].props.onClick();view.render();
+ view.render({...props,assignments:[{...a,customerName:'Nome atualizado'},b]});
+ view.find(n=>n.type==='button'&&nodeText(n)==='Desfazer')[0].props.onClick();view.render();
+ view.find(n=>n.type==='button'&&nodeText(n).includes('Abrir próxima entrega'))[0].props.onClick();
+ assert.equal(opened[0].assignmentId,'A');assert.equal(opened[0].customerName,'Nome atualizado');
+ assert.equal(view.find(n=>n.type==='button'&&nodeText(n).includes('Salvar Ordem')).length,0);
+ assert.equal(saved.length,0);
+ view.find(n=>n.type==='button'&&n.props['aria-label']==='Descer posição')[0].props.onClick();view.render();
+ view.render({...props,assignments:[a]});
+ assert.equal(view.find(n=>n.type==='button'&&nodeText(n)==='Desfazer').length,0);
+ assert.equal(saved.length,0);
+});
+
+test('salvar consome desfazer antes da requisição remota e não permite reverter ordem já salva',async()=>{
+ const a=assignment('A','picked_up',1),b=assignment('B','picked_up',2),saved=[];let finish;
+ const props={assignments:[a,b],onReorder:value=>{saved.push(value);return new Promise(resolve=>{finish=resolve;});},onSelectDelivery(){},onNavigateToOrders(){}};
+ const view=await component('ScreenRoute',props);view.render();
+ view.find(n=>n.type==='button'&&n.props['aria-label']==='Descer posição')[0].props.onClick();view.render();
+ const saving=view.find(n=>n.type==='button'&&nodeText(n).includes('Salvar Ordem'))[0].props.onClick();view.render();
+ assert.equal(view.find(n=>n.type==='button'&&nodeText(n)==='Desfazer').length,0);
+ assert.equal(saved.length,1);assert.equal(saved[0][0].assignmentId,'B');
+ finish();await saving;await view.settle();
+ view.render({...props,assignments:[{...b,sequence:1},{...a,sequence:2}]});
+ assert.equal(view.find(n=>n.type==='button'&&nodeText(n)==='Desfazer').length,0);
+ assert.equal(saved.length,1);
+});
+
+test('desfazer a primeira alteração acompanha uma nova ordem salva recebida pelo polling',async()=>{
+ const a=assignment('A','picked_up',1),b=assignment('B','picked_up',2),c=assignment('C','picked_up',3),opened=[];
+ const props={assignments:[a,b,c],onReorder:async()=>{},onSelectDelivery:value=>opened.push(value.assignmentId),onNavigateToOrders(){}};
+ const view=await component('ScreenRoute',props);view.render();
+ view.find(n=>n.type==='button'&&n.props['aria-label']==='Descer posição')[0].props.onClick();view.render();
+ view.render({...props,assignments:[{...c,sequence:1},{...a,sequence:2},{...b,sequence:3}]});
+ view.find(n=>n.type==='button'&&nodeText(n)==='Desfazer')[0].props.onClick();view.render();
+ view.find(n=>n.type==='button'&&nodeText(n).includes('Abrir próxima entrega'))[0].props.onClick();
+ assert.deepEqual(opened,['C']);
+ assert.equal(view.find(n=>n.type==='button'&&nodeText(n).includes('Salvar Ordem')).length,0);
+});
+
+test('prévia geográfica exige dois pontos válidos, mantém proporção e não inventa paradas sem coordenadas',()=>{
+ const source=fs.readFileSync('src/components/RouteExperience.tsx','utf8').split('export function projectRoutePoints')[1].split('export function RoutePreview')[0];
+ const context={exports:{},assignmentKey:helpers.assignmentKey};
+ vm.runInNewContext(stripTypeScriptTypes('function projectRoutePoints'+source)+';exports.project=projectRoutePoints;',context);
+ const stops=['A','B','C'].map((id,index)=>assignment(id,'picked_up',index+1));
+ assert.equal(context.exports.project(stops,null).length,0);
+ const suggestion={stops:[{assignmentId:'A',destinationCoordinates:{latitude:0,longitude:0}},{assignmentId:'B',destinationCoordinates:{latitude:0,longitude:1},locationApproximate:true},{assignmentId:'C',destinationCoordinates:{latitude:91,longitude:1}}]};
+ const points=context.exports.project(stops,suggestion);assert.equal(points.length,2);
+ assert.equal(points[0].y,points[1].y);assert.equal(points[0].x,24);assert.equal(points[1].x,296);assert.equal(points[1].approximate,true);
+ assert.equal(context.exports.project(stops,{stops:suggestion.stops.slice(0,1)}).length,0);
+ const dateline=context.exports.project(stops,{stops:[{assignmentId:'A',destinationCoordinates:{latitude:10,longitude:179.9}},{assignmentId:'B',destinationCoordinates:{latitude:10,longitude:-179.9}}]});
+ assert.ok(dateline.every(point=>Number.isFinite(point.x)&&Number.isFinite(point.y)&&point.x>=24&&point.x<=296));
 });

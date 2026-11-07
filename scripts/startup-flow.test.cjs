@@ -64,6 +64,8 @@ async function harness(options={}) {
       const component=()=>null;component.displayName=name;context[name]=component;
     }
   }
+  context.useExperiencePreferences=()=>({preferences:{theme:'dark',textScale:'normal',outdoor:false,focus:false,haptics:true,reducedMotion:false},updatePreferences(){}});
+  context.transitionDelivery=change=>change();
   vm.runInNewContext(compiled.code+';exports.App=App;',context);
   function render(){
     if(!mounted)return view;
