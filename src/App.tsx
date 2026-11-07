@@ -45,6 +45,7 @@ import { ScreenRoute } from './components/ScreenRoute';
 import { ScreenActiveDelivery } from './components/ScreenActiveDelivery';
 import { ScreenPinConfirm } from './components/ScreenPinConfirm';
 import { ScreenHistory } from './components/ScreenHistory';
+import { DriverLoadingSkeleton } from './components/DriverLoadingSkeleton';
 import { ModalSessionAndStore } from './components/ModalSessionAndStore';
 import { ModalWithdrawal } from './components/ModalWithdrawal';
 import { ModalRouteCompleted } from './components/ModalRouteCompleted';
@@ -129,6 +130,7 @@ export const App: React.FC = () => {
 
   // Estados de Dados
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [assignmentsLoadState, setAssignmentsLoadState] = useState<'loading' | 'ready' | 'error'>(session ? 'loading' : 'ready');
   hasActiveDeliveryRef.current = assignments.some(item => ['waiting_pickup', 'picked_up', 'in_transit'].includes(item.status));
   const [currentOffer, setCurrentOffer] = useState<Offer | null>(null);
   const handledOfferIdsRef = useRef<Set<string>>(new Set());
@@ -256,6 +258,12 @@ export const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Apenas primeira carga e troca de loja exibem skeleton: polling não causa flashes.
+  useEffect(() => {
+    setAssignments([]);
+    setAssignmentsLoadState(session ? 'loading' : 'ready');
+  }, [session?.membershipId, session?.driverId]);
+
   // Carrega atribuições e histórico real da API
   const refreshAssignments = useCallback(async () => {
     if (!session) return;
@@ -275,6 +283,7 @@ export const App: React.FC = () => {
         noticeAssignmentStates.current.set(id, item.status);
       }
       setAssignments(data);
+      setAssignmentsLoadState('ready');
       if (hist) setHistorySummary({
         totalEarnings: hist.totalEarnings,
         itemsCount: hist.items.length
@@ -293,7 +302,11 @@ export const App: React.FC = () => {
         trackingService.stop(false);
       }
       return data;
-    } catch {}
+    } catch {
+      if (requestRevision === assignmentsRevision.current) {
+        setAssignmentsLoadState(current => current === 'loading' ? 'error' : current);
+      }
+    }
   }, [session]);
 
   useEffect(() => {
@@ -586,6 +599,7 @@ export const App: React.FC = () => {
   if (!accountReady) {
     return <main className="app-container nw-account-wait" aria-label="NovaesWeb Entregador">
       <img className="nw-account-wait-brand" src="/brand/novaesweb-entregador-ui.png" alt="NovaesWeb Entregador" />
+      {!syncError && <DriverLoadingSkeleton variant="account" />}
       <aside className="nw-notice-host nw-notice-simple" aria-label="Conexão da conta">
         <div className="nw-notice">
           <div className="nw-notice-content" role="status" aria-live="polite" aria-atomic="true" aria-busy={!syncError}>
@@ -775,6 +789,15 @@ export const App: React.FC = () => {
           />
         ) : (
           <>
+            {assignmentsLoadState === 'loading' && activeTab !== 'history' ? (
+              <DriverLoadingSkeleton variant={activeTab === 'orders' ? 'orders' : activeTab === 'route' ? 'route' : 'dashboard'} />
+            ) : assignmentsLoadState === 'error' && activeTab !== 'history' ? (
+              <section className="nw-skeleton-error card-surface" role="alert">
+                <h2>Não foi possível carregar os pedidos</h2>
+                <p>Confira sua internet e tente novamente. Nenhum pedido foi removido.</p>
+                <button className="btn-glove btn-glove-accent" type="button" onClick={() => { setAssignmentsLoadState('loading'); void refreshAssignments(); }}>Tentar novamente</button>
+              </section>
+            ) : <>
             {/* Tela 2: Início / Dashboard */}
             {activeTab === 'dashboard' && (
               <ScreenDashboard
@@ -811,6 +834,7 @@ export const App: React.FC = () => {
 
             {/* Tela 8: Histórico & Ganhos */}
             {activeTab === 'history' && <ScreenHistory />}
+            </>}
           </>
         )}
       </main>

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { DeliveryHistoryItem } from '../types';
 import { api } from '../services/api';
+import { DriverLoadingSkeleton } from './DriverLoadingSkeleton';
 
 export const ScreenHistory: React.FC = () => {
   const [historyItems, setHistoryItems] = useState<DeliveryHistoryItem[]>([]);
@@ -63,7 +64,7 @@ export const ScreenHistory: React.FC = () => {
       </div>
 
       {/* Card Resumo de Ganhos Informados */}
-      <div
+      {loading ? <DriverLoadingSkeleton variant="history-summary" /> : <div
         className="card-surface card-highlight"
         style={{
           padding: '20px',
@@ -118,7 +119,7 @@ export const ScreenHistory: React.FC = () => {
             Valores meramente informados pelo funcionário no despacho. O total apresentado não comprova pagamento financeiro nem substitui o acerto com a loja.
           </span>
         </div>
-      </div>
+      </div>}
 
       {/* Lista do Histórico de Entregas */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -127,11 +128,7 @@ export const ScreenHistory: React.FC = () => {
         </h3>
 
         {loading ? (
-          <div className="card-surface" style={{ textAlign: 'center', padding: '24px' }}>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              Carregando histórico...
-            </p>
-          </div>
+          <DriverLoadingSkeleton variant="history-list" />
         ) : error ? (
           <div className="card-surface" role="alert" style={{ padding: 24 }}><p>Não foi possível carregar o histórico. Confira sua conexão.</p><button type="button" onClick={() => setAttempt(value => value + 1)}>Tentar novamente</button></div>
         ) : historyItems.length === 0 ? (
