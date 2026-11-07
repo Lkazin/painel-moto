@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AppUpdateSettings } from './AppUpdateNotice';
+import { DriverLoadingSkeleton } from './DriverLoadingSkeleton';
 import { VersionChangelogModal } from './VersionChangelogModal';
 import { ExperienceSettings } from './ExperienceSettings';
 import {
@@ -44,15 +45,28 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
   onLogoutAccount,
   onShowToast
 }) => {
-  const [ledger, setLedger] = useState<StoreShiftSummary[]>([]);
+  // Read data already present before first render to avoid a fake zero-value screen.
+  const [ledger, setLedger] = useState<StoreShiftSummary[]>(() => api.getStoresLedger());
+  const [ledgerLoading, setLedgerLoading] = useState(() => api.getStoresLedger().length === 0);
+  const [ledgerError, setLedgerError] = useState(false);
   const [closingShift, setClosingShift] = useState(false);
   const [copiedSummary, setCopiedSummary] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
 
   useEffect(() => {
     let live = true;
-    setLedger(api.getStoresLedger());
-    void api.synchronizeAccount().then(()=>{if(live)setLedger(api.getStoresLedger());}).catch(()=>{});
+    void api.synchronizeAccount()
+      .then(() => {
+        if (!live) return;
+        setLedger(api.getStoresLedger());
+        setLedgerError(false);
+      })
+      .catch(() => {
+        if (live) setLedgerError(true);
+      })
+      .finally(() => {
+        if (live) setLedgerLoading(false);
+      });
     return ()=>{live=false;};
   }, []);
 
@@ -261,7 +275,11 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
         )}
 
         {/* Resumo Consolidado de Ganhos */}
-        <div
+        {ledgerLoading ? <DriverLoadingSkeleton variant="history-summary" /> : ledgerError && ledger.length === 0 ? (
+          <div className="card-surface" role="alert" style={{ padding: 18 }}>
+            Não foi possível carregar o extrato. Verifique sua conexão e reabra a tela para tentar novamente.
+          </div>
+        ) : <div
           style={{
             background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(139, 47, 232, 0.12))',
             border: '1px solid rgba(16, 185, 129, 0.3)',
@@ -322,7 +340,13 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
             Detalhamento por Loja ({ledger.length})
           </h4>
 
-          {ledger.length === 0 ? (
+          {ledgerLoading ? (
+            <DriverLoadingSkeleton variant="history-list" />
+          ) : ledgerError && ledger.length === 0 ? (
+            <p role="alert" style={{ color: 'var(--nw-amber)', fontSize: 13 }}>
+              Histórico indisponível no momento. Tente novamente ao reabrir o extrato.
+            </p>
+          ) : ledger.length === 0 ? (
             <div
               className="card-surface"
               style={{
