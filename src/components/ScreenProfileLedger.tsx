@@ -332,7 +332,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
             <MessageCircle size={16} />
             <span>Enviar Fechamento no WhatsApp da Loja</span>
           </button>
-        </div>
+        </div>}
 
         {/* Lista Individual por Loja */}
         <div>
