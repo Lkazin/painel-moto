@@ -60,6 +60,22 @@ function browser(server, memory = new Map()) {
   return { api: load('api').api, account: load('accountClient').accountClient, queue: load('offlineQueue').offlineQueue, memory, events, setOnline(value) { online = value; } };
 }
 const firstAccess=async b=>{const challenge=await b.api.startFirstAccess('11999999999','AC-123456ABCDEF');return b.api.completeFirstAccess({onboardingToken:challenge.onboardingToken,password:'SenhaSegura123',address:'Rua Teste, 100, Centro, Canoas RS',vehicleModel:'Honda CG 160'});};
+test('login aguarda restauração da fila antes de liberar o plantão e bloqueia se ela falhar', async () => {
+  const backend = server(), registered = browser(backend); await firstAccess(registered);
+  const phone = browser(backend); let release;
+  phone.queue.initialize = () => new Promise(resolve => { release = resolve; });
+  const login = phone.api.loginDriver('11999999999', 'SenhaSegura123');
+  while (!release) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(phone.api.isReady(), false);
+  assert.equal(phone.api.getSession(), null);
+  release(); await login;
+  assert.equal(phone.api.isReady(), true);
+  const failed = browser(backend);
+  failed.queue.initialize = async () => { throw new Error('Falha ao restaurar fila'); };
+  await assert.rejects(failed.api.loginDriver('11999999999', 'SenhaSegura123'), /restaurar fila/);
+  assert.equal(failed.api.isReady(), false);
+  assert.equal(failed.api.getSession(), null);
+});
 test('cadastro central, senha errada rejeitada e dados recuperados em outro aparelho', async () => {
   const backend = server(), phone = browser(backend); await firstAccess(phone); await phone.api.activateStoreShift('nw-123456');
   const computer = browser(backend); await assert.rejects(computer.api.loginDriver('11999999999', 'errada'), /incorretos/); assert.equal(computer.api.getDriverAccount(), null);

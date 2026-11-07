@@ -86,6 +86,8 @@ export class ApiClient {
   }
   private async synchronizeAccountOnce(token: string) {
     if (!token) throw new AccountRequestError('Entre na sua conta para continuar.', 'ACCOUNT_SESSION_REQUIRED', 401);
+    await offlineQueue.initialize();
+    if (accountClient.getToken() !== token) throw new AccountRequestError('A conta foi alterada. Tente novamente.', 'STALE_REQUEST');
     await accountClient.validate();
     if (accountClient.getToken() !== token) throw new AccountRequestError('A conta foi alterada. Tente novamente.', 'STALE_REQUEST');
     const data = await this.request('account-bootstrap');

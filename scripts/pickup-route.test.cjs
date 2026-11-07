@@ -52,7 +52,7 @@ test('API de retirada exige seleção e transmite todos os IDs visíveis sem lim
   class AccountRequestError extends Error{}
   const accountClient={getAccount:()=>account,getToken:()=> 'account-token',subscribe(){},validate:async()=>account,request:async(url,options)=>{calls.push({url,options});if(url.endsWith('account-bootstrap'))return {account,session,ledger:[]};return {success:true,confirmed:['A'],released:['B','C','D','E','F'],errors:{}};}};
   const source=stripTypeScriptTypes(fs.readFileSync('src/services/api.ts','utf8').replace(/import[\s\S]*?from '[^']+';/g,'')).replaceAll('export class','class').replaceAll('export const','const');
-  const context={exports:{},accountClient,AccountRequestError,offlineQueue:{clearQueue(){},setContext(){},getIsOnline:()=>true},logisticsApiUrl:()=> 'https://loja.test/api/v1/logistics',localStorage:{getItem:()=>null,setItem(){},removeItem(){}},window:{dispatchEvent(){}},CustomEvent:class{},URLSearchParams,console,Date};
+  const context={exports:{},accountClient,AccountRequestError,offlineQueue:{async initialize(){},clearQueue(){},setContext(){},getIsOnline:()=>true},logisticsApiUrl:()=> 'https://loja.test/api/v1/logistics',localStorage:{getItem:()=>null,setItem(){},removeItem(){}},window:{dispatchEvent(){}},CustomEvent:class{},URLSearchParams,console,Date};
   vm.runInNewContext(source+';exports.api=api;',context);const api=context.exports.api;await api.synchronizeAccount();await assert.rejects(api.confirmPickup([],['A']),/Selecione/);
   const result=await api.confirmPickup(['A'],['A','B','C','D','E','F']);const body=JSON.parse(calls.at(-1).options.body);assert.deepEqual(body.assignmentIds,['A']);assert.equal(body.pickupScopeIds.length,6);assert.equal(result.released.length,5);
 });

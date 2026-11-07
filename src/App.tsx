@@ -423,10 +423,13 @@ export const App: React.FC = () => {
 
   // Aceitar Oferta
   const handleAcceptOffer = async (offerId: string) => {
+    if (handledOfferIdsRef.current.has(offerId)) return;
+    let accepted = false;
     try {
       audioAlert.stopOfferAlert();
       handledOfferIdsRef.current.add(offerId);
       const res = await api.respondOffer(offerId, 'accepted');
+      accepted = true;
       removeNotice(`offer:${offerId}`);
       setCurrentOffer(null);
       if (res && (res.assignment || (res as any).assignments)) {
@@ -444,7 +447,7 @@ export const App: React.FC = () => {
       setActiveTab('orders');
     } catch (err: any) {
       audioAlert.stopOfferAlert();
-      handledOfferIdsRef.current.add(offerId);
+      if (!accepted) handledOfferIdsRef.current.delete(offerId);
       setCurrentOffer(null);
       showToast(err.message || 'Erro ao aceitar oferta.', 'error');
     }
@@ -452,6 +455,7 @@ export const App: React.FC = () => {
 
   // Recusar Oferta
   const handleRejectOffer = async (offerId: string) => {
+    if (handledOfferIdsRef.current.has(offerId)) return;
     try {
       audioAlert.stopOfferAlert();
       handledOfferIdsRef.current.add(offerId);
@@ -459,10 +463,11 @@ export const App: React.FC = () => {
       removeNotice(`offer:${offerId}`);
       setCurrentOffer(null);
       showToast('Oferta recusada e devolvida ao despacho da loja.', 'info');
-    } catch {
+    } catch (err: any) {
       audioAlert.stopOfferAlert();
-      handledOfferIdsRef.current.add(offerId);
+      handledOfferIdsRef.current.delete(offerId);
       setCurrentOffer(null);
+      showToast(err.message || 'Não foi possível recusar a oferta. Tente novamente.', 'error');
     }
   };
 

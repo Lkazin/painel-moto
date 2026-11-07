@@ -15,9 +15,10 @@ function harness(request = async () => ({ success: true, updatedAt: '2026-11-02T
   const document = { visibilityState: 'visible', addEventListener(name, fn) { events[name] = fn; } };
   const context = { exports: {}, console, Date, Number, Math, Set, Promise, AbortController, setTimeout, clearTimeout,
     navigator, document, window: { addEventListener(name, fn) { events[name] = fn; } },
-    localStorage: { getItem(key) { return key.includes('session') ? JSON.stringify({ driverId: 'driver', membershipId: 'membership', token: 'shift' }) : stored.get(key) || null; }, setItem(key, value) {stored.set(key, value);}, removeItem(key) {stored.delete(key);} },
+    localStorage: { getItem(key) { return stored.get(key) || null; }, setItem(key, value) {stored.set(key, value);}, removeItem(key) {stored.delete(key);} },
     NativeTrackingWatcher: class { start(){} async stop(){} }, supportsBackgroundTracking: () => nativePreference, nativeCurrentPosition(ok, fail){current.push({ok, fail});},
     logisticsApiUrl: () => 'https://example.test/api',
+    api: { getSession: () => ({ driverId: 'driver', membershipId: 'membership', token: 'shift' }), getDriverAccount: () => ({ id: 'account', name: 'Entregador Teste' }) },
     accountClient: { subscribe(listener) { accountListener = listener; }, getToken: () => 'account', async request(url, options) { calls.push({ url, body: JSON.parse(options.body) }); return request(url, options); } },
   };
   const source = stripTypeScriptTypes(fs.readFileSync('src/services/trackingService.ts', 'utf8').replace(/import[^;]+;/g, ''))
