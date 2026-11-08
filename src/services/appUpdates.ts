@@ -1,5 +1,5 @@
 import { App } from '@capacitor/app';
-import { AppLauncher } from '@capacitor/app-launcher';
+import { nativeAppUpdater } from './nativeAppUpdater';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 export interface AndroidRelease {
@@ -7,6 +7,8 @@ export interface AndroidRelease {
   build: number;
   url: string;
   notes: string;
+  sha256: string;
+  size: number;
   id: string;
 }
 export interface AppUpdateState {
@@ -21,7 +23,7 @@ export interface AppUpdateState {
   automatic: boolean;
 }
 
-export const ANDROID_RELEASES_API = 'https://api.github.com/repos/Lkazin/painel-moto/releases?per_page=10';
+export const ANDROID_RELEASES_API = 'https://painel-moto-three.vercel.app/downloads/latest.json';
 const DISMISS_KEY = 'nw:android-update-dismiss:v1';
 const AUTOMATIC_KEY = 'nw:android-update-automatic:v1';
 function automaticUpdatesEnabled() {
@@ -39,39 +41,25 @@ function validBuild(value: unknown): number | null {
 }
 
 export function validAndroidDownloadUrl(value: unknown, version: string, build: number): value is string {
-  if (typeof value !== 'string' || value !== value.trim() || /[\u0000-\u001f\u007f]/.test(value) || !/^\d+\.\d+\.\d+$/.test(version) || validBuild(build) === null) return false;
-  try {
-    const url = new URL(value);
-    const parts = url.pathname.split('/');
-    return url.origin === 'https://github.com' && !url.username && !url.password && !url.search && !url.hash &&
-      parts.length === 7 && parts[1].toLowerCase() === 'lkazin' && parts[2].toLowerCase() === 'painel-moto' &&
-      parts[3] === 'releases' && parts[4] === 'download' && parts[5] === `android-v${version}` &&
-      parts[6] === `NovaesWeb-Entregador-v${version}-code${build}.apk`;
-  } catch { return false; }
+  if (typeof value !== 'string' || !/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(version) || validBuild(build) === null) return false;
+  return value === `https://painel-moto-three.vercel.app/downloads/NovaesWeb-Entregador-v${version}-code${build}.apk`;
 }
 
-/** GitHub's actual published asset URL is the only source of a download link. */
-export function selectAndroidRelease(data: unknown, currentBuild: number, now = Date.now()): AndroidRelease | null {
-  if (!Array.isArray(data)) throw new Error('Resposta de atualização inválida.');
-  let selected: AndroidRelease | null = null;
-  for (const release of data.slice(0, 10)) {
-    if (!release || release.draft !== false || release.prerelease !== false || !Array.isArray(release.assets)) continue;
-    const tag = typeof release.tag_name === 'string' ? /^android-v((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/.exec(release.tag_name) : null;
-    const publishedAt = typeof release.published_at === 'string' ? Date.parse(release.published_at) : NaN;
-    if (!tag || !Number.isFinite(publishedAt) || publishedAt > now + 5 * 60000 || !Number.isSafeInteger(release.id) || release.id <= 0) continue;
-    const version = tag[1];
-    for (const asset of release.assets.slice(0, 30)) {
-      if (!asset || asset.state !== 'uploaded' || !Number.isSafeInteger(asset.id) || asset.id <= 0 || !Number.isSafeInteger(asset.size) || asset.size <= 0) continue;
-      const match = typeof asset.name === 'string' ? /^NovaesWeb-Entregador-v(\d+\.\d+\.\d+)-code([1-9]\d*)\.apk$/.exec(asset.name) : null;
-      const build = match ? validBuild(match[2]) : null;
-      if (!match || match[1] !== version || build === null || build <= currentBuild || (selected && selected.build >= build) || !validAndroidDownloadUrl(asset.browser_download_url, version, build)) continue;
-      selected = {
-        version, build, url: asset.browser_download_url, id: `${release.id}:${asset.id}:${build}`,
-        notes: typeof release.body === 'string' ? release.body.replace(/[\r\n\t]+/g, ' ').trim().slice(0, 180) : '',
-      };
-    }
-  }
-  return selected;
+/** The release and APK are published together on the app's own hosting. */
+export function selectAndroidRelease(data: unknown, currentBuild: number): AndroidRelease | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Manifesto de atualização inválido.');
+  const release = data as Record<string, unknown>;
+  const version = release.version;
+  const build = release.build;
+  if (typeof version !== 'string' || !/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(version) ||
+      typeof build !== 'number' || validBuild(build) === null ||
+      release.file !== `NovaesWeb-Entregador-v${version}-code${build}.apk` ||
+      typeof release.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(release.sha256) ||
+      typeof release.size !== 'number' || !Number.isSafeInteger(release.size) || release.size < 1 || release.size > 100 * 1024 * 1024) throw new Error('Manifesto de atualização incompleto.');
+  if (build <= currentBuild) return null;
+  return { version, build, url: `https://painel-moto-three.vercel.app/downloads/${release.file}`,
+    sha256: release.sha256, size: release.size,
+    id: `hosted:${build}:${release.sha256}`, notes: typeof release.notes === 'string' ? release.notes.slice(0, 180) : '' };
 }
 
 function bounded<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
@@ -89,7 +77,6 @@ class AppUpdates {
   private listeners = new Set<(state: AppUpdateState) => void>();
   private generation = 0;
   private users = 0;
-  private downloadAttempt = 0;
   private pending: Promise<void> | null = null;
   private nextCheckAt = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -163,7 +150,7 @@ class AppUpdates {
         this.state.currentBuild = build; this.state.currentVersion = info.version.slice(0, 40);
         if (this.state.release && this.state.release.build <= build) { this.state.release = null; this.state.dismissed = false; }
         const response = await bounded(CapacitorHttp.request({
-          url: ANDROID_RELEASES_API, method: 'GET', headers: { Accept: 'application/vnd.github+json' },
+          url: ANDROID_RELEASES_API, method: 'GET', headers: { Accept: 'application/json' },
           responseType: 'json', connectTimeout: 10000, readTimeout: 10000, disableRedirects: true,
         }), 12000);
         if (generation !== this.generation) return;
@@ -198,15 +185,9 @@ class AppUpdates {
     if (!this.state.supported) throw new Error('O download de APK está disponível no aplicativo Android.');
     if (!release || release.build <= this.state.currentBuild || !validAndroidDownloadUrl(release.url, release.version, release.build)) throw new Error('Não há uma atualização válida disponível para baixar.');
     try {
-      // Renew GitHub's redirect on every tap; never reuse an expiring CDN URL.
-      // Only our own query is added AFTER strict validation of the official asset.
-      const downloadUrl = new URL(release.url);
-      downloadUrl.searchParams.set('download', '1');
-      downloadUrl.searchParams.set('nw_update', `${Date.now()}-${++this.downloadAttempt}`);
-      const result = await AppLauncher.openUrl({ url: downloadUrl.toString() });
-      if (!result.completed) throw new Error('Download indisponível.');
+      await nativeAppUpdater.start({ ...release });
     } catch {
-      const message = 'Não foi possível abrir o download. Confira sua conexão e tente novamente.';
+      const message = 'Não foi possível iniciar o download no aplicativo. Confira sua conexão e tente novamente.';
       this.state.error = message; this.notify(); throw new Error(message);
     }
   }

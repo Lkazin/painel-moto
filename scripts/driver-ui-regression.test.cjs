@@ -16,7 +16,7 @@ test('Keep official Android version update notice available', () => {
   assert.match(main, /<AppUpdateNotice\s*\/>/);
   assert.match(update, /Nova versão disponível/);
   assert.match(update, /Baixar e atualizar/);
-  assert.match(update, /appUpdates\.openDownload/);
+  assert.match(update, /nativeAppUpdater\.start/);
   assert.match(service, /currentBuild|selectAndroidRelease/);
   assert.match(service, /build\s*<=\s*currentBuild/);
 });

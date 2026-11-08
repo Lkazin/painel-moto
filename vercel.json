@@ -2,6 +2,13 @@
   "buildCommand": "npm run build && node scripts/prepare-web-download.cjs",
   "headers": [
     {
+      "source": "/downloads/latest.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json; charset=utf-8" },
+        { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
+      ]
+    },
+    {
       "source": "/downloads/(.*).apk",
       "headers": [
         { "key": "Content-Type", "value": "application/vnd.android.package-archive" },

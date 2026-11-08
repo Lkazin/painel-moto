@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BellRing, Download, RefreshCw, X } from 'lucide-react';
-import { appUpdates, type AppUpdateState } from '../services/appUpdates';
+import { appUpdates, type AndroidRelease, type AppUpdateState } from '../services/appUpdates';
 import { updateNotifications } from '../services/updateNotifications';
+import { nativeAppUpdater } from '../services/nativeAppUpdater';
 import './AppUpdateNotice.css';
 
 function useUpdates(start: boolean) {
@@ -14,23 +15,75 @@ function useUpdates(start: boolean) {
   return state;
 }
 
-function DownloadUpdate() {
-  const [opening, setOpening] = useState(false);
+function useNativeDownload() {
+  const [state, setState] = useState(() => nativeAppUpdater.getState());
+  useEffect(() => {
+    const unsubscribe = nativeAppUpdater.subscribe(setState);
+    if (nativeAppUpdater.getState().supported) void nativeAppUpdater.refresh().catch(() => { /* O serviço informa a falha no estado. */ });
+    return unsubscribe;
+  }, []);
+  return state;
+}
+
+function DownloadUpdate({ release }: { release: AndroidRelease }) {
+  const state = useNativeDownload();
+  const [acting, setActing] = useState(false);
   const [error, setError] = useState('');
-  async function download() {
-    if (opening) return;
-    setOpening(true); setError('');
-    try { await appUpdates.openDownload(); }
-    catch { setError('Não foi possível abrir o download. Tente novamente.'); }
-    finally { setOpening(false); }
+  const request = useRef(0);
+  const busy = useRef(false);
+  useEffect(() => {
+    setError(''); setActing(false); busy.current = false;
+    return () => { request.current++; };
+  }, [release.version, release.build]);
+  const matches = state.version === release.version && state.build === release.build;
+  const phase = matches ? state.state : 'idle';
+  const downloadingOther = !matches && state.state === 'downloading';
+  const progress = Number.isFinite(state.progress) && state.progress !== null ? Math.min(100, Math.max(0, state.progress)) : null;
+  async function act(install: boolean) {
+    if (busy.current) return;
+    busy.current = true;
+    const revision = ++request.current;
+    setActing(true); setError('');
+    try {
+      if (install) {
+        const downloaded = nativeAppUpdater.getState();
+        if (downloaded.version !== release.version || downloaded.build !== release.build || !['ready', 'permission'].includes(downloaded.state)) throw new Error('O arquivo disponível mudou. Confira a atualização novamente.');
+        await nativeAppUpdater.install();
+      } else {
+        const available = appUpdates.getState().release;
+        if (!available || available.version !== release.version || available.build !== release.build) throw new Error('A versão disponível mudou. Confira a atualização novamente.');
+        await nativeAppUpdater.start(available);
+      }
+    } catch {
+      if (revision === request.current) setError(install ? 'Não foi possível abrir a instalação. Confira a permissão do Android e tente novamente.' : 'Não foi possível iniciar o download no aplicativo. Tente novamente.');
+    } finally {
+      if (revision === request.current) { busy.current = false; setActing(false); }
+    }
   }
-  return <>
-    <button type="button" className="nwa-update-download" disabled={opening} onClick={() => void download()}>
-      <Download size={18} aria-hidden="true" />{opening ? 'Abrindo download…' : 'Baixar e atualizar'}
+  if (!state.supported) return <p className="nwa-update-help">O download interno precisa de uma versão Android com esse recurso instalado. Atualize para essa versão para baixar as próximas atualizações no próprio app.</p>;
+  const canInstall = phase === 'ready' || phase === 'permission';
+  const label = acting ? canInstall ? 'Abrindo confirmação…' : 'Preparando download…'
+    : downloadingOther ? 'Outra atualização em andamento'
+    : phase === 'downloading' ? 'Baixando no aplicativo…'
+    : phase === 'paused' ? 'Retomar download'
+    : phase === 'permission' ? 'Autorizar instalação no Android'
+    : phase === 'ready' ? 'Instalar atualização'
+    : phase === 'failed' ? 'Tentar baixar novamente' : 'Baixar e atualizar';
+  return <div className="nwa-native-download">
+    {(phase === 'downloading' || phase === 'paused') && <div className="nwa-download-progress">
+      <div className="nwa-download-progress-label"><span>{phase === 'paused' ? 'Download pausado' : `Baixando versão ${release.version}`}</span><span aria-hidden="true">{progress === null ? 'Aguarde…' : `${Math.round(progress)}%`}</span></div>
+      <div className={`nwa-download-progress-track${progress === null ? ' is-indeterminate' : ''}`} role="progressbar" aria-label={`Download da versão ${release.version}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress === null ? undefined : Math.round(progress)} aria-valuetext={phase === 'paused' ? progress === null ? 'Download pausado' : `Download pausado em ${Math.round(progress)}%` : progress === null ? 'Download em andamento' : `${Math.round(progress)}% baixado`}><span style={{ width: progress === null ? '35%' : `${progress}%` }} /></div>
+    </div>}
+    {phase === 'ready' && <p className="nwa-download-status" role="status">Download concluído. Toque para abrir a confirmação de instalação do Android.</p>}
+    {phase === 'permission' && <p className="nwa-download-status" role="status">Permita que o NovaesWeb Entregador instale esta atualização nas configurações do Android. Depois volte ao app e toque em instalar. O Android ainda pedirá sua confirmação.</p>}
+    {matches && state.message && <p className={phase === 'failed' ? 'nwa-update-error' : 'nwa-update-help'} role={phase === 'failed' ? 'alert' : 'status'}>{state.message}</p>}
+    {downloadingOther && <p className="nwa-update-help">Outra versão está sendo baixada. O progresso desse arquivo não corresponde à versão {release.version}.</p>}
+    <button type="button" className="nwa-update-download" disabled={acting || phase === 'downloading' || downloadingOther} onClick={() => void act(canInstall)}>
+      <Download size={18} aria-hidden="true" />{label}
     </button>
     {error && <p className="nwa-update-error" role="alert">{error}</p>}
-    <p className="nwa-update-help">Se o navegador mostrar erro 504, volte ao app e toque em “Baixar e atualizar” novamente para renovar o link oficial.</p>
-  </>;
+    <p className="nwa-update-help">Baixa no próprio app, sem abrir navegador. Instale fora de uma entrega; o Android pede sua confirmação para instalar.</p>
+  </div>;
 }
 
 function briefNotes(notes: string) {
@@ -90,7 +143,7 @@ export function AppUpdateNotice() {
     </div>
     {briefNotes(state.release.notes) && <p className="nwa-update-notes">{briefNotes(state.release.notes)}</p>}
     <p className="nwa-update-help">Conclua suas entregas antes de instalar. O Android pedirá sua confirmação.</p>
-    <div className="nwa-update-actions"><DownloadUpdate /><button type="button" className="nwa-update-later" onClick={() => appUpdates.dismiss()}>Agora não</button></div>
+    <div className="nwa-update-actions"><DownloadUpdate release={state.release} /><button type="button" className="nwa-update-later" onClick={() => appUpdates.dismiss()}>Agora não</button></div>
   </aside>;
 }
 
@@ -103,7 +156,7 @@ export function AppUpdateSettings() {
     <label className="nwa-update-toggle"><span>Verificar novas versões automaticamente<small>Consulta periódica, conforme conexão e disponibilidade</small></span><input type="checkbox" checked={state.automatic} onChange={event => appUpdates.setAutomatic(event.target.checked)} /></label>
     <p className="nwa-update-help">O app mostra um aviso quando encontra uma versão nova. Toque em baixar e confirme a instalação no Android.</p>
     <button type="button" className="nwa-update-check" disabled={state.checking} onClick={() => void appUpdates.check(true)}><RefreshCw size={17} aria-hidden="true" />{state.checking ? 'Verificando…' : 'Verificar atualização'}</button>
-    {state.release ? <div className="nwa-update-available"><p>Versão {state.release.version} disponível para baixar.</p><DownloadUpdate /><p className="nwa-update-help">Instale fora de uma entrega. Seus dados continuam na sua conta.</p></div>
+    {state.release ? <div className="nwa-update-available"><p>Versão {state.release.version} disponível para baixar.</p><DownloadUpdate release={state.release} /><p className="nwa-update-help">Instale fora de uma entrega. Seus dados continuam na sua conta.</p></div>
       : !state.checking && !state.error && state.checkedAt && <p className="nwa-update-help" role="status">Nenhuma atualização publicada disponível para este aplicativo.</p>}
     {state.error && <p className="nwa-update-error" role="status">Não foi possível verificar agora. Tente novamente quando houver conexão.</p>}
     <CellularUpdateSettings automatic={state.automatic} />

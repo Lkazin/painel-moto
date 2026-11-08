@@ -20,6 +20,16 @@
 .nwa-update-check { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--border-strong, #b38bbf); background: var(--bg-card, #2a0a3d); color: var(--text-main, #fff); }
 .nwa-update-later { border: 1px solid var(--border-strong, #b38bbf); background: transparent; color: inherit; }
 .nwa-update-download:disabled, .nwa-update-check:disabled { cursor: wait; opacity: .6; }
+.nwa-native-download { flex: 1 1 240px; min-width: 0; display: grid; gap: 8px; }
+.nwa-native-download .nwa-update-download { width: 100%; min-height: 48px; white-space: normal; line-height: 1.5; }
+.nwa-native-download .nwa-update-help, .nwa-native-download .nwa-update-error { margin: 0; overflow-wrap: anywhere; }
+.nwa-download-progress { display: grid; gap: 7px; padding: 10px 0 3px; }
+.nwa-download-progress-label { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 750; line-height: 1.5; }
+.nwa-download-progress-label > span:last-child { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.nwa-download-progress-track { height: 8px; background: var(--bg-elevated, #3a0e54); border: 1px solid var(--border-subtle, #b38bbf); border-radius: 8px; overflow: hidden; }
+.nwa-download-progress-track > span { display: block; height: 100%; background: var(--nw-pink, #ff2e9a); border-radius: inherit; transition: width 180ms ease; }
+.nwa-download-progress-track.is-indeterminate > span { background: var(--nw-purple, #8b2fe8); opacity: .8; }
+.nwa-download-status { font-size: 12px; color: var(--text-main, #fff); line-height: 1.6; margin: 0; }
 .nwa-update-settings { padding: 16px; border: 1px solid var(--border-strong, #b38bbf); border-radius: 18px; background: var(--bg-card, #2a0a3d); }
 .nwa-update-settings h3 { margin: 0; font-size: 15px; }
 .nwa-update-available { margin-top: 12px; }
@@ -41,4 +51,6 @@
 @keyframes nwa-update-enter { from { opacity: .3; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .nwa-update-banner { animation: none; } }
 [data-reduced-motion='true'] .nwa-update-banner { animation: none; }
+@media (prefers-reduced-motion: reduce) { .nwa-download-progress-track > span { transition: none; } }
+[data-reduced-motion='true'] .nwa-download-progress-track > span { transition: none; }
 @media (max-width: 350px) { .nwa-update-banner { padding: 12px; } .nwa-update-heading strong { font-size: 14px; } .nwa-update-actions { gap: 7px; } .nwa-update-download,.nwa-update-later { padding: 10px 12px; } }

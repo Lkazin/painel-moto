@@ -79,13 +79,27 @@ SHA256: ${sha256}
 
 Esta é uma versão de teste assinada com a chave Android Debug deste computador. A atualização por cima da versão anterior exige o mesmo identificador e a mesma assinatura. Confira a assinatura com apksigner antes de distribuir; não troque a chave nem desinstale o aplicativo para forçar uma atualização.
 
-Quem instalou a versão 1.0 precisa instalar esta versão manualmente uma vez, porque a versão 1.0 não contém o verificador de atualizações. As próximas notificações dependem de uma GitHub Release pública real, marcada como versão final, com tag e APK no padrão acima. Gerar estes arquivos localmente não publica a versão.
+Instale esta versão uma vez para habilitar o download interno. As próximas atualizações dependem do APK e de downloads/latest.json publicados juntos no site oficial do aplicativo. O comando android:release-files prepara automaticamente esses arquivos em release-downloads; inclua-os no commit de publicação. O GitHub pode manter uma cópia adicional, mas não é usado para baixar dentro do app. Gerar os arquivos localmente não publica a versão.
 
 O download é iniciado pelo usuário e a instalação é confirmada pelo Android. Não há instalação silenciosa nem acesso a contatos, senhas ou dados de outros aplicativos.
 `;
   fs.writeFileSync(path.join(releaseDirectory,'release-notes.md'),notes);
   fs.writeFileSync(path.join(releaseDirectory,config.assetName+'.sha256'),`${sha256}  ${config.assetName}\n`);
+  prepareHostedRelease(root, config, apk, sha256);
   return {...config,sha256,apkBytes:apk.length,target};
 }
+function prepareHostedRelease(root, config, apk, sha256) {
+  const expectedName = `NovaesWeb-Entregador-v${config.versionName}-code${config.versionCode}.apk`;
+  if (!/^\d+\.\d+\.\d+$/.test(config.versionName) || !Number.isSafeInteger(config.versionCode) || config.versionCode < 1 || config.assetName !== expectedName || crypto.createHash('sha256').update(apk).digest('hex') !== sha256) throw new Error('Distribuição interna inválida.');
+  const directory = path.join(root, 'release-downloads');
+  fs.mkdirSync(directory, { recursive: true });
+  const target = path.join(directory, expectedName);
+  if (fs.existsSync(target) && crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex') !== sha256) throw new Error('Não substitua um APK já preparado mantendo a mesma versão.');
+  const metadataPath = path.join(directory, 'release.json');
+  if (fs.existsSync(metadataPath) && JSON.parse(fs.readFileSync(metadataPath, 'utf8')).build > config.versionCode) throw new Error('Uma versão mais nova já está preparada. Não rebaixe o manifesto.');
+  fs.writeFileSync(target, apk);
+  fs.writeFileSync(metadataPath, JSON.stringify({ version: config.versionName, build: config.versionCode, file: expectedName, sha256,
+    notes: `NovaesWeb Entregador ${config.versionName}. Melhorias e correções. Conclua suas entregas antes de instalar.` }, null, 2) + '\n');
+}
 if (require.main === module) console.log(JSON.stringify(prepareRelease(),null,2));
-module.exports = {readReleaseConfig,validateBuiltMetadata,validateApkBadging,prepareRelease};
+module.exports = {readReleaseConfig,validateBuiltMetadata,validateApkBadging,prepareRelease,prepareHostedRelease};

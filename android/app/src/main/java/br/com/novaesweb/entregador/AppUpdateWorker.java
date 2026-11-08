@@ -15,7 +15,6 @@ import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
-import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -23,11 +22,7 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.text.ParsePosition;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.Locale;
-import java.util.TimeZone;
 
 /** Public release metadata only. Never shares account, store, GPS or installation credentials. */
 public class AppUpdateWorker extends Worker {
@@ -35,8 +30,10 @@ public class AppUpdateWorker extends Worker {
     static final String WORK = "novaesweb-app-update-check-v1";
     static final int NOTIFICATION_ID = 71021;
     private static final String PACKAGE = "br.com.novaesweb.entregador";
-    private static final String API = "https://api.github.com/repos/Lkazin/painel-moto/releases?per_page=10";
-    private static final int MAX_BYTES = 1024 * 1024;
+    static final String UPDATE_ORIGIN = "https://painel-moto-three.vercel.app";
+    static final String MANIFEST = UPDATE_ORIGIN + "/downloads/latest.json";
+    private static final int MAX_BYTES = 64 * 1024;
+    static final long MAX_APK_BYTES = 100L * 1024 * 1024;
     static final Object LOCK = new Object();
 
     public AppUpdateWorker(@NonNull Context context, @NonNull WorkerParameters params) { super(context, params); }
@@ -74,69 +71,49 @@ public class AppUpdateWorker extends Worker {
         catch (Exception ignored) { }
     }
     static boolean validDownload(String value, String version, long build) {
-        if (value == null || version == null || !version.matches("(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)") || build <= 0 || build > Integer.MAX_VALUE || !value.equals(value.trim()) || value.matches("(?s).*[\\x00-\\x20\\x7f].*")) return false;
+        if (value == null || version == null || version.length() > 64 || !version.matches("(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)") || build <= 0 || build > Integer.MAX_VALUE || !value.equals(value.trim()) || value.matches("(?s).*[\\x00-\\x20\\x7f].*")) return false;
         try {
             URI uri = new URI(value);
-            String expected = "/Lkazin/painel-moto/releases/download/android-v" + version + "/NovaesWeb-Entregador-v" + version + "-code" + build + ".apk";
-            return "https".equals(uri.getScheme()) && "github.com".equals(uri.getRawAuthority()) && uri.getRawUserInfo() == null
+            String expected = "/downloads/NovaesWeb-Entregador-v" + version + "-code" + build + ".apk";
+            return "https".equals(uri.getScheme()) && "painel-moto-three.vercel.app".equals(uri.getRawAuthority()) && uri.getRawUserInfo() == null
                 && uri.getRawQuery() == null && uri.getRawFragment() == null && expected.equals(uri.getRawPath());
         } catch (Exception ignored) { return false; }
     }
-    /** Called at user tap time only; never persist a signed CDN URL or a generated query. */
-    static String freshDownloadUrl(String canonical, String version, long build, long installed, long now) {
-        if (installed <= 0 || build <= installed || now <= 0 || !validDownload(canonical, version, build)) return null;
-        return canonical + "?download=1&nw_update=" + now;
-    }
     static final class Release {
-        final String version, url, id;
-        final long build;
-        Release(String version, long build, String url, String id) { this.version = version; this.build = build; this.url = url; this.id = id; }
+        final String version, url, id, sha256;
+        final long build, size;
+        Release(String version, long build, String url, String id) { this(version, build, url, id, null, 0); }
+        Release(String version, long build, String url, String id, String sha256, long size) {
+            this.version = version; this.build = build; this.url = url; this.id = id; this.sha256 = sha256; this.size = size;
+        }
     }
     static boolean validReleaseId(String id, long build) {
-        return id != null && id.length() < 100 && id.matches("[1-9]\\d*:[1-9]\\d*:" + build);
+        return id != null && build > 0 && build <= Integer.MAX_VALUE && id.matches("hosted:" + build + ":[a-f0-9]{64}");
     }
     private static long positiveInteger(Object value) {
-        String text = String.valueOf(value);
-        if (!text.matches("[1-9]\\d*")) return -1;
-        try { long result = Long.parseLong(text); return result <= 9007199254740991L ? result : -1; }
-        catch (NumberFormatException ignored) { return -1; }
+        if (!(value instanceof Number)) return -1;
+        double number = ((Number) value).doubleValue();
+        if (Double.isNaN(number) || Double.isInfinite(number) || number <= 0 || number > 9007199254740991L || number != Math.rint(number)) return -1;
+        return ((Number) value).longValue();
     }
-    private static boolean validPublishedAt(String value, long now) {
-        if (!value.matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z")) return false;
-        SimpleDateFormat format = new SimpleDateFormat(value.contains(".") ? "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" : "yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US);
-        format.setTimeZone(TimeZone.getTimeZone("UTC")); format.setLenient(false);
-        ParsePosition position = new ParsePosition(0);
-        Date parsed = format.parse(value, position);
-        return parsed != null && position.getIndex() == value.length() && parsed.getTime() <= now + 300000;
+    static Release selectHostedRelease(JSONObject manifest, long installed) {
+        if (manifest == null) return null;
+        return selectHostedReleaseValues(manifest.opt("version"), manifest.opt("build"), manifest.opt("file"), manifest.opt("sha256"), manifest.opt("size"), installed);
     }
-    static Release selectRelease(JSONArray releases, long installed, long now) {
-        Release best = null;
-        for (int i = 0; i < Math.min(10, releases.length()); i++) {
-            JSONObject release = releases.optJSONObject(i);
-            if (release == null || !Boolean.FALSE.equals(release.opt("draft")) || !Boolean.FALSE.equals(release.opt("prerelease"))) continue;
-            String tag = release.optString("tag_name", "");
-            if (!tag.matches("android-v(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)")) continue;
-            long releaseId = positiveInteger(release.opt("id"));
-            if (releaseId <= 0) continue;
-            if (!validPublishedAt(release.optString("published_at", ""), now)) continue;
-            String version = tag.substring(9);
-            JSONArray assets = release.optJSONArray("assets");
-            if (assets == null) continue;
-            for (int j = 0; j < Math.min(30, assets.length()); j++) {
-                JSONObject asset = assets.optJSONObject(j);
-                if (asset == null || !"uploaded".equals(asset.optString("state"))) continue;
-                long assetId = positiveInteger(asset.opt("id"));
-                if (assetId <= 0 || positiveInteger(asset.opt("size")) <= 0) continue;
-                String name = asset.optString("name", "");
-                String prefix = "NovaesWeb-Entregador-v" + version + "-code";
-                if (!name.startsWith(prefix) || !name.endsWith(".apk")) continue;
-                long build = positiveInteger(name.substring(prefix.length(), name.length() - 4));
-                String url = asset.optString("browser_download_url", "");
-                if (build <= installed || (best != null && build <= best.build) || !validDownload(url, version, build)) continue;
-                best = new Release(version, build, url, releaseId + ":" + assetId + ":" + build);
-            }
-        }
-        return best;
+    /** Pure validator shared with the JSON selector, including untrusted value types. */
+    static Release selectHostedReleaseValues(Object rawVersion, Object rawBuild, Object rawFile, Object rawSha, Object rawSize, long installed) {
+        if (installed <= 0 || installed > Integer.MAX_VALUE) return null;
+        if (!(rawVersion instanceof String) || !(rawFile instanceof String) || !(rawSha instanceof String)) return null;
+        long build = positiveInteger(rawBuild);
+        long size = positiveInteger(rawSize);
+        String version = (String) rawVersion, file = (String) rawFile, sha256 = (String) rawSha;
+        if (build <= installed || build > Integer.MAX_VALUE || size <= 0 || size > MAX_APK_BYTES || !sha256.matches("[a-fA-F0-9]{64}")) return null;
+        String expected = "NovaesWeb-Entregador-v" + version + "-code" + build + ".apk";
+        if (!expected.equals(file)) return null;
+        String url = UPDATE_ORIGIN + "/downloads/" + file;
+        if (!validDownload(url, version, build)) return null;
+        sha256 = sha256.toLowerCase(Locale.ROOT);
+        return new Release(version, build, url, "hosted:" + build + ":" + sha256, sha256, size);
     }
     /** Shared by the foreground bridge and worker; mark dedup only after notify succeeds. */
     static String notifyRelease(Context context, Release release) {
@@ -170,14 +147,15 @@ public class AppUpdateWorker extends Worker {
             catch (Exception ignored) { return "unavailable"; }
         }
     }
-    private JSONArray fetchReleases() throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(API).openConnection();
+    private JSONObject fetchManifest() throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL(MANIFEST).openConnection();
         connection.setInstanceFollowRedirects(false);
         connection.setConnectTimeout(10000); connection.setReadTimeout(10000);
         connection.setRequestMethod("GET"); connection.setUseCaches(false);
-        connection.setRequestProperty("Accept", "application/vnd.github+json");
+        connection.setRequestProperty("Accept", "application/json");
         connection.setRequestProperty("User-Agent", "NovaesWeb-Entregador-UpdateChecker");
         connection.setRequestProperty("Cookie", "");
+        connection.setRequestProperty("Authorization", "");
         try {
             if (connection.getResponseCode() != 200) throw new java.io.IOException("Release check unavailable");
             if (connection.getContentLengthLong() > MAX_BYTES) throw new java.io.IOException("Response too large");
@@ -188,7 +166,7 @@ public class AppUpdateWorker extends Worker {
                     if (isStopped() || bytes.size() + read > MAX_BYTES || android.os.SystemClock.elapsedRealtime() > deadline) throw new java.io.IOException("Release check interrupted");
                     bytes.write(buffer, 0, read);
                 }
-                return new JSONArray(bytes.toString(StandardCharsets.UTF_8.name()));
+                return new JSONObject(bytes.toString(StandardCharsets.UTF_8.name()));
             }
         } finally { connection.disconnect(); }
     }
@@ -199,7 +177,7 @@ public class AppUpdateWorker extends Worker {
         ensureChannel(context);
         if (!channelEnabled(context)) return Result.success();
         try {
-            Release release = selectRelease(fetchReleases(), currentBuild(context), System.currentTimeMillis());
+            Release release = selectHostedRelease(fetchManifest(), currentBuild(context));
             if (!isStopped() && release != null) notifyRelease(context, release);
             return Result.success();
         } catch (Exception ignored) {
