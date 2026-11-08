@@ -1,4 +1,5 @@
 :root { --text-primary: var(--text-main); }
+.app-container { padding-bottom:calc(var(--bottom-nav-offset, 84px) + 12px); }
 button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible { outline:3px solid var(--nw-pink); outline-offset:4px; }
 button { transition:transform 130ms ease,background-color 160ms ease,border-color 160ms ease; }
 button:not(:disabled):active { transform:scale(.98); }

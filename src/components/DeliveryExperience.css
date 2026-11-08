@@ -44,7 +44,7 @@
 .de-warning-copy { color:var(--text-main); font-size:13px; line-height:1.5; }
 .de-wait .btn-glove { min-height:52px; height:auto; padding:12px; font-size:13px; }
 .de-problem { color:var(--text-muted); }
-.de-dock { position:fixed; z-index:45; bottom:calc(var(--nav-height, 74px) + env(safe-area-inset-bottom, 0px) + 10px); left:50%; transform:translateX(-50%); width:min(calc(100% - 24px), 516px); padding:9px; display:grid; grid-template-columns:64px 64px minmax(0,1fr); gap:7px; border:1px solid var(--border-strong); border-radius:22px; background:var(--bg-surface); box-shadow:0 10px 30px rgba(0,0,0,.22); }
+.de-dock { position:fixed; z-index:45; bottom:calc(var(--bottom-nav-offset, 84px) + 10px); left:50%; transform:translateX(-50%); width:min(calc(100% - 24px), 516px); padding:9px; display:grid; grid-template-columns:64px 64px minmax(0,1fr); gap:7px; border:1px solid var(--border-strong); border-radius:22px; background:var(--bg-surface); box-shadow:0 10px 30px rgba(0,0,0,.22); }
 @supports (backdrop-filter:blur(12px)) { .de-dock { background:color-mix(in srgb,var(--bg-surface) 95%,transparent); backdrop-filter:blur(12px); } }
 .de-dock button { min-width:0; min-height:64px; border:0; border-radius:15px; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:5px; background:var(--bg-card); color:var(--text-main); font:inherit; font-size:10px; font-weight:800; cursor:pointer; }
 .de-dock button:disabled { opacity:.5; cursor:not-allowed; }

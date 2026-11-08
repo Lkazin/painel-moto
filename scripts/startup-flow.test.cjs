@@ -148,7 +148,7 @@ test('navigation and foreground return do not restart splash or opening audio',a
   const h=await harness({account:accountFixture});t.after(h.unmount);
   await h.validate();await h.advance(3000);assert(h.has('ScreenDashboard'));
   const starts=h.calls.audioStarts;
-  h.click('Histórico');await h.settle();assert(h.has('ScreenHistory'));assert(!h.has('StartupSplash'));
+  h.component('GlassBottomNav').props.onNavigate('history');await h.settle();assert(h.has('ScreenHistory'));assert(!h.has('StartupSplash'));
   h.nextSync(async()=>({account:accountFixture,session:sessionFixture}));await h.emit('focus');
   assert(h.has('ScreenHistory'));assert(!h.has('StartupSplash'));assert.equal(h.calls.audioStarts,starts);
 });

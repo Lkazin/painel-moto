@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { ConnectionIsland } from './components/ConnectionIsland';
+import { GlassBottomNav } from './components/GlassBottomNav';
 import { useExperiencePreferences } from './services/experiencePreferences';
 import { transitionDelivery } from './utils/viewTransition';
 import { deliveryTrackingDecision } from './services/deliveryTrackingLifecycle';
@@ -867,62 +868,15 @@ export const App: React.FC = () => {
       {/* Toast Notifier Flutuante */}
       <InAppNotice />
 
-      {/* Navegação Inferior Fixa (Polegar / Luva) */}
-      <nav className="bottom-nav">
-        <button
-          onClick={() => {
-            audioAlert.playClickSound();
-            setActiveDelivery(null);
-            setPinTarget(null);
-            setActiveTab('dashboard');
-          }}
-          className={`nav-item ${activeTab === 'dashboard' && !activeDelivery && !pinTarget ? 'active' : ''}`}
-        >
-          <Home size={22} />
-          <span>Início</span>
-        </button>
-
-        <button
-          onClick={() => {
-            audioAlert.playClickSound();
-            setActiveDelivery(null);
-            setPinTarget(null);
-            setActiveTab('orders');
-          }}
-          className={`nav-item ${activeTab === 'orders' && !activeDelivery && !pinTarget ? 'active' : ''}`}
-        >
-          <Package size={22} />
-          <span>Pedidos</span>
-          {waitingPickupCount > 0 && <span className="nav-badge">{waitingPickupCount}</span>}
-        </button>
-
-        <button
-          onClick={() => {
-            audioAlert.playClickSound();
-            setActiveDelivery(null);
-            setPinTarget(null);
-            setActiveTab('route');
-          }}
-          className={`nav-item ${(activeTab === 'route' || activeDelivery || pinTarget) ? 'active' : ''}`}
-        >
-          <Navigation size={22} />
-          <span>Minha Rota</span>
-          {activeDeliveries.length > 0 && <span className="nav-badge">{activeDeliveries.length}</span>}
-        </button>
-
-        <button
-          onClick={() => {
-            audioAlert.playClickSound();
-            setActiveDelivery(null);
-            setPinTarget(null);
-            setActiveTab('history');
-          }}
-          className={`nav-item ${activeTab === 'history' && !activeDelivery && !pinTarget ? 'active' : ''}`}
-        >
-          <History size={22} />
-          <span>Histórico</span>
-        </button>
-      </nav>
+      <GlassBottomNav
+        active={activeDelivery || pinTarget ? 'route' : activeTab}
+        waitingCount={waitingPickupCount}
+        routeCount={activeDeliveries.length}
+        onNavigate={tab => {
+          audioAlert.playClickSound();
+          setActiveDelivery(null); setPinTarget(null); setActiveTab(tab);
+        }}
+      />
     </div>
   );
 };

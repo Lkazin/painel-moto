@@ -13,13 +13,14 @@ const compiledSource=(async()=>{
   return result.code+';Object.assign(exports,{AppUpdateNotice,AppUpdateSettings});';
 })();
 const publishedRelease = {version:'1.2.0',build:3,id:'release:asset:3',url:'https://github.com/Lkazin/painel-moto/releases/download/android-v1.2.0/NovaesWeb-Entregador-v1.2.0-code3.apk',notes:'Correções e melhorias.'};
-const initialState = {supported:true,checking:false,currentVersion:'1.1.0',currentBuild:2,release:publishedRelease,dismissed:false,error:null,checkedAt:1730000000000};
+const initialState = {supported:true,checking:false,currentVersion:'1.1.0',currentBuild:2,release:publishedRelease,dismissed:false,error:null,checkedAt:1730000000000,automatic:true};
+const initialNotify = {supported:true,enabled:true,permission:'prompt',channelEnabled:null,busy:false,error:null};
 const text = node => node == null || typeof node === 'boolean' ? '' : Array.isArray(node) ? node.map(text).join('') : typeof node === 'object' ? text(node.props?.children) : String(node);
 const nodes = node => !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node,...nodes(node.props?.children)];
 
-async function harness(exportName='AppUpdateNotice', stateUpdate={}) {
-  let state={...initialState,...stateUpdate},view,active,dirty=false,mounted=false;
-  const instances=new Map(),effects=[],listeners=new Set(),calls={starts:0,stops:0,unsubscribes:0,downloads:0,dismisses:0,checks:[]};
+async function harness(exportName='AppUpdateNotice', stateUpdate={}, notifyUpdate={}) {
+  let state={...initialState,...stateUpdate},notifyState={...initialNotify,...notifyUpdate},view,active,dirty=false,mounted=false;
+  const instances=new Map(),effects=[],listeners=new Set(),notifyListeners=new Set(),calls={starts:0,stops:0,unsubscribes:0,downloads:0,dismisses:0,checks:[],automatic:[],notificationEnables:[],notificationRefreshes:0};
   let nextDownload=()=>Promise.resolve();
   const changed=(previous,deps)=>!previous||deps.some((value,index)=>value!==previous.deps[index]);
   const hooks={
@@ -33,16 +34,26 @@ async function harness(exportName='AppUpdateNotice', stateUpdate={}) {
     async check(force){calls.checks.push(force);},
     dismiss(){calls.dismisses++;emit({dismissed:true});},
     openDownload(){calls.downloads++;return nextDownload();},
+    setAutomatic(value){calls.automatic.push(value);emit({automatic:value});},
+  };
+  function emitNotify(update){notifyState={...notifyState,...update};for(const listener of notifyListeners)listener({...notifyState});}
+  let nextNotificationEnable=async value=>{emitNotify({enabled:value});};
+  const updateNotifications={
+    getState:()=>({...notifyState}),
+    subscribe(listener){notifyListeners.add(listener);listener({...notifyState});return ()=>notifyListeners.delete(listener);},
+    async refresh(){calls.notificationRefreshes++;},
+    setEnabled(value){calls.notificationEnables.push(value);return nextNotificationEnable(value);},
   };
   const jsx=(type,props)=>({type,props:props||{}}),context={exports:{},require(id){
     if(id==='react')return hooks;
     if(id==='react/jsx-runtime')return {jsx,jsxs:jsx,Fragment:'fragment'};
     if(id==='lucide-react')return new Proxy({}, {get:()=>()=>null});
     if(id==='../services/appUpdates')return {appUpdates};
+    if(id==='../services/updateNotifications')return {updateNotifications};
     if(id.endsWith('.css'))return {};
     throw Error(`Unexpected dependency in update UI: ${id}`);
   }};
-  Object.assign(context,hooks,{appUpdates,React:{createElement:(type,props,...children)=>jsx(type,{...props,children}),Fragment:'fragment'},Download:()=>null,RefreshCw:()=>null,X:()=>null});
+  Object.assign(context,hooks,{appUpdates,updateNotifications,React:{createElement:(type,props,...children)=>jsx(type,{...props,children}),Fragment:'fragment'},Download:()=>null,RefreshCw:()=>null,X:()=>null,BellRing:()=>null});
   vm.runInNewContext(await compiledSource,context);
   const component=context.exports[exportName];
   function expand(node,path,visited){
@@ -67,12 +78,17 @@ async function harness(exportName='AppUpdateNotice', stateUpdate={}) {
     throw Error('Update UI did not settle after effect/state processing.');
   }
   const h={calls,emit(update){emit(update);return render();},render,content:()=>text(view),nodes:()=>nodes(view),
+    emitNotify(update){emitNotify(update);return render();},
     button(label){const found=nodes(view).find(node=>node.type==='button'&&(node.props['aria-label']===label||text(node)===label));assert.ok(found,`Button '${label}' exists`);return found;},
     async click(label){const button=h.button(label);assert.ok(!button.props.disabled,`Button '${label}' is enabled`);button.props.onClick();render();await new Promise(setImmediate);return render();},
     async settle(){await new Promise(setImmediate);if(mounted)return render();},
     failDownload(){nextDownload=()=>Promise.reject(Error('Browser unavailable'));},
     pendingDownload(promise){nextDownload=()=>promise;},
+    failNotificationEnable(){nextNotificationEnable=()=>Promise.reject(Error('Permission unavailable'));},
+    checkbox(label){const found=nodes(view).find(node=>node.type==='label'&&text(node).includes(label));assert.ok(found,`Label '${label}' exists`);return nodes(found).find(node=>node.type==='input'&&node.props.type==='checkbox');},
+    async change(label,checked){const input=h.checkbox(label);assert.ok(!input.props.disabled);input.props.onChange({target:{checked}});render();await new Promise(setImmediate);return render();},
     listenerCount:()=>listeners.size,
+    notificationListenerCount:()=>notifyListeners.size,
     unmount(){mounted=false;for(const instance of instances.values())instance.slots.forEach(slot=>slot?.cleanup?.());instances.clear();effects.length=0;},
   };
   render();return h;
@@ -120,4 +136,66 @@ test('mount cleanup and strict replay own exactly one active subscription and li
   h.unmount();assert.equal(h.listenerCount(),0);assert.equal(h.calls.stops,1);assert.equal(h.calls.unsubscribes,1);
   h.render();assert.equal(h.listenerCount(),1);assert.equal(h.calls.starts-h.calls.stops,1);
   h.unmount();assert.equal(h.listenerCount(),0);assert.equal(h.calls.starts,h.calls.stops);
+});
+
+test('aviso compacto inclui notas sem cabeçalho Markdown e não abre permissão Android ao montar',async t=>{
+  const h=await harness('AppUpdateNotice',{release:{...publishedRelease,notes:'# Novidades **Melhorias** em [pedidos](https://example.test).'}});t.after(h.unmount);
+  assert.match(h.content(),/Novidades Melhorias em pedidos\./);
+  assert.doesNotMatch(h.content(),/# Novidades|\*\*|https:\/\/example/);
+  assert.equal(h.calls.notificationRefreshes,0);
+  assert.deepEqual(h.calls.notificationEnables,[]);
+  assert.equal(h.notificationListenerCount(),0);
+  const css=fs.readFileSync('src/components/AppUpdateNotice.css','utf8');
+  assert.match(css,/safe-area-inset-top/);
+  assert.doesNotMatch(css,/position:\s*fixed|bottom:\s*calc\(84px/);
+});
+
+test('configurações só consultam permissão; solicitar aviso exige toque explícito',async t=>{
+  const h=await harness('AppUpdateSettings');t.after(h.unmount);
+  assert.equal(h.calls.notificationRefreshes,1);
+  assert.deepEqual(h.calls.notificationEnables,[]);
+  assert.equal(h.notificationListenerCount(),1);
+  assert.match(h.content(),/Falta permitir/);
+  await h.click('Permitir aviso no celular');
+  assert.deepEqual(h.calls.notificationEnables,[true]);
+  h.emitNotify({permission:'granted',channelEnabled:true});
+  assert.match(h.content(),/Permissão e canal de atualização habilitados/);
+  await h.change('Notificar sobre novas versões',false);
+  assert.deepEqual(h.calls.notificationEnables,[true,false]);
+  assert.match(h.content(),/Aviso no celular desativado/);
+  h.unmount();assert.equal(h.notificationListenerCount(),0);
+});
+
+test('permissão negada ou canal bloqueado orientam Android e conferem sem pedir permissão',async t=>{
+  const h=await harness('AppUpdateSettings',{}, {permission:'denied',channelEnabled:false});t.after(h.unmount);
+  assert.match(h.content(),/Configurações → Aplicativos → NovaesWeb Entregador → Notificações/);
+  await h.click('Verificar permissão');
+  assert.equal(h.calls.notificationRefreshes,2);
+  assert.deepEqual(h.calls.notificationEnables,[]);
+  h.emitNotify({permission:'granted',channelEnabled:false});
+  assert.match(h.content(),/Aviso bloqueado/);
+});
+
+test('aviso no celular não força verificação automática e mostra limitações e privacidade',async t=>{
+  const h=await harness('AppUpdateSettings',{automatic:false},{permission:'granted',channelEnabled:null});t.after(h.unmount);
+  assert.match(h.content(),/verificação automática está desligada/);
+  assert.match(h.content(),/canal de atualização ainda precisa ser conferido/);
+  assert.match(h.content(),/mesmo com o app fechado/);
+  assert.match(h.content(),/restrições de bateria/);
+  assert.match(h.content(),/Não envia dados da sua conta/);
+  assert.deepEqual(h.calls.automatic,[]);
+  await h.change('Verificar novas versões automaticamente',true);
+  assert.deepEqual(h.calls.automatic,[true]);
+  assert.doesNotMatch(h.content(),/verificação automática está desligada/);
+});
+
+test('recurso indisponível fica desabilitado e falha de ativação permanece recuperável',async t=>{
+  const unavailable=await harness('AppUpdateSettings',{}, {supported:false,permission:'unavailable'});t.after(unavailable.unmount);
+  assert.equal(unavailable.checkbox('Notificar sobre novas versões').props.disabled,true);
+  assert.match(unavailable.content(),/Versões antigas não recebem esse recurso/);
+  const failed=await harness('AppUpdateSettings');t.after(failed.unmount);
+  failed.failNotificationEnable();await failed.click('Permitir aviso no celular');
+  assert.match(failed.content(),/Não foi possível configurar o aviso/);
+  assert.ok(failed.button('Permitir aviso no celular'));
+  failed.emitNotify({busy:true});assert.equal(failed.button('Permitir aviso no celular').props.disabled,true);
 });
