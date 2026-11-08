@@ -1,0 +1,15 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const root = path.resolve(__dirname, '..');
+const source = path.join(root, 'release-downloads');
+const metadata = JSON.parse(fs.readFileSync(path.join(source, 'release.json'), 'utf8'));
+const expectedName = `NovaesWeb-Entregador-v${metadata.version}-code${metadata.build}.apk`;
+if (!/^\d+\.\d+\.\d+$/.test(metadata.version) || !Number.isSafeInteger(metadata.build) || metadata.build < 1 || metadata.file !== expectedName || !/^[a-f0-9]{64}$/.test(metadata.sha256)) throw new Error('Metadados de distribuição inválidos.');
+const apk = fs.readFileSync(path.join(source, expectedName));
+if (apk.length < 4 || apk.readUInt32LE(0) !== 0x04034b50 || crypto.createHash('sha256').update(apk).digest('hex') !== metadata.sha256) throw new Error('APK diferente do arquivo oficial verificado.');
+const target = path.join(root, 'dist', 'downloads');
+fs.mkdirSync(target, { recursive: true });
+fs.writeFileSync(path.join(target, expectedName), apk);
+fs.writeFileSync(path.join(target, expectedName + '.sha256'), `${metadata.sha256}  ${expectedName}\n`);
+console.log(`Download estático preparado: ${expectedName} (${apk.length} bytes, SHA256 verificado).`);
