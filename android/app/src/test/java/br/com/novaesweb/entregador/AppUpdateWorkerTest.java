@@ -46,6 +46,22 @@ public class AppUpdateWorkerTest {
         assertFalse(AppUpdateWorker.validReleaseId(null, 20));
     }
 
+    @Test public void freshDownloadIsGeneratedFromCanonicalAtTapAndRejectsInstalledBuild() {
+        String first = AppUpdateWorker.freshDownloadUrl(URL, "1.2.3", 20, 19, 1000);
+        String later = AppUpdateWorker.freshDownloadUrl(URL, "1.2.3", 20, 19, 2000);
+        assertEquals(URL + "?download=1&nw_update=1000", first);
+        assertEquals(URL + "?download=1&nw_update=2000", later);
+        assertNotEquals(first, later);
+        // Generated queries are never accepted as canonical input on another tap.
+        assertNull(AppUpdateWorker.freshDownloadUrl(first, "1.2.3", 20, 19, 3000));
+        assertNull(AppUpdateWorker.freshDownloadUrl(URL, "1.2.3", 20, 20, 3000));
+        assertNull(AppUpdateWorker.freshDownloadUrl(URL, "1.2.3", 20, 21, 3000));
+        assertNull(AppUpdateWorker.freshDownloadUrl(URL, "1.2.3", 20, 0, 3000));
+        assertNull(AppUpdateWorker.freshDownloadUrl(URL, "1.2.3", 20, 19, 0));
+        assertNull(AppUpdateWorker.freshDownloadUrl(URL.replace("github.com", "evil.test"), "1.2.3", 20, 19, 3000));
+        assertFalse(AppUpdateWorker.validDownload(first, "1.2.3", 20));
+    }
+
     private boolean published(String value, long now) throws Exception {
         Method validator = AppUpdateWorker.class.getDeclaredMethod("validPublishedAt", String.class, long.class);
         validator.setAccessible(true);

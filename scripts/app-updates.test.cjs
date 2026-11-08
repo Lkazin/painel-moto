@@ -92,7 +92,18 @@ test('dismissal stores only release identity and expires after 24 hours; another
 });
 test('native launch uses only the checked real asset URL and caller snapshots cannot modify it',async()=>{
  const h=harness();await h.appUpdates.check(true);const state=h.appUpdates.getState();state.release.url='https://evil.test/not-an-update.apk';
- await h.appUpdates.openDownload();assert.deepEqual(h.opened,[release().assets[0].browser_download_url]);
+ await h.appUpdates.openDownload();const url=new URL(h.opened[0]);
+ assert.equal(url.origin+url.pathname,release().assets[0].browser_download_url);
+ assert.equal(url.searchParams.get('download'),'1');
+ assert.deepEqual([...url.searchParams.keys()].sort(),['download','nw_update']);
+ assert.equal(url.searchParams.get('nw_update'),`${initialTime}-1`);
+});
+test('tentar novamente renova o link mesmo no mesmo instante sem alterar release nem usar host externo',async()=>{
+ const h=harness();await h.appUpdates.check(true);
+ await h.appUpdates.openDownload();await h.appUpdates.openDownload();
+ assert.notEqual(h.opened[0],h.opened[1]);
+ assert.equal(h.appUpdates.getState().release.url,release().assets[0].browser_download_url);
+ for(const link of h.opened){const url=new URL(link);assert.equal(url.hostname,'github.com');assert.equal(url.searchParams.get('download'),'1');assert.equal(url.username,'');assert.equal(url.hash,'');}
 });
 test('download launch reports native rejection or missing update to both state and its caller',async()=>{
  const h=harness();await assert.rejects(h.appUpdates.openDownload(),/atualização válida/);assert.equal(h.opened.length,0);

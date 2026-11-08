@@ -89,6 +89,7 @@ class AppUpdates {
   private listeners = new Set<(state: AppUpdateState) => void>();
   private generation = 0;
   private users = 0;
+  private downloadAttempt = 0;
   private pending: Promise<void> | null = null;
   private nextCheckAt = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -197,7 +198,12 @@ class AppUpdates {
     if (!this.state.supported) throw new Error('O download de APK está disponível no aplicativo Android.');
     if (!release || release.build <= this.state.currentBuild || !validAndroidDownloadUrl(release.url, release.version, release.build)) throw new Error('Não há uma atualização válida disponível para baixar.');
     try {
-      const result = await AppLauncher.openUrl({ url: release.url });
+      // Renew GitHub's redirect on every tap; never reuse an expiring CDN URL.
+      // Only our own query is added AFTER strict validation of the official asset.
+      const downloadUrl = new URL(release.url);
+      downloadUrl.searchParams.set('download', '1');
+      downloadUrl.searchParams.set('nw_update', `${Date.now()}-${++this.downloadAttempt}`);
+      const result = await AppLauncher.openUrl({ url: downloadUrl.toString() });
       if (!result.completed) throw new Error('Download indisponível.');
     } catch {
       const message = 'Não foi possível abrir o download. Confira sua conexão e tente novamente.';

@@ -8,7 +8,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.net.Uri;
 import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
@@ -83,6 +82,11 @@ public class AppUpdateWorker extends Worker {
                 && uri.getRawQuery() == null && uri.getRawFragment() == null && expected.equals(uri.getRawPath());
         } catch (Exception ignored) { return false; }
     }
+    /** Called at user tap time only; never persist a signed CDN URL or a generated query. */
+    static String freshDownloadUrl(String canonical, String version, long build, long installed, long now) {
+        if (installed <= 0 || build <= installed || now <= 0 || !validDownload(canonical, version, build)) return null;
+        return canonical + "?download=1&nw_update=" + now;
+    }
     static final class Release {
         final String version, url, id;
         final long build;
@@ -147,8 +151,10 @@ public class AppUpdateWorker extends Worker {
                 if (release.build <= prefs(context).getLong("notified_build", 0)) return "already_notified";
                 // Revalidate immediately before creating the immutable download intent.
                 if (!validDownload(release.url, release.version, release.build)) return "invalid_release";
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(release.url)).addCategory(Intent.CATEGORY_BROWSABLE);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                Intent intent = new Intent(context, AppUpdateDownloadActivity.class);
+                intent.putExtra("canonicalUrl", release.url);
+                intent.putExtra("version", release.version);
+                intent.putExtra("build", release.build);
                 PendingIntent download = PendingIntent.getActivity(context, NOTIFICATION_ID, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
                 android.app.Notification notification = new NotificationCompat.Builder(context, CHANNEL)
                     .setSmallIcon(android.R.drawable.stat_sys_download_done)

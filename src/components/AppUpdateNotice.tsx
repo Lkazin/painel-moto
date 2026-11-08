@@ -29,6 +29,7 @@ function DownloadUpdate() {
       <Download size={18} aria-hidden="true" />{opening ? 'Abrindo download…' : 'Baixar e atualizar'}
     </button>
     {error && <p className="nwa-update-error" role="alert">{error}</p>}
+    <p className="nwa-update-help">Se o navegador mostrar erro 504, volte ao app e toque em “Baixar e atualizar” novamente para renovar o link oficial.</p>
   </>;
 }
 
