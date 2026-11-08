@@ -176,6 +176,7 @@ export class ApiClient {
       if (accountClient.getToken() !== accountToken) break;
       if (command.accountId !== accountId || command.accountToken !== accountToken || !command.shiftToken) { offlineQueue.markConfirmed(command.id); continue; }
       if (command.status === 'failed') continue;
+      if (offlineQueue.isRetryGated(command)) continue;
       try {
         const action = { delivery_confirm: 'delivery-confirm', pickup_confirm: 'pickup-confirm', route_reorder: 'route-reorder', assignment_withdraw: 'assignment-withdraw' }[command.action];
         await this.request(action, command.payload, { 'x-idempotency-key': command.idempotencyKey, Authorization: 'Bearer ' + command.shiftToken, 'x-session-token': command.shiftToken, 'x-driver-id': command.payload.driverId, 'x-store-id': command.payload.storeId }); offlineQueue.markConfirmed(command.id); syncedCount++;
@@ -185,3 +186,4 @@ export class ApiClient {
   }
 }
 export const api = new ApiClient();
+

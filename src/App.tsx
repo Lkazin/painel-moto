@@ -6,10 +6,6 @@ import { transitionDelivery } from './utils/viewTransition';
 import { deliveryTrackingDecision } from './services/deliveryTrackingLifecycle';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Home,
-  Package,
-  Navigation,
-  History,
   Store,
   WifiOff,
   Settings,
@@ -295,7 +291,7 @@ export const App: React.FC = () => {
         (a) =>
           a.status === 'picked_up' ||
           a.status === 'in_transit' ||
-          (a as any).status === 'em_rota'
+          a.status === 'em_rota'
       );
       if (activeAsg) {
         trackingService.start(session?.driverId, activeAsg.assignmentId || activeAsg.id);
@@ -425,12 +421,12 @@ export const App: React.FC = () => {
     try {
       audioAlert.stopOfferAlert();
       handledOfferIdsRef.current.add(offerId);
-      const res = await api.respondOffer(offerId, 'accepted');
+      const res = (await api.respondOffer(offerId, 'accepted')) as { assignment?: Assignment; assignments?: Assignment[] };
       accepted = true;
       removeNotice(`offer:${offerId}`);
       setCurrentOffer(null);
-      if (res && (res.assignment || (res as any).assignments)) {
-        const newItems: Assignment[] = (res as any).assignments || (res.assignment ? [res.assignment] : []);
+      if (res && (res.assignment || res.assignments)) {
+        const newItems: Assignment[] = res.assignments || (res.assignment ? [res.assignment] : []);
         setAssignments((prev) => {
           const map = new Map(prev.map((a) => [a.assignmentId || a.id, a]));
           for (const it of newItems) {
@@ -882,3 +878,4 @@ export const App: React.FC = () => {
 };
 
 export default App;
+

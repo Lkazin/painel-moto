@@ -98,6 +98,7 @@ export type AssignmentStatus =
   | 'waiting_pickup'
   | 'picked_up'
   | 'in_transit'
+  | 'em_rota' // status legado aceito pelo backend
   | 'delivered'
   | 'withdrawn'
   | 'canceled_by_store';
@@ -181,6 +182,7 @@ export interface OfflineCommand {
   createdAt: string;
   status: 'pending' | 'syncing' | 'failed' | 'confirmed';
   retryCount: number;
+  retryAt?: number; // próximo horário permitido para reenvio (backoff)
   lastError?: string;
 }
 

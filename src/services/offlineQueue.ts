@@ -2,6 +2,16 @@ import { driverSecurity, nativeSecureAccess } from './driverSecurity';
 import { OfflineCommand } from '../types';
 
 const QUEUE_STORAGE_KEY = 'novaesweb_offline_queue_v1';
+// Teto e base do atraso de reenvio (backoff exponencial), em milissegundos.
+const RETRY_BASE_MS = 1000;
+const RETRY_MAX_MS = 60_000;
+
+/** Atraso exponencial com teto: 1s, 2s, 4s, 8s, … até 60s, conforme tentativas. */
+export function retryDelayMs(retryCount: number): number {
+  const attempt = Math.max(0, Math.floor(Number.isFinite(retryCount) ? retryCount : 0));
+  const exponent = Math.min(attempt, 30);
+  return Math.min(RETRY_MAX_MS, RETRY_BASE_MS * Math.pow(2, exponent));
+}
 
 class OfflineQueueManager {
   private context: {accountId:string;accountToken:string;shiftToken:string} | null = null;
@@ -23,6 +33,13 @@ class OfflineQueueManager {
       return navigator.onLine;
     }
     return true;
+  }
+
+  // Reenvio escalonado: um comando recém-falhado não é reenviado imediatamente.
+  // O gatilho existente (online/foco/sincronização) encontra o comando e aguarda
+  // até o próximo horário permitido antes de tentar de novo.
+  public isRetryGated(command: OfflineCommand, now = Date.now()): boolean {
+    return typeof command.retryAt === 'number' && command.retryAt > now;
   }
 
   private loadQueue(): void {
@@ -129,6 +146,12 @@ class OfflineQueueManager {
       cmd.status = retryable ? 'pending' : 'failed';
       cmd.retryCount++;
       cmd.lastError = error;
+      if (retryable) {
+        // Agenda o próximo envio com atraso exponencial, em vez de reenviar a cada ciclo.
+        cmd.retryAt = Date.now() + retryDelayMs(cmd.retryCount);
+      } else {
+        delete cmd.retryAt;
+      }
       this.saveQueue();
     }
   }
@@ -163,3 +186,4 @@ class OfflineQueueManager {
 }
 
 export const offlineQueue = new OfflineQueueManager();
+

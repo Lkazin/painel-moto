@@ -5,6 +5,8 @@ import { App } from './App.tsx'
 import { AppUpdateNotice } from './components/AppUpdateNotice'
 import { ExperienceRuntime } from './components/ExperienceRuntime'
 import { UpdateNotificationRuntime } from './components/UpdateNotificationRuntime'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { installGlobalErrorHandlers } from './services/errorReporting'
 
 // Registro universal do Service Worker para suporte a PWA (Instalação no celular Android e iOS)
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
@@ -15,11 +17,16 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   });
 }
 
+// Captura local de erros para diagnóstico, sem enviar dados automaticamente.
+installGlobalErrorHandlers();
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ExperienceRuntime />
-    <UpdateNotificationRuntime />
-    <AppUpdateNotice />
-    <App />
+    <ErrorBoundary>
+      <ExperienceRuntime />
+      <UpdateNotificationRuntime />
+      <AppUpdateNotice />
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 )
