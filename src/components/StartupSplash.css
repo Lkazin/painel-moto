@@ -73,10 +73,16 @@
   left: 0;
   width: 205px;
   height: 122px;
-  transform: translateX(calc(-100% - 40px));
-  animation: nw-startup-ride 3s cubic-bezier(.3, .04, .7, 1) both;
+  /* Base visível: se qualquer regra global desligar animações, a motinha fica parada no centro em vez de sumir fora da tela. */
+  transform: translateX(calc(50vw - 102.5px));
+  animation: nw-startup-ride 3s linear both;
   will-change: transform;
 }
+
+/* A abertura é a marca do app (3 s, uma vez): fica isenta do "reduzir animações" global do Experience.css. */
+html .nw-startup .nw-startup__vehicle { animation: nw-startup-ride 3s linear both !important; }
+html .nw-startup .nw-startup__wheel { animation: nw-startup-wheel .4s linear 8 !important; }
+html .nw-startup .nw-startup__speed { animation: nw-startup-speed .2s ease-in-out 15 alternate !important; }
 
 .nw-startup__motorcycle { display: block; width: 100%; height: 100%; overflow: visible; }
 .nw-startup__wheel { transform-box: fill-box; transform-origin: center; animation: nw-startup-wheel .4s linear 8; }
@@ -99,8 +105,11 @@
 .nw-startup--loading .nw-startup__status { margin-top: 38px; }
 .nw-startup--loading .nw-startup__indicator { animation: nw-startup-wait 1.2s ease-in-out infinite; }
 
+/* Entra rápido, desfila devagar pelo meio da tela (onde o usuário está olhando) e sai no final. */
 @keyframes nw-startup-ride {
-  0% { transform: translateX(calc(-100% - 40px)); }
+  0% { transform: translateX(calc(-100% - 40px)); animation-timing-function: cubic-bezier(.2, .7, .4, 1); }
+  22% { transform: translateX(calc(50vw - 150px)); animation-timing-function: linear; }
+  78% { transform: translateX(calc(50vw - 55px)); animation-timing-function: cubic-bezier(.6, 0, .8, .3); }
   100% { transform: translateX(calc(100vw + 40px)); }
 }
 @keyframes nw-startup-wheel { to { transform: rotate(360deg); } }
@@ -115,6 +124,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nw-startup__vehicle { animation: none; transform: translateX(calc(50vw - 102.5px)); will-change: auto; }
-  .nw-startup__wheel, .nw-startup__speed, .nw-startup--loading .nw-startup__indicator { animation: none; }
+  .nw-startup--loading .nw-startup__indicator { animation: none; }
 }
