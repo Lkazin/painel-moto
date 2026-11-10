@@ -16,7 +16,7 @@ export function StartupSplash({ loading = false }: StartupSplashProps) {
         <p className="nw-startup__tagline">Sua próxima entrega começa aqui.</p>
       </div>
 
-      {!loading && <div className="nw-startup__road" aria-hidden="true">
+      <div className="nw-startup__road" aria-hidden="true">
         <div className="nw-startup__road-line" />
         <div className="nw-startup__vehicle">
           <svg viewBox="0 0 220 130" fill="none" className="nw-startup__motorcycle">
@@ -48,7 +48,7 @@ export function StartupSplash({ loading = false }: StartupSplashProps) {
             <path d="M176 68L184 72" stroke="#fff4be" strokeWidth="5" strokeLinecap="round" />
           </svg>
         </div>
-      </div>}
+      </div>
 
       <div className="nw-startup__status" role="status" aria-live="polite">
         <span className="nw-startup__indicator" aria-hidden="true" />
