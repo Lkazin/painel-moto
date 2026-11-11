@@ -5,6 +5,7 @@ import { Assignment } from '../types';
 import { audioAlert } from '../utils/audioAlert';
 import { useExperiencePreferences } from '../services/experiencePreferences';
 import { DeliveryBottomSheet } from './DeliveryExperience';
+import { OrderChatSheet } from './OrderChatSheet';
 import './DeliveryExperience.css';
 
 interface ScreenActiveDeliveryProps {
@@ -28,6 +29,7 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({ assi
     try { const value = Number(localStorage.getItem(storageKey)); return Number.isFinite(value) && value > 0 ? value : null; } catch { return null; }
   });
   const [localExtraMinutes, setLocalExtraMinutes] = useState(0);
+  const [chatOpen, setChatOpen] = useState(false);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (!assignment.waitingGateStartedAt) return;
@@ -103,6 +105,7 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({ assi
     {!focusMode && <div className="de-secondary-actions">
       <button type="button" className="de-link-button" onClick={() => setSheet('route')}><Navigation size={18} />Escolher navegador</button>
       <button type="button" className="de-link-button" onClick={() => setSheet('contact')}><MessageCircle size={18} />Contato do cliente</button>
+      <button type="button" className="de-link-button" onClick={() => setChatOpen(true)}><MessageCircle size={18} />Falar com a loja</button>
     </div>}
 
     <section className={`de-card de-wait${isExpired ? ' de-wait-expired' : isWarning ? ' de-wait-warning' : ''}`} aria-label="Espera no portão">
@@ -129,5 +132,13 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({ assi
       {sheet === 'contact' && <>{customerPhone ? <><p className="de-empty-info">{assignment.customerName} · {assignment.customerPhone}</p><button type="button" onClick={() => openWhatsApp()} className="btn-glove btn-glove-secondary"><MessageCircle size={22} />Abrir WhatsApp</button><button type="button" onClick={callCustomer} className="btn-glove btn-glove-secondary"><Phone size={22} />Ligar para o cliente</button><p className="de-empty-info">O WhatsApp abre uma mensagem para você revisar antes de enviar.</p></> : <><p className="de-empty-info">O telefone do cliente não foi informado no pedido. Entre em contato com a loja para conferir os dados.</p><button type="button" className="de-link-button" onClick={() => { setSheet(null); reportProblem(); }}><AlertTriangle size={18} />Registrar problema</button></>}</>}
       {sheet === 'details' && <dl className="de-detail-list"><div><dt>Loja</dt><dd>{assignment.storeName || 'Não informada'}</dd></div><div><dt>Cliente</dt><dd>{assignment.customerName || 'Não informado'}</dd></div><div><dt>Endereço</dt><dd>{hasAddress ? fullAddress : 'Não informado'}</dd></div><div><dt>Complemento</dt><dd>{assignment.addressComplement || 'Não informado'}</dd></div><div><dt>Observações</dt><dd>{assignment.instructions || 'Nenhuma observação informada'}</dd></div><div><dt>Itens</dt><dd>{assignment.itemsSummary || 'Não informados pela loja'}</dd></div><div><dt>Taxa de entrega</dt><dd>{typeof assignment.deliveryFee === 'number' && Number.isFinite(assignment.deliveryFee) ? assignment.deliveryFee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Não informada'}</dd></div></dl>}
     </DeliveryBottomSheet>}
+
+    {chatOpen && (
+      <OrderChatSheet
+        orderId={assignment.orderId}
+        orderLabel={assignment.orderNumber ? `#${assignment.orderNumber}` : undefined}
+        onClose={() => setChatOpen(false)}
+      />
+    )}
   </div>;
 };

@@ -1,4 +1,4 @@
-import { OptimizedRouteResult, RouteOptimizationMode, FirstAccessDetails, DriverSession, DriverPresence, StoreShiftSummary, Offer, Assignment, RouteStop, DeliveryHistoryItem, RatingsData } from '../types';
+import { OptimizedRouteResult, RouteOptimizationMode, FirstAccessDetails, DriverSession, DriverPresence, StoreShiftSummary, Offer, Assignment, RouteStop, DeliveryHistoryItem, RatingsData, OrderChat } from '../types';
 import { offlineQueue } from './offlineQueue';
 import { normalizeDeliveryHistory } from './deliveryHistory';
 import { accountClient, AccountRequestError } from './accountClient';
@@ -167,6 +167,18 @@ export class ApiClient {
     return normalizeDeliveryHistory(await this.request(this.query('history')));
   }
   public async getRatings(): Promise<RatingsData> { return this.request(this.query('ratings')); }
+  // Chat loja <-> entregador, preso ao pedido.
+  public async getOrderChat(orderId: string, markRead = false): Promise<OrderChat> {
+    if (!this.session) return { messages: [], unread: 0 };
+    const query = this.query('order-chat') + '&' + new URLSearchParams({ orderId, ...(markRead ? { markRead: '1' } : {}) }).toString();
+    const data = await this.request(query);
+    return { messages: Array.isArray(data?.messages) ? data.messages : [], unread: Number(data?.unread) || 0 };
+  }
+  public async sendOrderChatMessage(orderId: string, text: string): Promise<OrderChat> {
+    if (!offlineQueue.getIsOnline()) throw new Error('Conecte-se à internet para enviar a mensagem.');
+    const data = await this.request('order-chat-send', { ...this.identity(), orderId, text });
+    return { messages: Array.isArray(data?.messages) ? data.messages : [], unread: Number(data?.unread) || 0 };
+  }
   public flushOfflineQueue(): Promise<{ syncedCount: number; errors: number }> { if (this.flushPromise) return this.flushPromise; this.flushPromise = this.flushCommands().finally(() => { this.flushPromise = null; }); return this.flushPromise; }
   private async flushCommands() {
     if (!offlineQueue.getIsOnline() || !this.session || !this.bootstrapped) return { syncedCount: 0, errors: 0 };

@@ -210,6 +210,21 @@ export interface RatingsData {
   }[];
 }
 
+/** Chat loja <-> entregador, preso ao pedido. */
+export interface OrderChatMessage {
+  id: string;
+  author: 'loja' | 'entregador';
+  authorName: string;
+  text: string;
+  createdAt: string;
+  read: boolean;
+}
+
+export interface OrderChat {
+  messages: OrderChatMessage[];
+  unread: number;
+}
+
 export interface DriverLocationUpdate {
   driverId: string;
   assignmentId?: string;

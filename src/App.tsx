@@ -22,6 +22,7 @@ import {
 
 import { api } from './services/api';
 import { accountClient } from './services/accountClient';
+import { realtimeWatcher, setRealtimeToken } from './services/realtimeWatcher';
 import { offlineQueue } from './services/offlineQueue';
 import { trackingService } from './services/trackingService';
 import { audioAlert } from './utils/audioAlert';
@@ -310,21 +311,25 @@ export const App: React.FC = () => {
     refreshAssignments();
   }, [refreshAssignments]);
 
-  // Polling periódico das atribuições em segundo plano a cada 3.5s para manter balcão e rotas sempre sincronizados
+  // Tempo real: a loja avisa pelo Supabase Realtime e só então consultamos.
+  // A consulta lenta de segurança (60s) cobre aviso perdido/app em segundo plano,
+  // substituindo o polling de 3,5s que gastava rede e bateria sem necessidade.
   useEffect(() => {
-    if (!session) return;
-    const interval = setInterval(() => {
-      refreshAssignments();
-    }, 3500);
-    return () => clearInterval(interval);
-  }, [session, refreshAssignments]);
+    if (!session?.token) { void realtimeWatcher.disconnect(); return; }
+    setRealtimeToken(session.token);
+    const unsubscribe = realtimeWatcher.onUpdate(() => { refreshAssignments(); });
+    void realtimeWatcher.connect(session.token);
+    return () => { unsubscribe(); void realtimeWatcher.disconnect(); };
+  }, [session?.token, refreshAssignments]);
 
-  // Polling em tempo real para verificar novas ofertas disparadas pela loja e retirar imediatamente ofertas já aceitas por outro motoboy
+  // Ofertas: busca no tempo real (aviso da loja) + consulta lenta de segurança.
+  // Antes era um polling fixo de 2,5s; agora só consultamos quando algo muda.
   useEffect(() => {
     if (!session || !presence.manualEnabled) return;
     let live = true;
     const token = accountClient.getToken();
-    const interval = setInterval(async () => {
+    const pollOffers = async () => {
+      if (!live) return;
       try {
         const offers = await api.getOffers();
         if (!live || accountClient.getToken() !== token || api.getSession()?.membershipId !== session.membershipId) return;
@@ -359,9 +364,22 @@ export const App: React.FC = () => {
           triggerOfferNotification(offer);
         }
       } catch {}
-    }, 2500);
+    };
 
-    return () => { live = false; clearInterval(interval); };
+    void pollOffers();
+    const interval = setInterval(pollOffers, 60_000);
+    const unsubscribe = realtimeWatcher.onUpdate(() => { void pollOffers(); });
+    const onFocus = () => { void pollOffers(); };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('online', onFocus);
+
+    return () => {
+      live = false;
+      clearInterval(interval);
+      unsubscribe();
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('online', onFocus);
+    };
   }, [session, presence.manualEnabled, currentOffer, showToast]);
 
   // Modo Manter Tela Acesa (Screen Wake Lock) enquanto o entregador estiver ligado no suporte
