@@ -24,3 +24,6 @@ for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
 if (!latestSize) throw new Error('O APK anunciado no manifesto não está disponível.');
 fs.writeFileSync(path.join(target, 'latest.json'), JSON.stringify({ version: metadata.version, build: metadata.build, file: expectedName, sha256: metadata.sha256, size: latestSize, notes: typeof metadata.notes === 'string' ? metadata.notes.slice(0, 1000) : '' }, null, 2));
 console.log(`Download e manifesto preparados: ${expectedName} (${latestSize} bytes, SHA256 verificado).`);
+const { buildDownloadPage } = require('./build-download-page.cjs');
+const page = buildDownloadPage({ root, source });
+console.log(`Página de download gerada: ${page.file} (versão ${page.release.version}, build ${page.release.build}).`);

@@ -1,0 +1,247 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+
+const APP_NAME = 'NovaesWeb Entregador';
+const APP_ID = 'br.com.novaesweb.entregador';
+const SITE = 'https://painel-moto-three.vercel.app';
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
+function formatBytes(bytes) {
+  if (!Number.isSafeInteger(bytes) || bytes < 1) throw new Error('Tamanho do APK inválido.');
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kB`;
+  return `${(bytes / 1024 / 1024).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`;
+}
+
+/** Valida o manifesto e o APK antes de publicar qualquer página. */
+function readRelease(source) {
+  const manifestPath = path.join(source, 'release.json');
+  if (!fs.existsSync(manifestPath)) throw new Error('Manifesto de distribuição ausente: release-downloads/release.json.');
+  const metadata = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const expectedName = `NovaesWeb-Entregador-v${metadata.version}-code${metadata.build}.apk`;
+  if (!/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(String(metadata.version))) throw new Error('Versão inválida no manifesto.');
+  if (!Number.isSafeInteger(metadata.build) || metadata.build < 1) throw new Error('Código de build inválido no manifesto.');
+  if (metadata.file !== expectedName) throw new Error('Nome do APK no manifesto não corresponde à versão.');
+  if (!/^[a-f0-9]{64}$/.test(String(metadata.sha256))) throw new Error('SHA256 inválido no manifesto.');
+  const apkPath = path.join(source, expectedName);
+  if (!fs.existsSync(apkPath)) throw new Error(`O APK anunciado não está disponível: ${expectedName}.`);
+  const apk = fs.readFileSync(apkPath);
+  if (apk.length < 4 || apk.readUInt32LE(0) !== 0x04034b50) throw new Error('O arquivo anunciado não é um APK válido.');
+  const sha256 = crypto.createHash('sha256').update(apk).digest('hex');
+  if (sha256 !== metadata.sha256) throw new Error('O SHA256 do APK não confere com o manifesto.');
+  return {
+    version: String(metadata.version),
+    build: metadata.build,
+    file: expectedName,
+    sha256,
+    size: apk.length,
+    notes: typeof metadata.notes === 'string' ? metadata.notes.slice(0, 400) : '',
+  };
+}
+
+function renderPage(release, { publishedAt = new Date() } = {}) {
+  const size = formatBytes(release.size);
+  const date = publishedAt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const downloadUrl = `/downloads/${release.file}`;
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="theme-color" content="#2A0A3D" />
+<title>Baixar ${escapeHtml(APP_NAME)} ${escapeHtml(release.version)}</title>
+<meta name="description" content="Download oficial do aplicativo ${escapeHtml(APP_NAME)} para Android. Versão ${escapeHtml(release.version)}, build ${release.build}." />
+<link rel="icon" href="/favicon.ico" sizes="any" />
+<link rel="icon" type="image/png" href="/favicon-32.png" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<style>
+  :root{
+    --pink:#FF2E9A; --pink-hover:#FF3D6E; --purple:#8B2FE8; --deep:#2A0A3D;
+    --emerald:#10b981; --amber:#f59e0b;
+    --ink:#ffffff; --muted:#c9b6d8; --subtle:#9c86ae;
+    --card:rgba(255,255,255,.055); --line:rgba(255,255,255,.12);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    min-height:100vh; background:
+      radial-gradient(1100px 620px at 50% -12%, rgba(139,47,232,.42), transparent 62%),
+      radial-gradient(760px 460px at 88% 8%, rgba(255,46,154,.20), transparent 60%),
+      linear-gradient(180deg,#1B0529 0%, var(--deep) 46%, #170422 100%);
+    color:var(--ink);
+    font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55; padding:28px 18px 56px;
+    display:flex; justify-content:center;
+  }
+  .wrap{width:100%;max-width:660px;display:flex;flex-direction:column;gap:20px}
+  header{display:flex;align-items:center;gap:14px}
+  header img{width:54px;height:54px;border-radius:16px;box-shadow:0 10px 26px rgba(255,46,154,.28)}
+  .brand{display:flex;flex-direction:column;gap:1px}
+  .brand strong{font-size:17px;font-weight:900;letter-spacing:-.2px}
+  .brand span{font-size:12px;color:var(--subtle);font-weight:600}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:22px;
+    padding:26px 22px; backdrop-filter:blur(14px);
+    box-shadow:0 24px 60px rgba(0,0,0,.34);
+  }
+  .badge{
+    display:inline-flex;align-items:center;gap:7px;
+    font-size:11px;font-weight:900;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--emerald); background:rgba(16,185,129,.13);
+    border:1px solid rgba(16,185,129,.34); border-radius:999px; padding:5px 12px;
+  }
+  .badge i{width:6px;height:6px;border-radius:50%;background:var(--emerald);box-shadow:0 0 10px var(--emerald)}
+  h1{font-size:clamp(26px,6vw,34px);font-weight:900;letter-spacing:-.8px;line-height:1.15;margin:16px 0 8px}
+  .lede{color:var(--muted);font-size:14.5px;max-width:46ch}
+  .facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:22px 0 20px}
+  .fact{background:rgba(0,0,0,.24);border:1px solid var(--line);border-radius:14px;padding:11px 12px}
+  .fact dt{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--subtle)}
+  .fact dd{font-size:14px;font-weight:800;margin-top:3px}
+  .cta{
+    display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+    min-height:56px;border:0;border-radius:16px;cursor:pointer;text-decoration:none;
+    background:linear-gradient(135deg,var(--pink),var(--purple));
+    color:#fff;font-size:16px;font-weight:900;letter-spacing:-.2px;
+    box-shadow:0 14px 34px rgba(255,46,154,.34);
+    transition:transform .14s ease, box-shadow .14s ease, filter .14s ease;
+  }
+  .cta:hover{transform:translateY(-1px);filter:brightness(1.06);box-shadow:0 18px 40px rgba(255,46,154,.44)}
+  .cta:active{transform:translateY(0)}
+  .cta:focus-visible{outline:3px solid var(--pink);outline-offset:3px}
+  .hint{font-size:12px;color:var(--subtle);text-align:center;margin-top:10px}
+  h2{font-size:13px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);margin-bottom:14px}
+  ol{list-style:none;counter-reset:step;display:flex;flex-direction:column;gap:14px}
+  ol li{counter-increment:step;display:flex;gap:12px;font-size:14px;color:var(--muted)}
+  ol li::before{
+    content:counter(step);flex:0 0 26px;height:26px;border-radius:9px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:900;color:var(--pink);
+    background:rgba(255,46,154,.13);border:1px solid rgba(255,46,154,.32);
+  }
+  ol li strong{color:var(--ink);font-weight:800}
+  .sha{margin-top:4px}
+  .sha code{
+    display:block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:11.5px;line-height:1.7;color:var(--muted);
+    background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:12px;
+    padding:12px;word-break:break-all;
+  }
+  .copy{
+    margin-top:10px;width:100%;min-height:44px;border-radius:12px;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--ink);
+    font-size:13px;font-weight:800;transition:background .14s ease;
+  }
+  .copy:hover{background:rgba(255,255,255,.11)}
+  .copy:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
+  .warn{
+    display:flex;gap:11px;align-items:flex-start;
+    background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.34);
+    border-radius:14px;padding:13px 14px;font-size:13px;color:#fde68a;
+  }
+  .warn svg{flex:0 0 18px;margin-top:1px}
+  footer{text-align:center;font-size:11.5px;color:var(--subtle);line-height:1.8}
+  footer a{color:var(--muted);text-decoration:none;border-bottom:1px solid var(--line)}
+  footer a:hover{color:var(--ink)}
+  @media (max-width:430px){
+    .facts{grid-template-columns:1fr}
+    .card{padding:22px 17px;border-radius:18px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .cta{transition:none}
+    .cta:hover{transform:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="/icon-192.png" alt="" width="54" height="54" />
+    <div class="brand">
+      <strong>${escapeHtml(APP_NAME)}</strong>
+      <span>Aplicativo oficial para entregadores</span>
+    </div>
+  </header>
+
+  <main class="card">
+    <span class="badge"><i></i>Versão ${escapeHtml(release.version)} · build ${release.build}</span>
+    <h1>Baixe o app e comece a receber entregas</h1>
+    <p class="lede">Instalação direta no Android, sem loja de aplicativos. ${release.notes ? escapeHtml(release.notes) : 'Melhorias e correções incluídas nesta versão.'}</p>
+
+    <dl class="facts">
+      <div class="fact"><dt>Versão</dt><dd>${escapeHtml(release.version)}</dd></div>
+      <div class="fact"><dt>Build</dt><dd>${release.build}</dd></div>
+      <div class="fact"><dt>Tamanho</dt><dd>${escapeHtml(size)}</dd></div>
+    </dl>
+
+    <a class="cta" href="${escapeHtml(downloadUrl)}" download rel="noopener">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+      Baixar APK (${escapeHtml(size)})
+    </a>
+    <p class="hint">Publicado em ${escapeHtml(date)} · Android 7.0 ou superior</p>
+  </main>
+
+  <section class="card">
+    <h2>Como instalar</h2>
+    <ol>
+      <li><span><strong>Toque em baixar</strong> e aguarde o fim do download.</span></li>
+      <li><span><strong>Permita a instalação</strong> quando o Android avisar que o arquivo veio de fonte desconhecida.</span></li>
+      <li><span><strong>Abra o APK baixado</strong> e confirme em Instalar.</span></li>
+      <li><span><strong>Entre com seu telefone</strong> e conecte-se à loja para começar o plantão.</span></li>
+    </ol>
+  </section>
+
+  <section class="card sha">
+    <h2>Verifique o arquivo</h2>
+    <code>${escapeHtml(release.sha256)}</code>
+    <button class="copy" type="button" data-sha="${escapeHtml(release.sha256)}">Copiar SHA256</button>
+  </section>
+
+  <div class="warn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+    <span>Conclua as entregas em andamento antes de instalar. Seus dados e seu histórico continuam na sua conta.</span>
+  </div>
+
+  <footer>
+    <p>${escapeHtml(APP_NAME)} · ${escapeHtml(APP_ID)}</p>
+    <p><a href="${escapeHtml(SITE)}">Abrir versão web</a> · <a href="/downloads/latest.json">Manifesto de atualização</a></p>
+  </footer>
+</div>
+<script>
+  document.querySelector('.copy')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const value = button.dataset.sha || '';
+    try {
+      await navigator.clipboard.writeText(value);
+      button.textContent = 'SHA256 copiado';
+    } catch {
+      button.textContent = 'Copie o código acima';
+    }
+    setTimeout(() => { button.textContent = 'Copiar SHA256'; }, 2200);
+  });
+</script>
+</body>
+</html>
+`;
+}
+
+function buildDownloadPage({ root, source, publishedAt } = {}) {
+  const base = root || path.resolve(__dirname, '..');
+  const releaseDirectory = source || path.join(base, 'release-downloads');
+  const release = readRelease(releaseDirectory);
+  const target = path.join(base, 'dist', 'downloads');
+  fs.mkdirSync(target, { recursive: true });
+  const file = path.join(target, 'index.html');
+  fs.writeFileSync(file, renderPage(release, { publishedAt }));
+  return { file, release };
+}
+
+if (require.main === module) {
+  const { file, release } = buildDownloadPage();
+  console.log(`Página de download gerada: ${file} (versão ${release.version}, build ${release.build}).`);
+}
+
+module.exports = { readRelease, renderPage, buildDownloadPage, formatBytes };
