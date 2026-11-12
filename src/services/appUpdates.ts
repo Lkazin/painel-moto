@@ -81,7 +81,7 @@ class AppUpdates {
   private nextCheckAt = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
   private onOnline = () => { void this.check(); };
-  private onVisibility = () => { if (document.visibilityState === 'visible') void this.check(); };
+  private onVisibility = () => { if (document.visibilityState === 'visible') void this.check(this.state.automatic); };
 
   getState(): AppUpdateState { return { ...this.state, release: this.state.release ? { ...this.state.release } : null }; }
   subscribe(listener: (state: AppUpdateState) => void) {
