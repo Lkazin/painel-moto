@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
   History,
-  Info
+  Info,
+  Download
 } from 'lucide-react';
 import { DeliveryHistoryItem } from '../types';
 import { api } from '../services/api';
 import { DriverLoadingSkeleton } from './DriverLoadingSkeleton';
+import { buildHistoryCsv, historyCsvFileName } from '../services/historyExport';
 
 export const ScreenHistory: React.FC = () => {
   const [historyItems, setHistoryItems] = useState<DeliveryHistoryItem[]>([]);
@@ -34,6 +36,23 @@ export const ScreenHistory: React.FC = () => {
     fetchData();
     return () => { live = false; };
   }, [attempt]);
+
+  const [exported, setExported] = useState(false);
+
+  const handleExport = () => {
+    const csv = buildHistoryCsv(historyItems);
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = historyCsvFileName();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setExported(true);
+    setTimeout(() => setExported(false), 2500);
+  };
 
   return (
     <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -100,6 +119,32 @@ export const ScreenHistory: React.FC = () => {
             * Algumas entregas não tiveram valor preenchido pela loja e não entraram na soma.
           </p>
         )}
+
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={loading || historyItems.length === 0}
+          style={{
+            marginTop: '12px',
+            width: '100%',
+            height: '46px',
+            borderRadius: '12px',
+            border: '1px solid var(--nw-emerald)',
+            background: 'rgba(16, 185, 129, 0.16)',
+            color: 'var(--nw-emerald)',
+            fontSize: '13px',
+            fontWeight: 800,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '7px',
+            cursor: loading || historyItems.length === 0 ? 'not-allowed' : 'pointer',
+            opacity: loading || historyItems.length === 0 ? 0.55 : 1
+          }}
+        >
+          <Download size={16} />
+          <span>{exported ? 'Planilha baixada' : 'Baixar planilha (CSV)'}</span>
+        </button>
 
         {/* Aviso de Não Comprovação de Pagamento (Documento 02 v1.1) */}
         <div
