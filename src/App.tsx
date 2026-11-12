@@ -856,7 +856,7 @@ export const App: React.FC = () => {
       )}
 
       {/* Modal de Perfil & Extrato por Loja */}
-      {isProfileLedgerOpen && (
+      {isProfileLedgerOpen && !isStoreModalOpen && (
         <ScreenProfileLedger
             account={account}
             activeSession={session}
