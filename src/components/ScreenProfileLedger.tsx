@@ -14,7 +14,7 @@ import { DriverAccount, DriverSession, StoreShiftSummary } from '../types';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
 import { buildShiftSummary } from '../services/shiftSummary';
-import { PAYMENT_METHODS, getPaymentMethod, paymentMethodLabel, setPaymentMethod } from '../services/paymentPreference';
+import { getPaymentMethod, paymentMethodLabel } from '../services/paymentPreference';
 
 interface ScreenProfileLedgerProps {
   account: DriverAccount;
@@ -31,7 +31,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
   const [ledger, setLedger] = useState<StoreShiftSummary[]>(() => api.getStoresLedger());
   const [ledgerLoading, setLedgerLoading] = useState(() => api.getStoresLedger().length === 0);
   const [ledgerError, setLedgerError] = useState(false);
-  const [paymentMethod, setPaymentMethodState] = useState(() => getPaymentMethod());
+  const [paymentMethod] = useState(() => getPaymentMethod());
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -171,47 +171,15 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
               paddingTop: '10px',
               borderTop: '1px solid var(--border-subtle)',
               display: 'flex',
-              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               gap: '8px'
             }}
           >
-            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Forma de pagamento
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Forma de pagamento</span>
+            <span style={{ fontSize: '12px', fontWeight: 800, color: paymentMethod ? 'var(--nw-emerald)' : 'var(--text-subtle)' }}>
+              {paymentMethod ? paymentMethodLabel(paymentMethod) : 'Não definida'}
             </span>
-            <span style={{ fontSize: '11px', color: paymentMethod ? 'var(--nw-emerald)' : 'var(--text-subtle)' }} role="status">
-              {paymentMethod ? `${paymentMethodLabel(paymentMethod)} · salvo neste aparelho` : 'Escolha como prefere receber da loja'}
-            </span>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {PAYMENT_METHODS.map((option) => {
-                const active = paymentMethod === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => {
-                      const next = active ? null : option.value;
-                      setPaymentMethod(next);
-                      setPaymentMethodState(next);
-                    }}
-                    style={{
-                      flex: '1 1 auto',
-                      minHeight: '38px',
-                      padding: '0 12px',
-                      borderRadius: '10px',
-                      fontSize: '12px',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      border: `1px solid ${active ? 'var(--nw-emerald)' : 'var(--border-subtle)'}`,
-                      background: active ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-elevated)',
-                      color: active ? 'var(--nw-emerald)' : 'var(--text-muted)'
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
           <button

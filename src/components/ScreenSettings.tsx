@@ -4,6 +4,7 @@ import { AppUpdateSettings } from './AppUpdateNotice';
 import { VersionChangelogModal } from './VersionChangelogModal';
 import { ExperienceSettings } from './ExperienceSettings';
 import { SectionPushNotifications } from './SectionPushNotifications';
+import { PAYMENT_METHODS, getPaymentMethod, paymentMethodLabel, setPaymentMethod } from '../services/paymentPreference';
 import { DriverAccount, DriverSession } from '../types';
 import { audioAlert } from '../utils/audioAlert';
 
@@ -68,6 +69,7 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
   const [showChangelog, setShowChangelog] = useState(false);
   const [closingShift, setClosingShift] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [paymentMethod, setPaymentMethodState] = useState(() => getPaymentMethod());
 
   const handleEndShift = async () => {
     if (!activeSession) return;
@@ -146,6 +148,46 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
             </div>
           </div>
         </div>
+
+        <ItemTitle>Forma de pagamento</ItemTitle>
+
+        <section className="card-surface" aria-label="Forma de pagamento" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }} role="status">
+            {paymentMethod ? `${paymentMethodLabel(paymentMethod)} · salvo neste aparelho` : 'Escolha como prefere receber da loja'}
+          </span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {PAYMENT_METHODS.map((option) => {
+              const active = paymentMethod === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => {
+                    audioAlert.playClickSound();
+                    const next = active ? null : option.value;
+                    setPaymentMethod(next);
+                    setPaymentMethodState(next);
+                  }}
+                  style={{
+                    flex: '1 1 auto',
+                    minHeight: '44px',
+                    padding: '0 12px',
+                    borderRadius: '10px',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    border: `1px solid ${active ? 'var(--nw-emerald)' : 'var(--border-subtle)'}`,
+                    background: active ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-elevated)',
+                    color: active ? 'var(--nw-emerald)' : 'var(--text-muted)'
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
         <SectionTitle>Plantão</SectionTitle>
 

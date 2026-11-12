@@ -18,15 +18,23 @@ test('o extrato mostra somente coisas do extrato', () => {
   assert.ok(ledger.includes('Detalhamento por Loja'));
 });
 
-test('o extrato tem a forma de pagamento e quanto vai receber', () => {
-  assert.ok(ledger.includes('Forma de pagamento'));
-  assert.ok(ledger.includes('PAYMENT_METHODS'), 'opções de pagamento no extrato');
-  assert.ok(ledger.includes('setPaymentMethod'), 'escolha fica guardada');
+test('o extrato mostra a forma de pagamento só para leitura', () => {
+  assert.ok(ledger.includes('Forma de pagamento'), 'linha de leitura');
+  assert.equal(ledger.includes('PAYMENT_METHODS'), false, 'sem seletor no extrato');
+  assert.equal(ledger.includes('setPaymentMethod'), false, 'extrato não altera a preferência');
+  assert.ok(ledger.includes('Não definida'), 'estado vazio sem botão');
   assert.ok(ledger.includes('totalToReceive'), 'valor a receber no extrato');
   assert.ok(ledger.includes('Enviar Fechamento no WhatsApp da Loja'));
-  assert.ok(ledger.includes('salvo neste aparelho'), 'confirma que a escolha fica guardada');
   assert.ok(ledger.includes('Tentar de novo'), 'erro permite tentar de novo');
   assert.ok(ledger.includes('Total:'), 'total no detalhamento por loja');
+});
+
+test('a forma de pagamento é escolhida só nas configurações', () => {
+  assert.ok(settings.includes('PAYMENT_METHODS'), 'opções nas configurações');
+  assert.ok(settings.includes('setPaymentMethod'), 'escolha guardada nas configurações');
+  assert.ok(settings.includes('salvo neste aparelho'));
+  const conta = settings.slice(settings.indexOf('<SectionTitle>Conta</SectionTitle>'), settings.indexOf('<SectionTitle>Plantão</SectionTitle>'));
+  assert.ok(conta.includes('Forma de pagamento'), 'item dentro do grupo Conta');
 });
 
 test('a página de configurações reúne tudo que não é extrato', () => {

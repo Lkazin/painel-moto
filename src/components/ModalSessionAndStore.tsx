@@ -75,7 +75,7 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Store size={22} color="var(--nw-pink)" />
-            <h3 style={{ fontSize: '18px', fontWeight: 900 }}>Vínculo & Configurações</h3>
+            <h3 style={{ fontSize: '18px', fontWeight: 900 }}>Loja Vinculada</h3>
           </div>
           <button
             onClick={onClose}
