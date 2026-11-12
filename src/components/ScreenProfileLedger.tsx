@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AppUpdateSettings } from './AppUpdateNotice';
 import { DriverLoadingSkeleton } from './DriverLoadingSkeleton';
-import { VersionChangelogModal } from './VersionChangelogModal';
-import { ExperienceSettings } from './ExperienceSettings';
 import {
   X,
   User,
@@ -21,12 +18,11 @@ import {
   MessageCircle,
   Copy,
   Check,
-  Sparkles
+  Settings
 } from 'lucide-react';
 import { DriverAccount, DriverSession, StoreShiftSummary } from '../types';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
-import { SectionPushNotifications } from './SectionPushNotifications';
 
 interface ScreenProfileLedgerProps {
   account: DriverAccount;
@@ -35,6 +31,7 @@ interface ScreenProfileLedgerProps {
   onCloseShift: () => void | Promise<void>;
   onLogoutAccount: () => void;
   onShowToast?: (text: string, type: 'success' | 'error' | 'info') => void;
+  onOpenSettings: () => void;
 }
 
 export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
@@ -43,7 +40,8 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
   onClose,
   onCloseShift,
   onLogoutAccount,
-  onShowToast
+  onShowToast,
+  onOpenSettings,
 }) => {
   // Read data already present before first render to avoid a fake zero-value screen.
   const [ledger, setLedger] = useState<StoreShiftSummary[]>(() => api.getStoresLedger());
@@ -161,7 +159,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Wallet size={22} color="var(--nw-pink)" />
-            <h3 style={{ fontSize: '18px', fontWeight: 900 }}>Meu Perfil & Extrato</h3>
+            <h3 style={{ fontSize: '18px', fontWeight: 900 }}>Meu Extrato</h3>
           </div>
           <button
             onClick={onClose}
@@ -181,98 +179,6 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
             <X size={18} />
           </button>
         </div>
-
-        {/* Card do Perfil do Entregador */}
-        <div className="card-surface card-highlight" style={{ padding: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div
-              style={{
-                width: '50px',
-                height: '50px',
-                borderRadius: '16px',
-                background: 'linear-gradient(135deg, var(--nw-pink), var(--nw-purple))',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ffffff',
-                fontWeight: 900,
-                fontSize: '22px'
-              }}
-            >
-              {account.name.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <h4 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff' }}>
-                {account.name}
-              </h4>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                <Phone size={12} />
-                {account.phone}
-              </p>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '8px',
-              marginTop: '12px',
-              paddingTop: '10px',
-              borderTop: '1px solid var(--border-subtle)',
-              fontSize: '12px'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)' }}>
-              <CreditCard size={14} color="var(--nw-pink)" />
-              <span>Placa: <strong style={{ color: '#ffffff' }}>{account.vehiclePlate}</strong></span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)' }}>
-              <Bike size={14} color="var(--nw-purple)" />
-              <span>{account.vehicleModel || 'Moto'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Seção de Notificações de Entregas (Web Push) */}
-        <SectionPushNotifications onShowToast={onShowToast} />
-
-        {/* Se houver Plantão Ativo */}
-        {activeSession && (
-          <div
-            style={{
-              background: 'rgba(255, 46, 154, 0.12)',
-              border: '1.5px solid var(--nw-pink)',
-              borderRadius: '16px',
-              padding: '14px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--nw-pink)', textTransform: 'uppercase' }}>
-                Plantão em Andamento
-              </span>
-              <span style={{ fontSize: '10px', background: 'var(--nw-emerald)', color: '#000', fontWeight: 900, padding: '2px 8px', borderRadius: '8px' }}>
-                CONECTADO
-              </span>
-            </div>
-            <h4 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff' }}>
-              {activeSession.storeName}
-            </h4>
-
-            <button
-              onClick={handleEndShift}
-              disabled={closingShift}
-              className="btn-glove btn-glove-danger"
-              style={{ height: '48px', fontSize: '13px' }}
-            >
-              <Power size={18} />
-              <span>{closingShift ? 'Encerrando...' : 'Encerrar Plantão nesta Loja'}</span>
-            </button>
-          </div>
-        )}
 
         {/* Resumo Consolidado de Ganhos */}
         {ledgerLoading ? <DriverLoadingSkeleton variant="history-summary" /> : ledgerError && ledger.length === 0 ? (
@@ -427,41 +333,16 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
           )}
         </div>
 
-        <ExperienceSettings />
-        <AppUpdateSettings />
         <button
           type="button"
-          onClick={() => {
-            audioAlert.playClickSound();
-            setShowChangelog(true);
-          }}
+          onClick={() => { audioAlert.playClickSound(); onOpenSettings(); }}
           className="btn-glove btn-glove-secondary"
           style={{ height: '48px', fontSize: '13px' }}
         >
-          <Sparkles size={16} color="var(--nw-pink)" />
-          <span>✨ O que há de novo no app (Novidades)</span>
+          <Settings size={16} color="var(--nw-pink)" />
+          <span>Abrir Configurações</span>
         </button>
 
-        {showChangelog && <VersionChangelogModal onClose={() => setShowChangelog(false)} />}
-        {/* Botão de Logout da Conta */}
-        <button
-          onClick={() => {
-            audioAlert.playClickSound();
-            onLogoutAccount();
-          }}
-          className="btn-glove"
-          style={{
-            height: '50px',
-            fontSize: '13px',
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--nw-red)',
-            marginTop: '8px'
-          }}
-        >
-          <LogOut size={16} />
-          <span>Sair da Minha Conta de Entregador</span>
-        </button>
       </div>
     </div>
   );

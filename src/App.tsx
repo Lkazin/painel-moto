@@ -36,6 +36,7 @@ import { triggerOfferNotification, requestScreenWakeLock, releaseScreenWakeLock 
 import { ScreenAuthDriver } from './components/ScreenAuthDriver';
 import { ScreenStoreConnect } from './components/ScreenStoreConnect';
 import { ScreenProfileLedger } from './components/ScreenProfileLedger';
+import { ScreenSettings } from './components/ScreenSettings';
 import { ScreenDashboard } from './components/ScreenDashboard';
 import { ModalOfferReceived } from './components/ModalOfferReceived';
 import { ScreenOrdersPickup } from './components/ScreenOrdersPickup';
@@ -143,6 +144,7 @@ export const App: React.FC = () => {
   // Modais de Apoio
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
   const [isProfileLedgerOpen, setIsProfileLedgerOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [withdrawTarget, setWithdrawTarget] = useState<{ assignment: Assignment; isException: boolean } | null>(null);
   const [isRouteCompletedOpen, setIsRouteCompletedOpen] = useState(false);
   const [routeCompletedStats, setRouteCompletedStats] = useState({ count: 0, fees: 0, hasUninformed: false });
@@ -182,7 +184,7 @@ export const App: React.FC = () => {
       clearNotices(); noticedOfferIdsRef.current.clear();
       setAccount(api.getDriverAccount()); setSession(null); setAccountReady(false);
       setAssignments([]); setCurrentOffer(null); setActiveDelivery(null); setPinTarget(null);
-      setIsStoreModalOpen(false); setIsProfileLedgerOpen(false); setWithdrawTarget(null);
+      setIsStoreModalOpen(false); setIsProfileLedgerOpen(false); setIsSettingsOpen(false); setWithdrawTarget(null);
       setHistorySummary({totalEarnings:0,itemsCount:0}); handledOfferIdsRef.current.clear();
       setAccountNotice(message); setSyncError('');
     };
@@ -212,7 +214,7 @@ export const App: React.FC = () => {
     const opened = () => {
       if (!accountClient.getToken()) return;
       setActiveTab('orders'); setActiveDelivery(null); setPinTarget(null);
-      setIsProfileLedgerOpen(false); setIsStoreModalOpen(false);
+      setIsProfileLedgerOpen(false); setIsSettingsOpen(false); setIsStoreModalOpen(false);
       window.dispatchEvent(new Event('focus'));
     };
     const received = (event: Event) => {
@@ -555,6 +557,7 @@ export const App: React.FC = () => {
       setSession(null);
       setIsStoreModalOpen(false);
       setIsProfileLedgerOpen(false);
+      setIsSettingsOpen(false);
       showToast(
         `Plantão encerrado em ${res.shiftSummary.storeName}. Total a receber: R$ ${res.shiftSummary.totalToReceive.toFixed(2).replace('.', ',')}`,
         'success'
@@ -653,6 +656,7 @@ export const App: React.FC = () => {
             account={account}
             activeSession={session}
             onClose={() => setIsProfileLedgerOpen(false)}
+            onOpenSettings={() => { setIsProfileLedgerOpen(false); setIsSettingsOpen(true); }}
             onCloseShift={handleCloseStoreShift}
             onLogoutAccount={handleLogoutAccount}
             onShowToast={showToast}
@@ -859,6 +863,7 @@ export const App: React.FC = () => {
             account={account}
             activeSession={session}
             onClose={() => setIsProfileLedgerOpen(false)}
+            onOpenSettings={() => { setIsProfileLedgerOpen(false); setIsSettingsOpen(true); }}
             onCloseShift={handleCloseStoreShift}
             onLogoutAccount={handleLogoutAccount}
             onShowToast={showToast}
@@ -876,6 +881,17 @@ export const App: React.FC = () => {
             showToast(msg, 'success');
             refreshAssignments();
           }}
+        />
+      )}
+
+      {isSettingsOpen && account && (
+        <ScreenSettings
+          account={account}
+          activeSession={session}
+          onClose={() => setIsSettingsOpen(false)}
+          onCloseShift={async () => { await api.closeStoreShift(); setSession(null); setIsSettingsOpen(false); }}
+          onLogoutAccount={async () => { await api.logoutDriver(); setAccount(null); setIsSettingsOpen(false); }}
+          onShowToast={showToast}
         />
       )}
 
