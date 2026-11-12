@@ -1,11 +1,28 @@
 import React, { useState } from 'react';
-import { X, Bike, CreditCard, Phone, Power, Sparkles, LogOut, Settings } from 'lucide-react';
+import { X, Bike, CreditCard, Phone, Power, Sparkles, LogOut, Settings, Download, Smartphone } from 'lucide-react';
 import { AppUpdateSettings } from './AppUpdateNotice';
 import { VersionChangelogModal } from './VersionChangelogModal';
 import { ExperienceSettings } from './ExperienceSettings';
 import { SectionPushNotifications } from './SectionPushNotifications';
 import { DriverAccount, DriverSession } from '../types';
 import { audioAlert } from '../utils/audioAlert';
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h4
+      style={{
+        fontSize: '11px',
+        fontWeight: 900,
+        letterSpacing: '.09em',
+        textTransform: 'uppercase',
+        color: 'var(--text-subtle)',
+        margin: '6px 0 -4px',
+      }}
+    >
+      {children}
+    </h4>
+  );
+}
 
 interface ScreenSettingsProps {
   account: DriverAccount;
@@ -33,6 +50,7 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
 }) => {
   const [showChangelog, setShowChangelog] = useState(false);
   const [closingShift, setClosingShift] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   const handleEndShift = async () => {
     if (!activeSession) return;
@@ -69,6 +87,8 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
             <X size={18} />
           </button>
         </div>
+
+        <SectionTitle>Conta</SectionTitle>
 
         {/* Perfil do entregador */}
         <div className="card-surface card-highlight" style={{ padding: '16px' }}>
@@ -109,6 +129,8 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
           </div>
         </div>
 
+        <SectionTitle>Plantão</SectionTitle>
+
         {/* Plantão ativo: encerrar aqui, não no extrato */}
         {activeSession && (
           <div
@@ -138,9 +160,40 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
           </div>
         )}
 
+        <SectionTitle>Notificações</SectionTitle>
+
         <SectionPushNotifications onShowToast={onShowToast} />
 
+        <SectionTitle>Aplicativo</SectionTitle>
+
+        <section className="card-surface" aria-label="Aplicativo" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Smartphone size={18} color="var(--nw-purple)" />
+            <h4 style={{ fontSize: '14px', fontWeight: 900, color: '#ffffff' }}>Aplicativo</h4>
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+            Instale em outro aparelho ou baixe a versão mais recente direto do site oficial. Não é preciso loja de aplicativos.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              audioAlert.playClickSound();
+              window.open('https://painel-moto-three.vercel.app/downloads/', '_blank', 'noopener');
+            }}
+            className="btn-glove btn-glove-secondary"
+            style={{ height: '46px', fontSize: '13px' }}
+          >
+            <Download size={16} />
+            <span>Baixar o aplicativo</span>
+          </button>
+        </section>
+
+        <SectionTitle>Aparência</SectionTitle>
+
         <ExperienceSettings />
+
+        <SectionTitle>Atualizações</SectionTitle>
+
         <AppUpdateSettings />
 
         <button
@@ -155,8 +208,69 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
 
         {showChangelog && <VersionChangelogModal onClose={() => setShowChangelog(false)} />}
 
+        <SectionTitle>Suporte</SectionTitle>
+
+        <section className="card-surface" aria-label="Suporte" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+            Dúvida sobre uma entrega? Fale com a loja pelo chat do pedido, na tela da entrega ativa.
+          </p>
+          <a
+            href="https://painel-moto-three.vercel.app/downloads/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: '12px', color: 'var(--nw-pink)', fontWeight: 800, textDecoration: 'none' }}
+          >
+            Página oficial do aplicativo
+          </a>
+          <details>
+            <summary style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-muted)', cursor: 'pointer' }}>
+              Como o app trata seus dados
+            </summary>
+            <p style={{ fontSize: '11.5px', color: 'var(--text-subtle)', marginTop: '8px', lineHeight: 1.6 }}>
+              Nome, telefone, placa e histórico de entregas ficam na sua conta e são usados apenas para conectar você às lojas
+              parceiras. A localização é enviada somente durante o plantão ativo. A forma de pagamento escolhida fica guardada
+              neste aparelho e não é enviada para fora.
+            </p>
+          </details>
+        </section>
+
+        <SectionTitle>Conta</SectionTitle>
+
+        {confirmLogout ? (
+          <div
+            role="alertdialog"
+            aria-label="Confirmar saída da conta"
+            style={{
+              background: 'rgba(239, 68, 68, 0.12)', border: '1.5px solid var(--nw-red)',
+              borderRadius: '16px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px',
+            }}
+          >
+            <strong style={{ fontSize: '13px', color: 'var(--nw-red)' }}>Sair da conta agora?</strong>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Você vai precisar do telefone e do código da loja para entrar de novo.
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => { audioAlert.playClickSound(); setConfirmLogout(false); }}
+                className="btn-glove btn-glove-secondary"
+                style={{ flex: 1, height: '44px', fontSize: '13px' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => { audioAlert.playClickSound(); onLogoutAccount(); }}
+                className="btn-glove btn-glove-danger"
+                style={{ flex: 1, height: '44px', fontSize: '13px' }}
+              >
+                Sair
+              </button>
+            </div>
+          </div>
+        ) : (
         <button
-          onClick={() => { audioAlert.playClickSound(); onLogoutAccount(); }}
+          onClick={() => { audioAlert.playClickSound(); setConfirmLogout(true); }}
           className="btn-glove"
           style={{
             height: '50px', fontSize: '13px', background: 'var(--bg-card)',
@@ -166,6 +280,7 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
           <LogOut size={16} />
           <span>Sair da Minha Conta de Entregador</span>
         </button>
+        )}
       </div>
     </div>
   );

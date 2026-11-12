@@ -7,12 +7,15 @@ import {
   XCircle,
   Calendar,
   MessageCircle,
-  Settings
+  Settings,
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { DriverAccount, DriverSession, StoreShiftSummary } from '../types';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
 import { buildShiftSummary } from '../services/shiftSummary';
+import { PAYMENT_METHODS, getPaymentMethod, paymentMethodLabel, setPaymentMethod } from '../services/paymentPreference';
 
 interface ScreenProfileLedgerProps {
   account: DriverAccount;
@@ -31,6 +34,8 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
   const [ledger, setLedger] = useState<StoreShiftSummary[]>(() => api.getStoresLedger());
   const [ledgerLoading, setLedgerLoading] = useState(() => api.getStoresLedger().length === 0);
   const [ledgerError, setLedgerError] = useState(false);
+  const [paymentMethod, setPaymentMethodState] = useState(() => getPaymentMethod());
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let live = true;
@@ -47,7 +52,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
         if (live) setLedgerLoading(false);
       });
     return ()=>{live=false;};
-  }, []);
+  }, [attempt]);
 
   const totalToReceive = ledger.reduce((sum, item) => sum + (item.totalToReceive || 0), 0);
   const totalCompleted = ledger.reduce((sum, item) => sum + (item.completedCount || 0), 0);
@@ -62,6 +67,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
       storeName: activeSession?.storeName,
       completed: totalCompleted,
       total: totalToReceive,
+      paymentMethod: paymentMethodLabel(paymentMethod),
       // eslint-disable-next-line react/purity -- handler de clique, não render
       at: new Date(),
     });
@@ -87,29 +93,67 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
             <Wallet size={22} color="var(--nw-pink)" />
             <h3 style={{ fontSize: '18px', fontWeight: 900 }}>Meu Extrato</h3>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'var(--bg-elevated)',
-              border: 'none',
-              color: 'var(--text-muted)',
-              width: '36px',
-              height: '36px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
-            }}
-          >
-            <X size={18} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => { audioAlert.playClickSound(); onOpenSettings(); }}
+              aria-label="Abrir configurações"
+              title="Configurações"
+              style={{
+                background: 'var(--bg-elevated)',
+                border: 'none',
+                color: 'var(--text-muted)',
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+            >
+              <Settings size={18} />
+            </button>
+            <button
+              onClick={onClose}
+              aria-label="Fechar extrato"
+              style={{
+                background: 'var(--bg-elevated)',
+                border: 'none',
+                color: 'var(--text-muted)',
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Resumo Consolidado de Ganhos */}
         {ledgerLoading ? <DriverLoadingSkeleton variant="history-summary" /> : ledgerError && ledger.length === 0 ? (
-          <div className="card-surface" role="alert" style={{ padding: 18 }}>
-            Não foi possível carregar o extrato. Verifique sua conexão e reabra a tela para tentar novamente.
+          <div className="card-surface" role="alert" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--nw-amber)' }}>
+              <AlertCircle size={18} />
+              <strong style={{ fontSize: '13px' }}>Não foi possível carregar o extrato</strong>
+            </div>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Verifique sua conexão e tente de novo.
+            </span>
+            <button
+              type="button"
+              onClick={() => { audioAlert.playClickSound(); setLedgerLoading(true); setLedgerError(false); setAttempt((value) => value + 1); }}
+              className="btn-glove btn-glove-secondary"
+              style={{ height: '42px', fontSize: '13px' }}
+            >
+              <RefreshCw size={16} />
+              <span>Tentar de novo</span>
+            </button>
           </div>
         ) : <div
           style={{
@@ -122,12 +166,15 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
             gap: '8px'
           }}
         >
-          <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-            Extrato Acumulado Geral (Todas as Lojas)
+          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-muted)' }}>
+            Você tem a receber
           </span>
-          <p style={{ fontSize: '26px', fontWeight: 900, color: 'var(--nw-emerald)' }}>
+          <p style={{ fontSize: '40px', fontWeight: 900, color: 'var(--nw-emerald)', letterSpacing: '-1.2px', lineHeight: 1.05 }}>
             R$ {totalToReceive.toFixed(2).replace('.', ',')}
           </p>
+          <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>
+            Somando {ledger.length} {ledger.length === 1 ? 'loja' : 'lojas'} · {totalCompleted} {totalCompleted === 1 ? 'entrega concluída' : 'entregas concluídas'}
+          </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '12px', marginTop: '4px' }}>
             <span style={{ color: 'var(--nw-emerald)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
               <CheckCircle size={14} />
@@ -139,6 +186,55 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
                 {totalCanceled} canceladas
               </span>
             )}
+          </div>
+
+          <div
+            style={{
+              marginTop: '10px',
+              paddingTop: '10px',
+              borderTop: '1px solid var(--border-subtle)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}
+          >
+            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              Forma de pagamento
+            </span>
+            <span style={{ fontSize: '11px', color: paymentMethod ? 'var(--nw-emerald)' : 'var(--text-subtle)' }} role="status">
+              {paymentMethod ? `${paymentMethodLabel(paymentMethod)} · salvo neste aparelho` : 'Escolha como prefere receber da loja'}
+            </span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {PAYMENT_METHODS.map((option) => {
+                const active = paymentMethod === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => {
+                      const next = active ? null : option.value;
+                      setPaymentMethod(next);
+                      setPaymentMethodState(next);
+                    }}
+                    style={{
+                      flex: '1 1 auto',
+                      minHeight: '38px',
+                      padding: '0 12px',
+                      borderRadius: '10px',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      border: `1px solid ${active ? 'var(--nw-emerald)' : 'var(--border-subtle)'}`,
+                      background: active ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-elevated)',
+                      color: active ? 'var(--nw-emerald)' : 'var(--text-muted)'
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <button
@@ -171,6 +267,11 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
           <h4 style={{ fontSize: '14px', fontWeight: 900, color: '#ffffff', marginBottom: '10px' }}>
             Detalhamento por Loja ({ledger.length})
           </h4>
+          {ledger.length > 0 && (
+            <p style={{ fontSize: '12px', color: 'var(--text-subtle)', marginBottom: '8px' }}>
+              Total: <strong style={{ color: 'var(--nw-emerald)' }}>R$ {totalToReceive.toFixed(2).replace('.', ',')}</strong> · {totalCompleted} {totalCompleted === 1 ? 'entrega' : 'entregas'}
+            </p>
+          )}
 
           {ledgerLoading ? (
             <DriverLoadingSkeleton variant="history-list" />
@@ -183,12 +284,20 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
               className="card-surface"
               style={{
                 padding: '18px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '6px',
                 textAlign: 'center',
                 color: 'var(--text-muted)',
                 fontSize: '13px'
               }}
             >
-              Nenhum histórico registrado ainda.
+              <Wallet size={22} color="var(--text-subtle)" aria-hidden="true" />
+              <strong style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Nenhum histórico registrado ainda</strong>
+              <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>
+                Suas entregas concluídas aparecem aqui depois do primeiro plantão.
+              </span>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -259,15 +368,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => { audioAlert.playClickSound(); onOpenSettings(); }}
-          className="btn-glove btn-glove-secondary"
-          style={{ height: '48px', fontSize: '13px' }}
-        >
-          <Settings size={16} color="var(--nw-pink)" />
-          <span>Abrir Configurações</span>
-        </button>
+
 
       </div>
     </div>

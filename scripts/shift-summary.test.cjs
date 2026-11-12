@@ -51,3 +51,8 @@ test('data entra por parâmetro e sai formatada em pt-BR', () => {
 test('total zero sai como 0,00', () => {
   assert.ok(buildShiftSummary({ ...base, completed: 0, total: 0 }).includes('R$ 0,00'));
 });
+
+test('inclui a forma de pagamento escolhida no extrato', () => {
+  assert.ok(buildShiftSummary({ ...base, paymentMethod: 'PIX' }).includes('Forma de pagamento:* PIX'));
+  assert.ok(buildShiftSummary(base).includes('Forma de pagamento:* Não informada'));
+});

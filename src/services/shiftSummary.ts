@@ -5,6 +5,7 @@ export interface ShiftSummaryInput {
   storeName?: string | null;
   completed: number;
   total: number;
+  paymentMethod?: string;
   at: Date;
 }
 
@@ -21,6 +22,7 @@ export function buildShiftSummary(input: ShiftSummaryInput): string {
     `🏪 Estabelecimento: ${input.storeName || 'Pizzaria'}\n` +
     `📅 Data/Hora: ${when}\n\n` +
     `✅ *Entregas concluídas com PIN:* ${input.completed}\n` +
-    `💵 *Total de Valores das entregas:* R$ ${input.total.toFixed(2).replace('.', ',')}\n\n` +
+    `💵 *Total de Valores das entregas:* R$ ${input.total.toFixed(2).replace('.', ',')}\n` +
+    `💳 *Forma de pagamento:* ${input.paymentMethod || 'Não informada'}\n\n` +
     `_Enviado pelo App do Entregador_`;
 }
