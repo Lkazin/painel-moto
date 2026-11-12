@@ -658,9 +658,6 @@ export const App: React.FC = () => {
             activeSession={session}
             onClose={() => setIsProfileLedgerOpen(false)}
             onOpenSettings={() => { setIsProfileLedgerOpen(false); setIsSettingsOpen(true); }}
-            onCloseShift={handleCloseStoreShift}
-            onLogoutAccount={handleLogoutAccount}
-            onShowToast={showToast}
           />
         )}
 
@@ -865,9 +862,6 @@ export const App: React.FC = () => {
             activeSession={session}
             onClose={() => setIsProfileLedgerOpen(false)}
             onOpenSettings={() => { setIsProfileLedgerOpen(false); setIsSettingsOpen(true); }}
-            onCloseShift={handleCloseStoreShift}
-            onLogoutAccount={handleLogoutAccount}
-            onShowToast={showToast}
           />
       )}
 

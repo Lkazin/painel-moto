@@ -2,35 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { DriverLoadingSkeleton } from './DriverLoadingSkeleton';
 import {
   X,
-  User,
-  Bike,
-  CreditCard,
-  Phone,
   Wallet,
-  Store,
   CheckCircle,
   XCircle,
   Calendar,
-  LogOut,
-  Power,
-  TrendingUp,
-  AlertCircle,
   MessageCircle,
-  Copy,
-  Check,
   Settings
 } from 'lucide-react';
 import { DriverAccount, DriverSession, StoreShiftSummary } from '../types';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
+import { buildShiftSummary } from '../services/shiftSummary';
 
 interface ScreenProfileLedgerProps {
   account: DriverAccount;
   activeSession: DriverSession | null;
   onClose: () => void;
-  onCloseShift: () => void | Promise<void>;
-  onLogoutAccount: () => void;
-  onShowToast?: (text: string, type: 'success' | 'error' | 'info') => void;
   onOpenSettings: () => void;
 }
 
@@ -38,18 +25,12 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
   account,
   activeSession,
   onClose,
-  onCloseShift,
-  onLogoutAccount,
-  onShowToast,
   onOpenSettings,
 }) => {
   // Read data already present before first render to avoid a fake zero-value screen.
   const [ledger, setLedger] = useState<StoreShiftSummary[]>(() => api.getStoresLedger());
   const [ledgerLoading, setLedgerLoading] = useState(() => api.getStoresLedger().length === 0);
   const [ledgerError, setLedgerError] = useState(false);
-  const [closingShift, setClosingShift] = useState(false);
-  const [copiedSummary, setCopiedSummary] = useState(false);
-  const [showChangelog, setShowChangelog] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -72,74 +53,19 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
   const totalCompleted = ledger.reduce((sum, item) => sum + (item.completedCount || 0), 0);
   const totalCanceled = ledger.reduce((sum, item) => sum + (item.canceledCount || 0), 0);
 
-  const handleEndShift = async () => {
-    if (!activeSession) return;
-    setClosingShift(true);
-    audioAlert.playClickSound();
-
-    try {
-      await onCloseShift();
-      audioAlert.playSuccessSound();
-      setLedger(api.getStoresLedger());
-    } catch (e) {
-      audioAlert.playErrorSound();
-    } finally {
-      setClosingShift(false);
-    }
-  };
-
-  const formatSummaryText = () => {
-    const storeName = activeSession?.storeName || 'Pizzaria';
-    const nowStr = new Date().toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    return `📋 *FECHAMENTO DE PLANTÃO - ${account.name.toUpperCase()}*\n` +
-      `🏍️ Veículo: ${account.vehicleModel || 'Moto'} (Placa ${account.vehiclePlate})\n` +
-      `🏪 Estabelecimento: ${storeName}\n` +
-      `📅 Data/Hora: ${nowStr}\n\n` +
-      `✅ *Entregas concluídas com PIN:* ${totalCompleted}\n` +
-      `💵 *Total de Valores das entregas:* R$ ${totalToReceive.toFixed(2).replace('.', ',')}\n\n` +
-      `_Enviado pelo App do Entregador_`;
-  };
-
-  const handleCopySummary = async () => {
-    audioAlert.playClickSound();
-    try {
-      await navigator.clipboard.writeText(formatSummaryText());
-      setCopiedSummary(true);
-      if (onShowToast) onShowToast('Extrato copiado para a área de transferência!', 'success');
-      setTimeout(() => setCopiedSummary(false), 3000);
-    } catch {
-      if (onShowToast) onShowToast('Erro ao copiar extrato.', 'error');
-    }
-  };
-
   const handleShareWhatsApp = () => {
     audioAlert.playClickSound();
-    const storeName = activeSession?.storeName || 'Pizzaria';
-    const nowStr = new Date().toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    const text = buildShiftSummary({
+      driverName: account.name,
+      vehicleModel: account.vehicleModel,
+      vehiclePlate: account.vehiclePlate,
+      storeName: activeSession?.storeName,
+      completed: totalCompleted,
+      total: totalToReceive,
+      // eslint-disable-next-line react/purity -- handler de clique, não render
+      at: new Date(),
     });
-
-    const text = `📋 *FECHAMENTO DE PLANTÃO - ${account.name.toUpperCase()}*\n` +
-      `🏍️ Veículo: ${account.vehicleModel || 'Moto'} (Placa ${account.vehiclePlate})\n` +
-      `🏪 Estabelecimento: ${storeName}\n` +
-      `📅 Data/Hora: ${nowStr}\n\n` +
-      `✅ *Entregas concluídas com PIN:* ${totalCompleted}\n` +
-      `💵 *Total de Valores das entregas:* R$ ${totalToReceive.toFixed(2).replace('.', ',')}\n\n` +
-      `_Enviado pelo App do Entregador_`;
-
-    const encoded = encodeURIComponent(text);
-    window.open(`https://wa.me/?text=${encoded}`, '_blank');
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   return (
