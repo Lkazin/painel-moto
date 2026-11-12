@@ -343,6 +343,7 @@ export const App: React.FC = () => {
         for (const offer of availableOffers) {
           const id = offer.offerId || offer.id;
           if (!id) continue;
+          if (noticedOfferIdsRef.current.has(id)) continue;
           noticedOfferIdsRef.current.add(id);
           publishNotice({ id: `offer:${id}`, kind: 'offer', title: 'Nova entrega disponível!', message: `Você recebeu uma solicitação de ${offer.storeName || 'sua loja parceira'}.`, expiresAt: offer.expiresAt,
             onOpen: () => {
