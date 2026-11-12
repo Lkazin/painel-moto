@@ -7,7 +7,6 @@ import {
   XCircle,
   Calendar,
   MessageCircle,
-  Settings,
   AlertCircle,
   RefreshCw
 } from 'lucide-react';
@@ -21,14 +20,12 @@ interface ScreenProfileLedgerProps {
   account: DriverAccount;
   activeSession: DriverSession | null;
   onClose: () => void;
-  onOpenSettings: () => void;
 }
 
 export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
   account,
   activeSession,
   onClose,
-  onOpenSettings,
 }) => {
   // Read data already present before first render to avoid a fake zero-value screen.
   const [ledger, setLedger] = useState<StoreShiftSummary[]>(() => api.getStoresLedger());
@@ -94,26 +91,6 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
             <h3 style={{ fontSize: '18px', fontWeight: 900 }}>Meu Extrato</h3>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button
-              type="button"
-              onClick={() => { audioAlert.playClickSound(); onOpenSettings(); }}
-              aria-label="Abrir configurações"
-              title="Configurações"
-              style={{
-                background: 'var(--bg-elevated)',
-                border: 'none',
-                color: 'var(--text-muted)',
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer'
-              }}
-            >
-              <Settings size={18} />
-            </button>
             <button
               onClick={onClose}
               aria-label="Fechar extrato"

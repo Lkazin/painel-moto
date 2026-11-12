@@ -42,7 +42,7 @@ test('a página de configurações reúne tudo que não é extrato', () => {
 });
 
 test('configurações tem grupos, download, confirmação de saída e suporte', () => {
-  for (const group of ['Conta', 'Plantão', 'Notificações', 'Aplicativo', 'Aparência', 'Atualizações', 'Suporte']) {
+  for (const group of ['Conta', 'Plantão', 'Notificações', 'Aplicativo', 'Aparência', 'Suporte']) {
     assert.ok(settings.includes(`<SectionTitle>${group}</SectionTitle>`), `grupo ${group}`);
   }
   assert.ok(settings.includes('confirmLogout'), 'sair pede confirmação');
@@ -50,10 +50,22 @@ test('configurações tem grupos, download, confirmação de saída e suporte', 
   assert.ok(settings.includes('Como o app trata seus dados'), 'termos de dados');
 });
 
-test('o extrato abre as configurações e o app renderiza a tela', () => {
-  assert.ok(ledger.includes('onOpenSettings'));
-  assert.ok(ledger.includes('Abrir configurações'), 'engrenagem no cabeçalho');
-  assert.equal(ledger.includes('Abrir Configurações</span>'), false, 'botão duplicado no rodapé saiu');
+test('o extrato não tem nada de configuração', () => {
+  assert.equal(ledger.includes('onOpenSettings'), false, 'extrato sem caminho para configurações');
+  assert.equal(ledger.includes('Abrir configurações'), false, 'sem engrenagem no extrato');
+  assert.equal(ledger.includes('Settings'), false, 'sem ícone de configuração no extrato');
+});
+
+test('a engrenagem da tela de início abre as configurações', () => {
+  const headerButton = app.slice(app.indexOf('{/* Botão de Menu / Configurações */}'), app.indexOf('{/* Botão de Menu / Configurações */}') + 400);
+  assert.ok(headerButton.includes('setIsSettingsOpen(true)'), 'engrenagem abre configurações');
+  assert.equal(headerButton.includes('setIsStoreModalOpen(true)'), false, 'engrenagem não abre mais o modal da loja');
   assert.ok(app.includes('<ScreenSettings'));
-  assert.ok(app.includes('setIsSettingsOpen(true)'));
+});
+
+test('cada item de configuração tem nome', () => {
+  for (const item of ['Meu perfil', 'Plantão atual', 'Baixar o aplicativo', 'Preferências do app', 'Atualizações', 'Novidades', 'Sair da conta', 'Falar com a loja']) {
+    assert.ok(settings.includes(`<ItemTitle>${item}</ItemTitle>`), `item ${item}`);
+  }
+  assert.equal((settings.match(/<SectionTitle>Conta<\/SectionTitle>/g) || []).length, 1, 'grupo Conta aparece uma vez só');
 });

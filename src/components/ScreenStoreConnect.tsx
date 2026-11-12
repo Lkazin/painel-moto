@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Bike,
   LogOut,
+  Settings,
   Wallet,
   CheckCircle,
   XCircle,
@@ -21,6 +22,7 @@ interface ScreenStoreConnectProps {
   account: DriverAccount;
   onShiftStarted: (session: DriverSession) => void;
   onLogoutAccount: () => void;
+  onOpenSettings: () => void;
   onOpenLedgerModal: () => void;
 }
 
@@ -28,6 +30,7 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
   account,
   onShiftStarted,
   onLogoutAccount,
+  onOpenSettings,
   onOpenLedgerModal
 }) => {
   const [storeCode, setStoreCode] = useState('');
@@ -144,6 +147,29 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
             </div>
           </div>
         </div>
+
+        <button
+          onClick={() => {
+            audioAlert.playClickSound();
+            onOpenSettings();
+          }}
+          aria-label="Abrir configurações"
+          title="Configurações"
+          style={{
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-muted)',
+            width: '38px',
+            height: '38px',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer'
+          }}
+        >
+          <Settings size={18} />
+        </button>
 
         <button
           onClick={() => {

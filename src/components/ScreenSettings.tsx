@@ -7,6 +7,23 @@ import { SectionPushNotifications } from './SectionPushNotifications';
 import { DriverAccount, DriverSession } from '../types';
 import { audioAlert } from '../utils/audioAlert';
 
+function ItemTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h5
+      style={{
+        fontSize: '13px',
+        fontWeight: 900,
+        color: '#ffffff',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+      }}
+    >
+      {children}
+    </h5>
+  );
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <h4
@@ -91,7 +108,8 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
         <SectionTitle>Conta</SectionTitle>
 
         {/* Perfil do entregador */}
-        <div className="card-surface card-highlight" style={{ padding: '16px' }}>
+        <div className="card-surface card-highlight" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <ItemTitle>Meu perfil</ItemTitle>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
@@ -140,9 +158,7 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--nw-pink)', textTransform: 'uppercase' }}>
-                Plantão em Andamento
-              </span>
+              <ItemTitle>Plantão atual</ItemTitle>
               <span style={{ fontSize: '10px', background: 'var(--nw-emerald)', color: '#000', fontWeight: 900, padding: '2px 8px', borderRadius: '8px' }}>
                 CONECTADO
               </span>
@@ -169,7 +185,7 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
         <section className="card-surface" aria-label="Aplicativo" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Smartphone size={18} color="var(--nw-purple)" />
-            <h4 style={{ fontSize: '14px', fontWeight: 900, color: '#ffffff' }}>Aplicativo</h4>
+            <ItemTitle>Baixar o aplicativo</ItemTitle>
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             Instale em outro aparelho ou baixe a versão mais recente direto do site oficial. Não é preciso loja de aplicativos.
@@ -190,11 +206,17 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
 
         <SectionTitle>Aparência</SectionTitle>
 
+        <ItemTitle>Preferências do app</ItemTitle>
+
         <ExperienceSettings />
 
-        <SectionTitle>Atualizações</SectionTitle>
+        <SectionTitle>Aplicativo</SectionTitle>
+
+        <ItemTitle>Atualizações</ItemTitle>
 
         <AppUpdateSettings />
+
+        <ItemTitle>Novidades</ItemTitle>
 
         <button
           type="button"
@@ -203,7 +225,7 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
           style={{ height: '48px', fontSize: '13px' }}
         >
           <Sparkles size={16} color="var(--nw-pink)" />
-          <span>✨ O que há de novo no app (Novidades)</span>
+          <span>O que há de novo no app</span>
         </button>
 
         {showChangelog && <VersionChangelogModal onClose={() => setShowChangelog(false)} />}
@@ -211,6 +233,7 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
         <SectionTitle>Suporte</SectionTitle>
 
         <section className="card-surface" aria-label="Suporte" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <ItemTitle>Falar com a loja</ItemTitle>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             Dúvida sobre uma entrega? Fale com a loja pelo chat do pedido, na tela da entrega ativa.
           </p>
@@ -223,7 +246,7 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
             Página oficial do aplicativo
           </a>
           <details>
-            <summary style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-muted)', cursor: 'pointer' }}>
+            <summary style={{ fontSize: '13px', fontWeight: 900, color: '#ffffff', cursor: 'pointer' }}>
               Como o app trata seus dados
             </summary>
             <p style={{ fontSize: '11.5px', color: 'var(--text-subtle)', marginTop: '8px', lineHeight: 1.6 }}>
@@ -233,8 +256,6 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
             </p>
           </details>
         </section>
-
-        <SectionTitle>Conta</SectionTitle>
 
         {confirmLogout ? (
           <div
@@ -269,6 +290,8 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
             </div>
           </div>
         ) : (
+        <>
+        <ItemTitle>Sair da conta</ItemTitle>
         <button
           onClick={() => { audioAlert.playClickSound(); setConfirmLogout(true); }}
           className="btn-glove"
@@ -280,6 +303,7 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
           <LogOut size={16} />
           <span>Sair da Minha Conta de Entregador</span>
         </button>
+        </>
         )}
       </div>
     </div>

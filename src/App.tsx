@@ -648,6 +648,7 @@ export const App: React.FC = () => {
             showToast(`Plantão iniciado na ${newSession.storeName}!`, 'success');
           }}
           onLogoutAccount={handleLogoutAccount}
+          onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenLedgerModal={() => setIsProfileLedgerOpen(true)}
         />
 
@@ -657,7 +658,6 @@ export const App: React.FC = () => {
             account={account}
             activeSession={session}
             onClose={() => setIsProfileLedgerOpen(false)}
-            onOpenSettings={() => { setIsProfileLedgerOpen(false); setIsSettingsOpen(true); }}
           />
         )}
 
@@ -721,7 +721,7 @@ export const App: React.FC = () => {
             <button
               onClick={() => {
                 audioAlert.playClickSound();
-                setIsStoreModalOpen(true);
+                setIsSettingsOpen(true);
               }}
               style={{
                 background: 'var(--bg-card)',
@@ -735,7 +735,7 @@ export const App: React.FC = () => {
                 justifyContent: 'center',
                 cursor: 'pointer'
               }}
-              aria-label="Abrir configurações de conta e loja"
+              aria-label="Abrir configurações"
             >
               <Settings size={17} />
             </button>
@@ -861,7 +861,6 @@ export const App: React.FC = () => {
             account={account}
             activeSession={session}
             onClose={() => setIsProfileLedgerOpen(false)}
-            onOpenSettings={() => { setIsProfileLedgerOpen(false); setIsSettingsOpen(true); }}
           />
       )}
 
