@@ -4,7 +4,6 @@ import {
   KeyRound,
   ArrowRight,
   Bike,
-  LogOut,
   Settings,
   Wallet,
   CheckCircle,
@@ -21,7 +20,6 @@ import { audioAlert } from '../utils/audioAlert';
 interface ScreenStoreConnectProps {
   account: DriverAccount;
   onShiftStarted: (session: DriverSession) => void;
-  onLogoutAccount: () => void;
   onOpenSettings: () => void;
   onOpenLedgerModal: () => void;
 }
@@ -29,7 +27,6 @@ interface ScreenStoreConnectProps {
 export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
   account,
   onShiftStarted,
-  onLogoutAccount,
   onOpenSettings,
   onOpenLedgerModal
 }) => {
@@ -169,28 +166,6 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
           }}
         >
           <Settings size={18} />
-        </button>
-
-        <button
-          onClick={() => {
-            audioAlert.playClickSound();
-            onLogoutAccount();
-          }}
-          title="Sair da sua conta"
-          style={{
-            background: 'var(--bg-elevated)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-muted)',
-            width: '38px',
-            height: '38px',
-            borderRadius: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer'
-          }}
-        >
-          <LogOut size={18} />
         </button>
       </div>
 

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { X, Bike, CreditCard, Phone, Power, Sparkles, LogOut, Settings, Download, Smartphone } from 'lucide-react';
+import { X, Bike, CreditCard, Phone, Power, Sparkles, LogOut, Settings, Download, Smartphone, Sun, Moon } from 'lucide-react';
 import { AppUpdateSettings } from './AppUpdateNotice';
 import { VersionChangelogModal } from './VersionChangelogModal';
 import { ExperienceSettings } from './ExperienceSettings';
 import { SectionPushNotifications } from './SectionPushNotifications';
+import { OfferSoundSettings } from './OfferSoundSettings';
+import { DriverSecuritySettings } from './DriverSecuritySettings';
 import { PAYMENT_METHODS, getPaymentMethod, paymentMethodLabel, setPaymentMethod } from '../services/paymentPreference';
 import { DriverAccount, DriverSession } from '../types';
 import { audioAlert } from '../utils/audioAlert';
@@ -49,14 +51,16 @@ interface ScreenSettingsProps {
   onCloseShift: () => void | Promise<void>;
   onLogoutAccount: () => void;
   onShowToast?: (text: string, type: 'success' | 'error' | 'info') => void;
+  currentTheme?: 'dark' | 'light';
+  onToggleTheme?: () => void;
 }
 
 /**
- * Configurações do entregador.
+ * Central única de configurações do entregador.
  *
- * Tudo que NÃO é dinheiro saiu do extrato e vive aqui: perfil (nome, telefone,
- * placa, moto), notificações, preferências de experiência, atualização do app,
- * novidades, encerrar plantão e sair da conta. O extrato ficou só com o extrato.
+ * Reúne todas as configurações do sistema em blocos objetivos:
+ * Conta & Recebimento, Plantão, Alertas & Som, Segurança & Aparência,
+ * Aplicativo & Atualizações e Suporte/Sair da conta.
  */
 export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
   account,
@@ -65,6 +69,8 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
   onCloseShift,
   onLogoutAccount,
   onShowToast,
+  currentTheme = 'dark',
+  onToggleTheme,
 }) => {
   const [showChangelog, setShowChangelog] = useState(false);
   const [closingShift, setClosingShift] = useState(false);
@@ -189,40 +195,97 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
           </div>
         </section>
 
-        <SectionTitle>Plantão</SectionTitle>
-
-        {/* Plantão ativo: encerrar aqui, não no extrato */}
         {activeSession && (
+          <>
+            <SectionTitle>Plantão</SectionTitle>
+            <div
+              style={{
+                background: 'rgba(255, 46, 154, 0.12)', border: '1.5px solid var(--nw-pink)',
+                borderRadius: '16px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <ItemTitle>Plantão atual</ItemTitle>
+                <span style={{ fontSize: '10px', background: 'var(--nw-emerald)', color: '#000', fontWeight: 900, padding: '2px 8px', borderRadius: '8px' }}>
+                  CONECTADO
+                </span>
+              </div>
+              <h4 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff' }}>{activeSession.storeName}</h4>
+              <button
+                onClick={handleEndShift}
+                disabled={closingShift}
+                className="btn-glove btn-glove-danger"
+                style={{ height: '48px', fontSize: '13px' }}
+              >
+                <Power size={18} />
+                <span>{closingShift ? 'Encerrando...' : 'Encerrar Plantão nesta Loja'}</span>
+              </button>
+            </div>
+          </>
+        )}
+
+        <SectionTitle>Alertas &amp; Som</SectionTitle>
+
+        <SectionPushNotifications onShowToast={onShowToast} />
+
+        <OfferSoundSettings />
+
+        <SectionTitle>Segurança &amp; Aparência</SectionTitle>
+
+        <DriverSecuritySettings />
+
+        {onToggleTheme && (
           <div
+            className="card-surface"
             style={{
-              background: 'rgba(255, 46, 154, 0.12)', border: '1.5px solid var(--nw-pink)',
-              borderRadius: '16px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px',
+              padding: '14px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <ItemTitle>Plantão atual</ItemTitle>
-              <span style={{ fontSize: '10px', background: 'var(--nw-emerald)', color: '#000', fontWeight: 900, padding: '2px 8px', borderRadius: '8px' }}>
-                CONECTADO
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {currentTheme === 'dark' ? <Moon size={18} color="var(--nw-purple)" /> : <Sun size={18} color="#f59e0b" />}
+              <div>
+                <ItemTitle>Tema do aplicativo</ItemTitle>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  {currentTheme === 'dark' ? 'Tema Escuro (otimizado para bateria e sol)' : 'Tema Claro'}
+                </p>
+              </div>
             </div>
-            <h4 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff' }}>{activeSession.storeName}</h4>
             <button
-              onClick={handleEndShift}
-              disabled={closingShift}
-              className="btn-glove btn-glove-danger"
-              style={{ height: '48px', fontSize: '13px' }}
+              type="button"
+              onClick={() => {
+                audioAlert.playClickSound();
+                onToggleTheme();
+              }}
+              style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-subtle)',
+                color: '#ffffff',
+                padding: '8px 14px',
+                borderRadius: '10px',
+                fontSize: '12px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
             >
-              <Power size={18} />
-              <span>{closingShift ? 'Encerrando...' : 'Encerrar Plantão nesta Loja'}</span>
+              Mudar Tema
             </button>
           </div>
         )}
 
-        <SectionTitle>Notificações</SectionTitle>
+        <ItemTitle>Preferências do app</ItemTitle>
 
-        <SectionPushNotifications onShowToast={onShowToast} />
+        <ExperienceSettings />
 
-        <SectionTitle>Aplicativo</SectionTitle>
+        <SectionTitle>Aplicativo &amp; Atualizações</SectionTitle>
+
+        <ItemTitle>Atualizações</ItemTitle>
+
+        <AppUpdateSettings />
 
         <section className="card-surface" aria-label="Aplicativo" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -245,18 +308,6 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
             <span>Baixar o aplicativo</span>
           </button>
         </section>
-
-        <SectionTitle>Aparência</SectionTitle>
-
-        <ItemTitle>Preferências do app</ItemTitle>
-
-        <ExperienceSettings />
-
-        <SectionTitle>Aplicativo</SectionTitle>
-
-        <ItemTitle>Atualizações</ItemTitle>
-
-        <AppUpdateSettings />
 
         <ItemTitle>Novidades</ItemTitle>
 

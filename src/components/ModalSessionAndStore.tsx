@@ -5,9 +5,6 @@ import {
   Smartphone,
   Wifi,
   WifiOff,
-  Sun,
-  Moon,
-  LogOut,
   RefreshCw,
   Power
 } from 'lucide-react';
@@ -15,26 +12,18 @@ import { DriverSession } from '../types';
 import { offlineQueue } from '../services/offlineQueue';
 import { audioAlert } from '../utils/audioAlert';
 import { api } from '../services/api';
-import { OfferSoundSettings } from './OfferSoundSettings';
-import { DriverSecuritySettings } from './DriverSecuritySettings';
 
 interface ModalSessionAndStoreProps {
   session: DriverSession;
   onClose: () => void;
-  onLogout: () => void;
   onCloseShift?: () => void;
-  onToggleTheme: () => void;
-  currentTheme: 'dark' | 'light';
   pendingDeliveriesCount?: number;
 }
 
 export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
   session,
   onClose,
-  onLogout,
   onCloseShift,
-  onToggleTheme,
-  currentTheme
 }) => {
   const [isFlushingQueue, setIsFlushingQueue] = useState(false);
   const [flushMessage, setFlushMessage] = useState<string | null>(null);
@@ -139,9 +128,6 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
           </div>
         </div>
 
-        <div style={{ marginBottom: 14 }}><DriverSecuritySettings /></div>
-        <div style={{ marginBottom: 14 }}><OfferSoundSettings /></div>
-
         {/* Status de Conexão Real */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
           <div
@@ -215,44 +201,6 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
               {flushMessage}
             </div>
           )}
-
-          {/* Alternador de Tema Claro / Escuro */}
-          <div
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '14px',
-              padding: '12px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              {currentTheme === 'dark' ? <Moon size={20} color="var(--nw-purple)" /> : <Sun size={20} color="#f59e0b" />}
-              <div>
-                <p style={{ fontSize: '13px', fontWeight: 800 }}>Aparência</p>
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  {currentTheme === 'dark' ? 'Tema Escuro (Otimizado p/ Sol e Bateria)' : 'Tema Claro'}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={onToggleTheme}
-              style={{
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border-subtle)',
-                color: '#ffffff',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                fontSize: '11px',
-                fontWeight: 800,
-                cursor: 'pointer'
-              }}
-            >
-              Mudar Tema
-            </button>
-          </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -269,15 +217,6 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
               <span>Encerrar Plantão nesta Loja (Salvar no Extrato)</span>
             </button>
           )}
-
-          <button
-            onClick={onLogout}
-            className="btn-glove btn-glove-danger"
-            style={{ height: '48px', fontSize: '13px' }}
-          >
-            <LogOut size={16} />
-            <span>Sair da Conta do Entregador</span>
-          </button>
         </div>
 
         <p style={{ fontSize: '10px', color: 'var(--text-subtle)', textAlign: 'center', marginTop: '10px' }}>

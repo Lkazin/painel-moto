@@ -647,7 +647,6 @@ export const App: React.FC = () => {
             refreshAssignments();
             showToast(`Plantão iniciado na ${newSession.storeName}!`, 'success');
           }}
-          onLogoutAccount={handleLogoutAccount}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenLedgerModal={() => setIsProfileLedgerOpen(true)}
         />
@@ -669,6 +668,8 @@ export const App: React.FC = () => {
             onCloseShift={async () => { await api.closeStoreShift(); setSession(null); setIsSettingsOpen(false); }}
             onLogoutAccount={async () => { await api.logoutDriver(); setAccount(null); setIsSettingsOpen(false); }}
             onShowToast={showToast}
+            currentTheme={theme}
+            onToggleTheme={() => updatePreferences({ theme: theme === 'dark' ? 'light' : 'dark' })}
           />
         )}
 
@@ -854,15 +855,12 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Modal de Configuração & Loja Ativa */}
+      {/* Modal de Loja Ativa */}
       {isStoreModalOpen && (
         <ModalSessionAndStore
           session={session}
           onClose={() => setIsStoreModalOpen(false)}
-          onLogout={handleLogoutAccount}
           onCloseShift={handleCloseStoreShift}
-          onToggleTheme={() => updatePreferences({ theme: theme === 'dark' ? 'light' : 'dark' })}
-          currentTheme={theme}
         />
       )}
 
@@ -897,6 +895,8 @@ export const App: React.FC = () => {
           onCloseShift={async () => { await api.closeStoreShift(); setSession(null); setIsSettingsOpen(false); }}
           onLogoutAccount={async () => { await api.logoutDriver(); setAccount(null); setIsSettingsOpen(false); }}
           onShowToast={showToast}
+          currentTheme={theme}
+          onToggleTheme={() => updatePreferences({ theme: theme === 'dark' ? 'light' : 'dark' })}
         />
       )}
 
