@@ -31,7 +31,6 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
   const [ledger, setLedger] = useState<StoreShiftSummary[]>(() => api.getStoresLedger());
   const [ledgerLoading, setLedgerLoading] = useState(() => api.getStoresLedger().length === 0);
   const [ledgerError, setLedgerError] = useState(false);
-  const [paymentMethod] = useState(() => getPaymentMethod());
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -64,7 +63,7 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
       storeName: activeSession?.storeName,
       completed: totalCompleted,
       total: totalToReceive,
-      paymentMethod: paymentMethodLabel(paymentMethod),
+      paymentMethod: paymentMethodLabel(getPaymentMethod()),
       // eslint-disable-next-line react/purity -- handler de clique, não render
       at: new Date(),
     });
@@ -163,23 +162,6 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
                 {totalCanceled} canceladas
               </span>
             )}
-          </div>
-
-          <div
-            style={{
-              marginTop: '10px',
-              paddingTop: '10px',
-              borderTop: '1px solid var(--border-subtle)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '8px'
-            }}
-          >
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Forma de pagamento</span>
-            <span style={{ fontSize: '12px', fontWeight: 800, color: paymentMethod ? 'var(--nw-emerald)' : 'var(--text-subtle)' }}>
-              {paymentMethod ? paymentMethodLabel(paymentMethod) : 'Não definida'}
-            </span>
           </div>
 
           <button

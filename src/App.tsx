@@ -653,11 +653,22 @@ export const App: React.FC = () => {
         />
 
         {/* Modal de Extrato Completo e Perfil */}
-        {isProfileLedgerOpen && (
+        {isProfileLedgerOpen && !isSettingsOpen && (
           <ScreenProfileLedger
             account={account}
             activeSession={session}
             onClose={() => setIsProfileLedgerOpen(false)}
+          />
+        )}
+
+        {isSettingsOpen && account && (
+          <ScreenSettings
+            account={account}
+            activeSession={session}
+            onClose={() => setIsSettingsOpen(false)}
+            onCloseShift={async () => { await api.closeStoreShift(); setSession(null); setIsSettingsOpen(false); }}
+            onLogoutAccount={async () => { await api.logoutDriver(); setAccount(null); setIsSettingsOpen(false); }}
+            onShowToast={showToast}
           />
         )}
 
