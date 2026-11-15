@@ -8,7 +8,7 @@ function helperModule() {
   const context={exports:{}};vm.runInNewContext(source+';Object.assign(exports,{assignmentKey,waitingPickupAssignments,activeRouteAssignments,keepPickupSelection,reconcileRouteStops,mapOptimizedStops});',context);return context.exports;
 }
 const helpers=helperModule();
-const estimateContext={exports:{}};const estimateSource=stripTypeScriptTypes(fs.readFileSync('src/services/routeEstimate.ts','utf8').replace(/import[\s\S]*?from '[^']+';/g,'')).replaceAll('export function','function');vm.runInNewContext(estimateSource+';Object.assign(exports,{recentRouteOrigin,routeStaleReason});',estimateContext);const estimateHelpers=estimateContext.exports;
+const estimateContext={exports:{}};const estimateSource=stripTypeScriptTypes(fs.readFileSync('src/services/routeEstimate.ts','utf8').replace(/import[\s\S]*?from '[^']+';/g,'')).replaceAll('export function','function');vm.runInNewContext(estimateSource+';Object.assign(exports,{recentRouteOrigin,routeStaleReason,calculateDeliveryWait});',estimateContext);const estimateHelpers=estimateContext.exports;
 function assignment(id,status='waiting_pickup',sequence=1){return {assignmentId:id,orderNumber:'#'+id,orderId:'order-'+id,storeId:'store',storeName:'Loja',customerName:'Cliente '+id,phone:'',address:'Rua Teste',addressNumber:'10',neighborhood:'Centro',city:'Canoas',itemsSummary:'Pedido',status,sequence,deliveryFee:8,acceptedAt:'2026-11-01T12:00:00Z',createdAt:'2026-11-01T11:00:00Z'};}
 function routeResult(mode,ids){return {success:true,mode,stops:ids.map((id,index)=>({assignmentId:id,sequence:index+1})),totalDistanceMeters:4200,totalDurationSeconds:720,rule:'Regra calculada pelo servidor',source:'osrm',origin:{latitude:-29.9,longitude:-51.1}};}
 function walk(node,predicate,result=[]){if(!node||typeof node!=='object')return result;if(predicate(node))result.push(node);for(const child of [node.props?.children].flat(Infinity))walk(child,predicate,result);return result;}
@@ -56,12 +56,19 @@ test('API de retirada exige seleção e transmite todos os IDs visíveis sem lim
   vm.runInNewContext(source+';exports.api=api;',context);const api=context.exports.api;await api.synchronizeAccount();await assert.rejects(api.confirmPickup([],['A']),/Selecione/);
   const result=await api.confirmPickup(['A'],['A','B','C','D','E','F']);const body=JSON.parse(calls.at(-1).options.body);assert.deepEqual(body.assignmentIds,['A']);assert.equal(body.pickupScopeIds.length,6);assert.equal(result.released.length,5);
 });
-test('duas regras usam servidor, aceitam mais de quatro paradas e sugestão só é salva ao escolher',async()=>{
+test('duas regras usam servidor, aceitam mais de quatro paradas e organizam salvando em um toque',async()=>{
   const picked=Array.from({length:6},(_,i)=>assignment(String(i+1),'picked_up',i+1));const modes=[],saved=[];
   const view=await component('ScreenRoute',{assignments:[...picked,assignment('WAIT')],onReorder:async value=>saved.push(value),onSelectDelivery(){},onNavigateToOrders(){}},{getOptimizeRoute:async mode=>{modes.push(mode);return routeResult(mode,picked.map(helpers.assignmentKey).reverse());}});
-  view.render();view.find(node=>node.type==='button'&&nodeText(node).includes('Organizar minha rota'))[0].props.onClick();view.render();assert.match(view.text(),/Calculando a melhor rota/);await view.settle();assert.match(view.text(),/4,2\s+km/);assert.equal(saved.length,0);
-  view.find(node=>node.type==='button'&&nodeText(node).includes('Maior espera'))[0].props.onClick();view.render();view.find(node=>node.type==='button'&&nodeText(node).includes('Organizar minha rota'))[0].props.onClick();await view.settle();assert.deepEqual(modes,['shortest_distance','oldest_wait']);
-  view.find(node=>node.type==='button'&&nodeText(node).includes('Salvar Ordem'))[0].props.onClick();await view.settle();assert.equal(saved[0].length,6);assert.equal(saved[0][0].assignmentId,'6');assert.equal(saved[0].some(stop=>stop.assignmentId==='WAIT'),false);
+  view.render();view.find(node=>node.type==='button'&&nodeText(node).includes('Organizar minha rota'))[0].props.onClick();view.render();assert.match(view.text(),/Calculando a melhor rota/);await view.settle();assert.match(view.text(),/4,2\s+km/);assert.equal(saved.length,1);assert.equal(saved[0].length,6);assert.equal(saved[0][0].assignmentId,'6');assert.equal(saved[0].some(stop=>stop.assignmentId==='WAIT'),false);
+  view.find(node=>node.type==='button'&&nodeText(node).includes('Maior espera'))[0].props.onClick();view.render();view.find(node=>node.type==='button'&&nodeText(node).includes('Organizar minha rota'))[0].props.onClick();await view.settle();assert.deepEqual(modes,['shortest_distance','oldest_wait']);assert.equal(saved.length,2);
+});
+
+test('contador de tempo parado e porcentagem refletem espera em rota e no portão',()=>{
+  const base=Date.parse('2026-11-01T12:00:00Z');
+  const m1=estimateHelpers.calculateDeliveryWait({pickedUpAt:'2026-11-01T11:55:00Z'},base);
+  assert.equal(m1.waitMinutes,5);assert.equal(m1.targetMinutes,30);assert.equal(m1.percent,17);assert.equal(m1.level,'ok');assert.match(m1.label,/5 min parada/);
+  const m2=estimateHelpers.calculateDeliveryWait({waitingGateStartedAt:'2026-11-01T11:55:00Z',waitingGateLimitMinutes:5},base);
+  assert.equal(m2.isAtGate,true);assert.equal(m2.waitMinutes,5);assert.equal(m2.percent,100);assert.equal(m2.level,'critical');assert.match(m2.label,/5 min no portão/);
 });
 test('falha do provedor mantém rota manual, sem distância inventada e com Maps/Waze disponíveis',async()=>{
   const picked=[assignment('A','picked_up',1),assignment('B','picked_up',2)],saved=[];

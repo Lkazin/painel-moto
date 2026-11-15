@@ -511,7 +511,7 @@ export const App: React.FC = () => {
   };
 
   // Reordenar Rota
-  const handleReorderRoute = async (stops: { assignmentId: string; sequence: number }[]) => {
+  const handleReorderRoute = async (stops: { assignmentId: string; sequence: number; routeEstimate?: any }[]) => {
     await api.reorderRoute(stops);
     await refreshAssignments();
     showToast('Nova sequência da rota salva com sucesso!', 'success');

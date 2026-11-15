@@ -21,12 +21,12 @@ import { activeRouteAssignments, assignmentKey, reconcileRouteStops, mapOptimize
 import { audioAlert } from '../utils/audioAlert';
 import { trackingService } from '../services/trackingService';
 import TrackingBadge from './TrackingBadge';
-import {recentRouteOrigin,routeStaleReason} from '../services/routeEstimate';
+import {recentRouteOrigin,routeStaleReason,calculateDeliveryWait} from '../services/routeEstimate';
 import { RoutePreview, RouteSwipeCard } from './RouteExperience';
 
 interface ScreenRouteProps {
   assignments: Assignment[];
-  onReorder: (newOrder: { assignmentId: string; sequence: number }[]) => Promise<void>;
+  onReorder: (newOrder: { assignmentId: string; sequence: number; routeEstimate?: any }[]) => Promise<void>;
   onSelectDelivery: (assignment: Assignment) => void;
   onNavigateToOrders: () => void;
 }
@@ -48,7 +48,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
   const [routeNow,setRouteNow] = useState(Date.now());
   const [tracking,setTracking] = useState(trackingService.getState());
   useEffect(()=>trackingService.subscribe(setTracking),[]);
-  useEffect(()=>{if(!suggestion)return;const timer=setInterval(()=>setRouteNow(Date.now()),15000);return()=>clearInterval(timer);},[!!suggestion]);
+  useEffect(()=>{if(!suggestion && !stops.length)return;const timer=setInterval(()=>setRouteNow(Date.now()),15000);return()=>clearInterval(timer);},[!!suggestion, stops.length > 0]);
   const staleReason = routeStaleReason(suggestion,tracking,routeNow);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const assignmentsRef = useRef(assignments);
@@ -74,8 +74,43 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
       const result = await api.getOptimizeRoute(mode,origin);
       if (revision !== requestRevision.current) return;
       const optimized = mapOptimizedStops(result,assignmentsRef.current);
-      setUndoOrder({ ids: stops.map(assignmentKey), hadChanges: hasChanges, routeIds });
-      setStops(optimized); setHasChanges(true); setSuggestion({...result,calculatedAt:result.calculatedAt || new Date().toISOString()}); setRouteNow(Date.now()); audioAlert.playSuccessSound();
+      const calculatedAt = result.calculatedAt || new Date().toISOString();
+      const nextSuggestion = { ...result, calculatedAt };
+      setStops(optimized);
+      setSuggestion(nextSuggestion);
+      setRouteNow(Date.now());
+      try {
+        const payload = optimized.map((s, idx) => {
+          const id = assignmentKey(s);
+          const metric = result.stops.find(item => item.assignmentId === id);
+          return {
+            assignmentId: s.assignmentId,
+            sequence: idx + 1,
+            ...(metric ? {
+              routeEstimate: {
+                distanceMeters: metric.distanceMeters,
+                durationSeconds: metric.durationSeconds,
+                cumulativeDurationSeconds: metric.cumulativeDurationSeconds,
+                distanceFromOriginMeters: metric.distanceFromOriginMeters,
+                durationFromOriginSeconds: metric.durationFromOriginSeconds,
+                calculatedAt,
+                mode: result.mode,
+              }
+            } : {})
+          };
+        });
+        await onReorder(payload);
+        if (revision !== requestRevision.current) return;
+        setHasChanges(false);
+        setUndoOrder(null);
+        audioAlert.playSuccessSound();
+      } catch(saveError) {
+        if (revision !== requestRevision.current) return;
+        setHasChanges(true);
+        const saveMsg = saveError instanceof Error ? saveError.message : 'Não foi possível salvar a ordem automaticamente.';
+        setRouteError(`${saveMsg} Toque em "Salvar Ordem" para tentar novamente.`);
+        audioAlert.playErrorSound();
+      }
     } catch(error) {
       if (revision !== requestRevision.current) return;
       const message = error instanceof Error ? error.message : (typeof error === 'object' && error && 'message' in error) ? String((error as any).message) : 'Não foi possível calcular a rota.';
@@ -306,6 +341,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
             {stops.map((stop, index) => {
               const metric = suggestion?.stops.find(item => item.assignmentId === (stop.assignmentId || stop.id));
               const matchesSuggestion = suggestion?.stops.every((item,i) => item.assignmentId === (stops[i]?.assignmentId || stops[i]?.id));
+              const wait = calculateDeliveryWait(stop, routeNow, matchesSuggestion ? metric?.cumulativeDurationSeconds : undefined);
               const isFirst = index === 0;
               const isLast = index === stops.length - 1;
               const isDragging = draggedIndex === index;
@@ -439,6 +475,26 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
                         ? `Frete desta entrega: ${stop.deliveryFee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
                         : 'Frete desta entrega: não informado pela loja'}
                     </p>}
+                  </div>
+
+                  {/* Indicador ao vivo de tempo parado / espera + porcentagem */}
+                  <div className={`route-wait-box route-wait-${wait.level}`} aria-label={`Tempo de espera da entrega ${stop.orderNumber}: ${wait.label}, ${wait.percent}%`}>
+                    <div className="route-wait-header">
+                      <span className="route-wait-label">
+                        <Clock size={14} />
+                        <span>{wait.label}</span>
+                      </span>
+                      <span className="route-wait-percent">{wait.percent}%</span>
+                    </div>
+                    <div className="route-wait-bar" role="progressbar" aria-valuenow={wait.barPercent} aria-valuemin={0} aria-valuemax={100}>
+                      <div className="route-wait-fill" style={{ width: `${wait.barPercent}%` }} />
+                    </div>
+                    <p className="route-wait-sub">
+                      Meta da parada: {wait.targetMinutes} min
+                      {!(metric && !staleReason) && typeof stop.routeEstimate?.durationSeconds === 'number' && Number.isFinite(stop.routeEstimate.durationSeconds)
+                        ? ` · Deslocamento salvo: ~${Math.ceil(stop.routeEstimate.durationSeconds / 60)} min${typeof stop.routeEstimate.distanceMeters === 'number' ? ` (${(stop.routeEstimate.distanceMeters / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km)` : ''}`
+                        : ''}
+                    </p>
                   </div>
 
                   {metric && !staleReason && <div className="route-stop-metrics">

@@ -128,6 +128,7 @@ export interface Assignment {
   batchId?: string;
   stageHistory?: { stage?: string; status?: string; at: string; actor?: string; [key: string]: unknown }[];
   pickupConfirmedAt?: string;
+  pickedUpAt?: string;
   deliveredAt?: string;
   driverId?: string;
   driverName?: string;
@@ -141,6 +142,15 @@ export interface Assignment {
   waitingGateStartedAt?: string | null;
   waitingGateLimitMinutes?: number | null;
   gateWaitExtendedMinutes?: number;
+  routeEstimate?: {
+    distanceMeters?: number;
+    durationSeconds?: number;
+    cumulativeDurationSeconds?: number;
+    distanceFromOriginMeters?: number;
+    durationFromOriginSeconds?: number;
+    calculatedAt?: string;
+    mode?: RouteOptimizationMode;
+  } | null;
 }
 
 export type RouteOptimizationMode = 'shortest_distance' | 'oldest_wait';
