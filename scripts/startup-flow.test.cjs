@@ -59,6 +59,8 @@ async function harness(options={}) {
     startupSound:{play(){calls.audioStarts++;return ()=>{calls.audioStops++;};},getEnabled:()=>false},
     triggerOfferNotification(){},requestScreenWakeLock(){},releaseScreenWakeLock(){},deliveryTrackingDecision:()=>({canFinishRoute:false}),
     publishNotice(notice){calls.notices.push(notice);},clearNotices(){calls.noticesCleared++;},removeNotice(id){calls.noticesRemoved.push(id);},
+    readCachedAssignments:()=>[],saveCachedAssignments(){},reconcileAssignmentsWithServer:(_local,server)=>server,
+    readCachedHistory:()=>null,saveCachedHistory(){},saveCachedLedger(){},clearDriverSnapshotOnLogout(){},
   };
   for(const block of original.matchAll(/import\s+\{([\s\S]*?)\}\s+from\s+['"]([^'"]+)['"]/g)) {
     if(!block[2].includes('/components/')&&block[2]!=='lucide-react')continue;

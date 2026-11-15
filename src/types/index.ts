@@ -129,6 +129,7 @@ export interface Assignment {
   stageHistory?: { stage?: string; status?: string; at: string; actor?: string; [key: string]: unknown }[];
   pickupConfirmedAt?: string;
   pickedUpAt?: string;
+  routeStartedAt?: string;
   deliveredAt?: string;
   driverId?: string;
   driverName?: string;

@@ -39,6 +39,18 @@ Preserve:
 
 Corrija somente o necessário para a tarefa solicitada.
 
+## 2.1 Protocolo Inviolável de Atualização Aditiva e Preservação de Dados (Multi-IA)
+
+Regra absoluta para qualquer IA, automação ou desenvolvedor que editar este aplicativo:
+
+1. **Toda atualização é estritamente aditiva**: adicione apenas o que foi pedido, sem apagar, zerar, limpar ou sobrescrever entregas ativas, pedidos, histórico, extrato/faturamento, preferências ou cache local (`novaesweb_driver_snapshot_v1:*`, `novaesweb_offline_queue_v1`, preferências de som/tema/biometria/pagamento).
+2. **Nunca limpe dados em inicialização ou erro transitório**: ao abrir ou atualizar o app, hidrate imediatamente via `src/services/driverDataSnapshot.ts` (`readCachedAssignments`, `readCachedHistory`, `readCachedLedger`) e nunca zere entregas/histórico/extrato quando uma requisição falhar por rede ou deploy. Limpe `novaesweb_driver_snapshot_v1:*` apenas no logout explícito da conta.
+3. **Atualização por cima do APK instalado**: nunca altere `applicationId` (`br.com.novaesweb.entregador`) nem o keystore oficial, garantindo preservação do Keystore Android e `localStorage` ao atualizar.
+4. **Fluxo Retirada → Minha Rota → Iniciar Rota → Mapa do Cliente**:
+   - Confirmar retirada (`Retirada`) envia todos os pedidos retirados para `Minha Rota` com status `picked_up`, mantendo o mapa do cliente travado.
+   - Somente ao clicar no botão `Iniciar rota` (`POST route-start`), a rota passa a `in_transit`, o GPS de entrega inicia e o mapa ao vivo abre no painel do cliente.
+5. **Configurações sem duplicatas**: `ScreenSettings.tsx` deve delegar `PersonalizationSettings`, `DriverSecuritySettings` e `OfferSoundSettings` exclusivamente por meio de `ExperienceSettings.tsx`, sem renderizá-los em dobro.
+
 ## 3. Identidade Android e assinatura
 
 Não altere:

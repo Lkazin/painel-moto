@@ -8,18 +8,24 @@ import { DeliveryHistoryItem } from '../types';
 import { api } from '../services/api';
 import { DriverLoadingSkeleton } from './DriverLoadingSkeleton';
 import { buildHistoryCsv, historyCsvFileName } from '../services/historyExport';
+import { readCachedHistory, saveCachedHistory } from '../services/driverDataSnapshot';
 
 export const ScreenHistory: React.FC = () => {
-  const [historyItems, setHistoryItems] = useState<DeliveryHistoryItem[]>([]);
-  const [totalEarnings, setTotalEarnings] = useState<number>(0);
-  const [hasUninformed, setHasUninformed] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(true);
+  const accountId = api.getDriverAccount()?.id;
+  const storeId = api.getSession()?.storeId;
+  const initialCached = readCachedHistory(accountId, storeId);
+  const [historyItems, setHistoryItems] = useState<DeliveryHistoryItem[]>(() => initialCached?.items || []);
+  const [totalEarnings, setTotalEarnings] = useState<number>(() => initialCached?.totalEarnings || 0);
+  const [hasUninformed, setHasUninformed] = useState<boolean>(() => initialCached?.hasUninformedFees || false);
+  const [loading, setLoading] = useState<boolean>(() => !initialCached);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let live = true;
-    setLoading(true); setError(false);
+    const cached = readCachedHistory(accountId, storeId);
+    setLoading(!cached);
+    setError(false);
     const fetchData = async () => {
       try {
         const histData = await api.getHistory();
@@ -27,15 +33,16 @@ export const ScreenHistory: React.FC = () => {
         setHistoryItems(histData.items);
         setTotalEarnings(histData.totalEarnings);
         setHasUninformed(histData.hasUninformedFees);
+        saveCachedHistory(accountId, storeId, histData);
       } catch (e) {
-        if (live) setError(true);
+        if (live && !readCachedHistory(accountId, storeId)) setError(true);
       } finally {
         if (live) setLoading(false);
       }
     };
     fetchData();
     return () => { live = false; };
-  }, [attempt]);
+  }, [attempt, accountId, storeId]);
 
   const [exported, setExported] = useState(false);
 

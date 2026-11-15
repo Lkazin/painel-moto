@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import { X, Bike, CreditCard, Phone, Power, Sparkles, LogOut, Settings, Download, Smartphone, Sun, Moon } from 'lucide-react';
+import { X, Bike, CreditCard, Phone, Power, Sparkles, LogOut, Settings, Download, Smartphone } from 'lucide-react';
 import { AppUpdateSettings } from './AppUpdateNotice';
 import { VersionChangelogModal } from './VersionChangelogModal';
 import { ExperienceSettings } from './ExperienceSettings';
 import { SectionPushNotifications } from './SectionPushNotifications';
-import { OfferSoundSettings } from './OfferSoundSettings';
-import { DriverSecuritySettings } from './DriverSecuritySettings';
 import { PAYMENT_METHODS, getPaymentMethod, paymentMethodLabel, setPaymentMethod } from '../services/paymentPreference';
 import { DriverAccount, DriverSession } from '../types';
 import { audioAlert } from '../utils/audioAlert';
@@ -69,8 +67,6 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
   onCloseShift,
   onLogoutAccount,
   onShowToast,
-  currentTheme = 'dark',
-  onToggleTheme,
 }) => {
   const [showChangelog, setShowChangelog] = useState(false);
   const [closingShift, setClosingShift] = useState(false);
@@ -224,64 +220,17 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
           </>
         )}
 
-        <SectionTitle>Alertas &amp; Som</SectionTitle>
+        <SectionTitle>Notificações</SectionTitle>
 
         <SectionPushNotifications onShowToast={onShowToast} />
 
-        <OfferSoundSettings />
-
-        <SectionTitle>Segurança &amp; Aparência</SectionTitle>
-
-        <DriverSecuritySettings />
-
-        {onToggleTheme && (
-          <div
-            className="card-surface"
-            style={{
-              padding: '14px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              {currentTheme === 'dark' ? <Moon size={18} color="var(--nw-purple)" /> : <Sun size={18} color="#f59e0b" />}
-              <div>
-                <ItemTitle>Tema do aplicativo</ItemTitle>
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  {currentTheme === 'dark' ? 'Tema Escuro (otimizado para bateria e sol)' : 'Tema Claro'}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                audioAlert.playClickSound();
-                onToggleTheme();
-              }}
-              style={{
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border-subtle)',
-                color: '#ffffff',
-                padding: '8px 14px',
-                borderRadius: '10px',
-                fontSize: '12px',
-                fontWeight: 800,
-                cursor: 'pointer',
-                flexShrink: 0,
-              }}
-            >
-              Mudar Tema
-            </button>
-          </div>
-        )}
+        <SectionTitle>Aparência</SectionTitle>
 
         <ItemTitle>Preferências do app</ItemTitle>
 
         <ExperienceSettings />
 
-        <SectionTitle>Aplicativo &amp; Atualizações</SectionTitle>
+        <SectionTitle>Aplicativo</SectionTitle>
 
         <ItemTitle>Atualizações</ItemTitle>
 
@@ -330,14 +279,6 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
           <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             Dúvida sobre uma entrega? Fale com a loja pelo chat do pedido, na tela da entrega ativa.
           </p>
-          <a
-            href="https://painel-moto-three.vercel.app/downloads/"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ fontSize: '12px', color: 'var(--nw-pink)', fontWeight: 800, textDecoration: 'none' }}
-          >
-            Página oficial do aplicativo
-          </a>
           <details>
             <summary style={{ fontSize: '13px', fontWeight: 900, color: '#ffffff', cursor: 'pointer' }}>
               Como o app trata seus dados

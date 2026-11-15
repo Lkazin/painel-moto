@@ -27,6 +27,7 @@ import { RoutePreview, RouteSwipeCard } from './RouteExperience';
 interface ScreenRouteProps {
   assignments: Assignment[];
   onReorder: (newOrder: { assignmentId: string; sequence: number; routeEstimate?: any }[]) => Promise<void>;
+  onStartRoute?: (stops: Assignment[]) => Promise<void>;
   onSelectDelivery: (assignment: Assignment) => void;
   onNavigateToOrders: () => void;
 }
@@ -34,6 +35,7 @@ interface ScreenRouteProps {
 export const ScreenRoute: React.FC<ScreenRouteProps> = ({
   assignments,
   onReorder,
+  onStartRoute,
   onSelectDelivery,
   onNavigateToOrders
 }) => {
@@ -41,6 +43,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
   const [hasChanges, setHasChanges] = useState(false);
   const [undoOrder, setUndoOrder] = useState<{ ids: string[]; hadChanges: boolean; routeIds: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isStartingRoute, setIsStartingRoute] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [routeMode, setRouteMode] = useState<RouteOptimizationMode>('shortest_distance');
   const [routeError, setRouteError] = useState('');
@@ -223,6 +226,32 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
     audioAlert.playClickSound();
   };
 
+  const pendingStartStops = stops.filter(stop => stop.status === 'picked_up' && !stop.routeStartedAt);
+  const hasStartedRoute = stops.some(stop => stop.status === 'in_transit' || stop.status === 'em_rota' || Boolean(stop.routeStartedAt));
+
+  const handleStartRouteClick = async () => {
+    if (!stops.length || isSaving || isOptimizing || isStartingRoute || !onStartRoute) return;
+    setIsStartingRoute(true);
+    setRouteError('');
+    audioAlert.playClickSound();
+    try {
+      if (hasChanges) {
+        const reordered = stops.map((s, idx) => ({
+          assignmentId: s.assignmentId,
+          sequence: idx + 1,
+        }));
+        await onReorder(reordered);
+        setHasChanges(false);
+        setUndoOrder(null);
+      }
+      await onStartRoute(stops);
+    } catch (error) {
+      setRouteError(error instanceof Error ? error.message : 'Não foi possível iniciar a rota agora. Tente novamente.');
+    } finally {
+      setIsStartingRoute(false);
+    }
+  };
+
   return (
     <div className="route-screen">
       {/* Cabeçalho da Rota */}
@@ -298,6 +327,47 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
         </div>
       ) : (
         <>
+          <section
+            className="card-surface"
+            aria-label="Início da rota"
+            style={{
+              padding: '14px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              borderColor: pendingStartStops.length > 0 ? 'var(--nw-emerald)' : 'rgba(16, 185, 129, 0.45)',
+            }}
+          >
+            {pendingStartStops.length > 0 ? (
+              <>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff' }}>
+                    {hasStartedRoute ? 'Novos pedidos retirados prontos para rota' : 'Pedidos retirados prontos na rota'}
+                  </h3>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.5 }}>
+                    Confira ou organize seus {stops.length} {stops.length === 1 ? 'pedido retirado' : 'pedidos retirados'} e toque em Iniciar rota para liberar o mapa no painel do cliente.
+                  </p>
+                </div>
+                {onStartRoute && (
+                  <button
+                    type="button"
+                    disabled={isStartingRoute || isSaving || isOptimizing}
+                    onClick={() => void handleStartRouteClick()}
+                    className="btn-glove btn-glove-primary"
+                    style={{ height: '54px', fontSize: '15px' }}
+                  >
+                    <Navigation size={20} />
+                    <span>{isStartingRoute ? 'Iniciando rota...' : 'Iniciar rota'}</span>
+                  </button>
+                )}
+              </>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--nw-emerald)', fontSize: '13px', fontWeight: 800 }}>
+                <CheckCircle size={18} />
+                <span>Rota iniciada · Mapa ao vivo liberado para os clientes</span>
+              </div>
+            )}
+          </section>
           <RoutePreview stops={stops} pending={hasChanges} suggestion={staleReason ? null : suggestion} />
           {/* Alerta de Alterações Pendentes */}
           {hasChanges && (
@@ -346,7 +416,33 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
               const isLast = index === stops.length - 1;
               const isDragging = draggedIndex === index;
 
-              return (
+              const pendingStartStops = stops.filter(stop => stop.status === 'picked_up' && !stop.routeStartedAt);
+  const hasStartedRoute = stops.some(stop => stop.status === 'in_transit' || stop.status === 'em_rota' || Boolean(stop.routeStartedAt));
+
+  const handleStartRouteClick = async () => {
+    if (!stops.length || isSaving || isOptimizing || isStartingRoute || !onStartRoute) return;
+    setIsStartingRoute(true);
+    setRouteError('');
+    audioAlert.playClickSound();
+    try {
+      if (hasChanges) {
+        const reordered = stops.map((s, idx) => ({
+          assignmentId: s.assignmentId,
+          sequence: idx + 1,
+        }));
+        await onReorder(reordered);
+        setHasChanges(false);
+        setUndoOrder(null);
+      }
+      await onStartRoute(stops);
+    } catch (error) {
+      setRouteError(error instanceof Error ? error.message : 'Não foi possível iniciar a rota agora. Tente novamente.');
+    } finally {
+      setIsStartingRoute(false);
+    }
+  };
+
+  return (
                 <RouteSwipeCard
                   key={assignmentKey(stop)}
                   stop={stop}

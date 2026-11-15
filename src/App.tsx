@@ -4,6 +4,15 @@ import { GlassBottomNav } from './components/GlassBottomNav';
 import { useExperiencePreferences } from './services/experiencePreferences';
 import { transitionDelivery } from './utils/viewTransition';
 import { deliveryTrackingDecision } from './services/deliveryTrackingLifecycle';
+import {
+  readCachedAssignments,
+  saveCachedAssignments,
+  reconcileAssignmentsWithServer,
+  readCachedHistory,
+  saveCachedHistory,
+  saveCachedLedger,
+  clearDriverSnapshotOnLogout,
+} from './services/driverDataSnapshot';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Store,
@@ -165,6 +174,7 @@ export const App: React.FC = () => {
     try {
       const result = await api.synchronizeAccount();
       setAccount(result.account); setSession(result.session); setPresence(api.getPresence());
+      if (result.account?.id) saveCachedLedger(result.account.id, api.getStoresLedger());
       setAccountReady(true); setSyncError('');
       if (result.session) await api.flushOfflineQueue();
     } catch (error) {
@@ -258,11 +268,19 @@ export const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // Apenas primeira carga e troca de loja exibem skeleton: polling não causa flashes.
+  // Apenas primeira carga e troca de loja exibem skeleton: polling e atualizações preservam snapshot local.
   useEffect(() => {
-    setAssignments([]);
-    setAssignmentsLoadState(session ? 'loading' : 'ready');
-  }, [session?.membershipId, session?.driverId]);
+    const cachedAssignments = session ? readCachedAssignments(account?.id, session.storeId) : [];
+    const cachedHistory = session ? readCachedHistory(account?.id, session.storeId) : null;
+    setAssignments(cachedAssignments);
+    setAssignmentsLoadState(session ? (cachedAssignments.length > 0 ? 'ready' : 'loading') : 'ready');
+    if (cachedHistory) {
+      setHistorySummary({
+        totalEarnings: cachedHistory.totalEarnings,
+        itemsCount: cachedHistory.items.length,
+      });
+    }
+  }, [account?.id, session?.membershipId, session?.driverId, session?.storeId]);
 
   // Carrega atribuições e histórico real da API
   const refreshAssignments = useCallback(async () => {
@@ -282,32 +300,41 @@ export const App: React.FC = () => {
         }
         noticeAssignmentStates.current.set(id, item.status);
       }
-      setAssignments(data);
+      const mergedAssignments = reconcileAssignmentsWithServer(
+        readCachedAssignments(account?.id, session.storeId),
+        data
+      );
+      setAssignments(mergedAssignments);
+      saveCachedAssignments(account?.id, session.storeId, mergedAssignments);
       setAssignmentsLoadState('ready');
-      if (hist) setHistorySummary({
-        totalEarnings: hist.totalEarnings,
-        itemsCount: hist.items.length
-      });
+      if (hist) {
+        saveCachedHistory(account?.id, session.storeId, hist);
+        setHistorySummary({
+          totalEarnings: hist.totalEarnings,
+          itemsCount: hist.items.length
+        });
+      }
 
-      // Compartilha GPS somente depois da retirada confirmada pelo servidor.
-      const activeAsg = data.find(
+      // Compartilha GPS somente após clicar em Iniciar Rota na aba Minha Rota.
+      const activeAsg = mergedAssignments.find(
         (a) =>
-          a.status === 'picked_up' ||
           a.status === 'in_transit' ||
-          a.status === 'em_rota'
+          a.status === 'em_rota' ||
+          (a.status === 'picked_up' && Boolean(a.routeStartedAt))
       );
       if (activeAsg) {
         trackingService.start(session?.driverId, activeAsg.assignmentId || activeAsg.id);
       } else if (trackingService.getState().isActive) {
         trackingService.stop(false);
       }
-      return data;
+      return mergedAssignments;
     } catch {
       if (requestRevision === assignmentsRevision.current) {
-        setAssignmentsLoadState(current => current === 'loading' ? 'error' : current);
+        const cached = readCachedAssignments(account?.id, session.storeId);
+        setAssignmentsLoadState(current => (cached.length > 0 ? 'ready' : current === 'loading' ? 'error' : current));
       }
     }
-  }, [session]);
+  }, [account?.id, session]);
 
   useEffect(() => {
     refreshAssignments();
@@ -494,19 +521,24 @@ export const App: React.FC = () => {
     showToast('Tempo limite de 60s esgotado. Oferta devolvida ao lojista.', 'info');
   };
 
-  // Confirmar Retirada de Pedidos
+  // Confirmar Retirada de Pedidos (envia para Minha Rota aguardando clique em Iniciar rota)
   const handleConfirmPickup = async (assignmentIds: string[], pickupScopeIds: string[]) => {
     const res = await api.confirmPickup(assignmentIds, pickupScopeIds);
-    setAssignments((previous) => previous.filter(assignment => !res.released.includes(assignment.assignmentId || assignment.id || '')).map(assignment =>
-      res.confirmed.includes(assignment.assignmentId || assignment.id || '')
-        ? {...assignment,status:'picked_up' as const} : assignment));
-    if (res.confirmed[0]) {
-      trackingService.start(session?.driverId, res.confirmed[0]);
-    }
+    setAssignments((previous) => {
+      const next = previous
+        .filter(assignment => !res.released.includes(assignment.assignmentId || assignment.id || ''))
+        .map(assignment =>
+          res.confirmed.includes(assignment.assignmentId || assignment.id || '')
+            ? { ...assignment, status: 'picked_up' as const }
+            : assignment
+        );
+      saveCachedAssignments(account?.id, session?.storeId, next);
+      return next;
+    });
     await refreshAssignments();
     if (!res.confirmed.length) throw new Error(Object.values(res.errors).join(' ') || 'Nenhum pedido teve a retirada confirmada. Confira o balcão novamente.');
     const errorsCount = Object.keys(res.errors).length;
-    showToast(`${res.confirmed.length} pedido(s) retirado(s). ${res.released.length} devolvido(s) ao despacho.${errorsCount ? ` Confira ${errorsCount} pedido(s) que não puderam ser confirmados.` : ''}`, errorsCount ? 'info' : 'success');
+    showToast(`${res.confirmed.length} pedido(s) retirado(s) enviados para Minha Rota. Toque em Iniciar rota quando sair.`, errorsCount ? 'info' : 'success');
     setActiveTab('route');
   };
 
@@ -515,6 +547,27 @@ export const App: React.FC = () => {
     await api.reorderRoute(stops);
     await refreshAssignments();
     showToast('Nova sequência da rota salva com sucesso!', 'success');
+  };
+
+  // Iniciar Rota explicitamente — só aqui libera o mapa ao vivo no painel do cliente
+  const handleStartRoute = async (stopsToStart: Assignment[]) => {
+    const ids = stopsToStart.map((stop) => stop.assignmentId || stop.id || '').filter(Boolean);
+    if (!ids.length) return;
+    const res = await api.startRoute(ids);
+    const startedAt = res.routeStartedAt || new Date().toISOString();
+    setAssignments((previous) => {
+      const next = previous.map((assignment) => {
+        const key = assignment.assignmentId || assignment.id || '';
+        return res.startedIds.includes(key) || ids.includes(key)
+          ? { ...assignment, status: 'in_transit' as const, routeStartedAt: assignment.routeStartedAt || startedAt }
+          : assignment;
+      });
+      saveCachedAssignments(account?.id, session?.storeId, next);
+      return next;
+    });
+    trackingService.start(session?.driverId, res.startedIds[0] || ids[0]);
+    await refreshAssignments();
+    showToast('Rota iniciada! O mapa ao vivo foi liberado para os clientes.', 'success');
   };
 
   // Sucesso na Entrega com PIN
@@ -570,8 +623,13 @@ export const App: React.FC = () => {
 
   // Logout seguro da conta do entregador
   const handleLogoutAccount = async () => {
+    const currentAccountId = account?.id;
     trackingService.stop(false);
-    try { await api.logoutDriver(); showToast('Você saiu da sua conta.', 'info'); }
+    try {
+      await api.logoutDriver();
+      clearDriverSnapshotOnLogout(currentAccountId);
+      showToast('Você saiu da sua conta.', 'info');
+    }
     catch (error) { setAccountNotice(error instanceof Error ? error.message : 'Falha ao sair.'); }
   };
 
@@ -815,6 +873,7 @@ export const App: React.FC = () => {
               <ScreenRoute
                 assignments={assignments}
                 onReorder={handleReorderRoute}
+                onStartRoute={handleStartRoute}
                 onSelectDelivery={(asg) => transitionDelivery(() => setActiveDelivery(asg))}
                 onNavigateToOrders={() => setActiveTab('orders')}
               />

@@ -149,6 +149,16 @@ export class ApiClient {
   }
   public async getCurrentRoute(): Promise<RouteStop[]> { if (!this.session) return []; const data = await this.request(this.query('route-current')); return Array.isArray(data) ? data : data.stops || []; }
   public async reorderRoute(stops: { assignmentId: string; sequence: number; routeEstimate?: { distanceMeters?: number; durationSeconds?: number; cumulativeDurationSeconds?: number; distanceFromOriginMeters?: number; durationFromOriginSeconds?: number; calculatedAt?: string; mode?: RouteOptimizationMode } | null }[]): Promise<boolean> { if (!offlineQueue.getIsOnline()) throw new Error('Conecte-se à internet para salvar a rota.'); await this.request('route-reorder', { ...this.identity(), stops }); return true; }
+  public async startRoute(assignmentIds: string[]): Promise<{ success: boolean; routeStartedAt: string; startedIds: string[]; assignments?: Assignment[] }> {
+    if (!offlineQueue.getIsOnline()) throw new Error('Conecte-se à internet para iniciar a rota.');
+    const data = await this.request('route-start', { ...this.identity(), assignmentIds });
+    return {
+      success: Boolean(data?.success),
+      routeStartedAt: String(data?.routeStartedAt || new Date().toISOString()),
+      startedIds: Array.isArray(data?.startedIds) ? data.startedIds : assignmentIds,
+      assignments: Array.isArray(data?.assignments) ? data.assignments : undefined,
+    };
+  }
   public async confirmDelivery(assignmentId: string, pinCandidate: string, _deliveryFee?: number | null, isForced?: boolean, forcedReason?: string): Promise<{ success: boolean; message: string; isOfflinePending?: boolean }> {
     const identity = this.identity(); const body = { ...identity, assignmentId, pinCandidate, isForced, forcedReason };
     if (!offlineQueue.getIsOnline()) { offlineQueue.enqueue('delivery_confirm', body); return { success: true, isOfflinePending: true, message: 'Confirmação guardada neste aparelho, pendente de validação pela loja ao reconectar.' }; }

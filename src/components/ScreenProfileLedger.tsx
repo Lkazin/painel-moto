@@ -15,6 +15,7 @@ import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
 import { buildShiftSummary } from '../services/shiftSummary';
 import { getPaymentMethod, paymentMethodLabel } from '../services/paymentPreference';
+import { readCachedLedger, saveCachedLedger } from '../services/driverDataSnapshot';
 
 interface ScreenProfileLedgerProps {
   account: DriverAccount;
@@ -28,8 +29,14 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
   onClose,
 }) => {
   // Read data already present before first render to avoid a fake zero-value screen.
-  const [ledger, setLedger] = useState<StoreShiftSummary[]>(() => api.getStoresLedger());
-  const [ledgerLoading, setLedgerLoading] = useState(() => api.getStoresLedger().length === 0);
+  const [ledger, setLedger] = useState<StoreShiftSummary[]>(() => {
+    const liveLedger = api.getStoresLedger();
+    return liveLedger.length > 0 ? liveLedger : readCachedLedger(account.id);
+  });
+  const [ledgerLoading, setLedgerLoading] = useState(() => {
+    const liveLedger = api.getStoresLedger();
+    return liveLedger.length === 0 && readCachedLedger(account.id).length === 0;
+  });
   const [ledgerError, setLedgerError] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
@@ -38,21 +45,24 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
     void api.synchronizeAccount()
       .then(() => {
         if (!live) return;
-        setLedger(api.getStoresLedger());
+        const freshLedger = api.getStoresLedger();
+        setLedger(freshLedger);
+        saveCachedLedger(account.id, freshLedger);
         setLedgerError(false);
       })
       .catch(() => {
-        if (live) setLedgerError(true);
+        if (live && ledger.length === 0) setLedgerError(true);
       })
       .finally(() => {
         if (live) setLedgerLoading(false);
       });
     return ()=>{live=false;};
-  }, [attempt]);
+  }, [attempt, account.id]);
 
   const totalToReceive = ledger.reduce((sum, item) => sum + (item.totalToReceive || 0), 0);
   const totalCompleted = ledger.reduce((sum, item) => sum + (item.completedCount || 0), 0);
   const totalCanceled = ledger.reduce((sum, item) => sum + (item.canceledCount || 0), 0);
+  const selectedPaymentMethod = getPaymentMethod();
 
   const handleShareWhatsApp = () => {
     audioAlert.playClickSound();
@@ -162,6 +172,10 @@ export const ScreenProfileLedger: React.FC<ScreenProfileLedgerProps> = ({
                 {totalCanceled} canceladas
               </span>
             )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)', paddingTop: '4px' }}>
+            <span>Forma de pagamento</span>
+            <strong style={{ color: '#ffffff' }}>{selectedPaymentMethod ? paymentMethodLabel(selectedPaymentMethod) : 'Não definida'}</strong>
           </div>
 
           <button
