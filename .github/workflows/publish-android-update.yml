@@ -69,6 +69,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          npm run test
+          version_name="$(sed -n 's/^[[:space:]]*versionName[[:space:]]*["'\'']\([^"'\'']*\)["'\''].*/\1/p' android/app/build.gradle | head -1)"
+          version_code="$(sed -n 's/^[[:space:]]*versionCode[[:space:]]*\([0-9]*\).*/\1/p' android/app/build.gradle | head -1)"
+          test -n "$version_name" && test -n "$version_code"
           sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           aapt="$(find "$sdk/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -1)"
           apksigner="$(find "$sdk/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -1)"
@@ -83,26 +87,32 @@ jobs:
           newcert="$("$apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
           test -n "$oldcert" && test -n "$newcert"
           if [ "$oldcert" != "$newcert" ]; then
-            echo "::error::APK signature differs from Android v1.1.5. Official release BLOCKED: installing over the old app would fail."
+            echo "::error::APK signature differs from baseline release. Official release BLOCKED: installing over the old app would fail."
             exit 1
           fi
           "$aapt" dump badging "$apk" > /tmp/novaes-badging.txt
-          grep -q "^package: name='br.com.novaesweb.entregador' versionCode='10' versionName='1.1.8'" /tmp/novaes-badging.txt
+          grep -q "^package: name='br.com.novaesweb.entregador' versionCode='${version_code}' versionName='${version_name}'" /tmp/novaes-badging.txt
           mkdir -p /tmp/novaes-release
-          asset="/tmp/novaes-release/NovaesWeb-Entregador-v1.1.8-code10.apk"
+          asset="/tmp/novaes-release/NovaesWeb-Entregador-v${version_name}-code${version_code}.apk"
           cp "$apk" "$asset"
           (cd /tmp/novaes-release && sha256sum "$(basename "$asset")" > "$(basename "$asset").sha256")
-          echo "signature match confirmed; Android versionCode 10"
+          echo "signature match confirmed; Android ${version_name} (code ${version_code})"
+          echo "version_name=${version_name}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${version_code}" >> "$GITHUB_OUTPUT"
       - name: Publish downloadable official update
         if: steps.key.outputs.available == 'true'
+        id: publish_release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if gh release view android-v1.1.8 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            echo "::error::Release android-v1.1.8 already exists; no silent overwrite allowed."
+          version_name="$(sed -n 's/^[[:space:]]*versionName[[:space:]]*["'\'']\([^"'\'']*\)["'\''].*/\1/p' android/app/build.gradle | head -1)"
+          version_code="$(sed -n 's/^[[:space:]]*versionCode[[:space:]]*\([0-9]*\).*/\1/p' android/app/build.gradle | head -1)"
+          tag="android-v${version_name}"
+          if gh release view "$tag" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::error::Release ${tag} already exists; no silent overwrite allowed."
             exit 1
           fi
-          gh release create android-v1.1.8 /tmp/novaes-release/*.apk /tmp/novaes-release/*.sha256 \
-            --repo "${GITHUB_REPOSITORY}" --target "${GITHUB_SHA}" --title "NovaesWeb Entregador 1.1.8" \
-            --notes "Atualização 1.1.8 (código 10): toque tecnológico selecionável e testável nas configurações, remoção do botão de instalação do navegador, biometria opcional e proteção de sessão. Instale fora de uma entrega ativa."
+          gh release create "$tag" /tmp/novaes-release/*.apk /tmp/novaes-release/*.sha256 \
+            --repo "${GITHUB_REPOSITORY}" --target "${GITHUB_SHA}" --title "NovaesWeb Entregador ${version_name}" \
+            --notes "Atualização ${version_name} (código ${version_code}). Mantém conta, rotas, entregas, histórico e configurações existentes."

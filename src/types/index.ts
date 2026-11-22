@@ -187,7 +187,7 @@ export interface OfflineCommand {
   accountToken?: string;
   shiftToken?: string;
   id: string;
-  action: 'pickup_confirm' | 'delivery_confirm' | 'route_reorder' | 'assignment_withdraw';
+  action: 'pickup_confirm' | 'route_start' | 'delivery_confirm' | 'route_reorder' | 'assignment_withdraw' | 'gate_wait_start';
   payload: any;
   idempotencyKey: string;
   createdAt: string;

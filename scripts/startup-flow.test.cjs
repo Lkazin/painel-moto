@@ -50,7 +50,7 @@ async function harness(options={}) {
     setTimeout:(fn,delay)=>createTimer(fn,delay),clearTimeout:id=>timers.delete(id),setInterval:(fn,delay)=>createTimer(fn,delay,true),clearInterval:id=>timers.delete(id),
     Capacitor:{isNativePlatform:()=>false},api,
     accountClient:{getNotice:()=>'',getToken:()=>token,getAccount:()=>cachedAccount,clear(){token='';cachedAccount=null;cachedSession=null;target.dispatchEvent({type:'novaesweb:account-change',detail:{message:'Sessão expirada.'}});}},
-    offlineQueue:{getIsOnline:()=>options.online!==false,getPendingCount:()=>0,subscribe:()=>()=>{}},
+    offlineQueue:{getIsOnline:()=>options.online!==false,getPendingCount:()=>0,getQueue:()=>[],subscribe:()=>()=>{}},
     realtimeWatcher:{onUpdate:()=>()=>{},connect:async()=>{},disconnect:async()=>{}},
     setRealtimeToken(){},
     routeEstimate:{estimate:async()=>null},

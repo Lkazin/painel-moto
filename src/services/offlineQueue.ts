@@ -131,6 +131,30 @@ class OfflineQueueManager {
     return this.queue.filter(c => c.status === 'pending' || c.status === 'syncing').length;
   }
 
+  public getFailedCount(): number {
+    return this.queue.filter(c => c.status === 'failed').length;
+  }
+
+  public retryFailed(): void {
+    let changed = false;
+    this.queue = this.queue.map(cmd => {
+      if (cmd.status !== 'failed') return cmd;
+      changed = true;
+      const next = { ...cmd, status: 'pending' as const };
+      delete next.retryAt;
+      return next;
+    });
+    if (changed) this.saveQueue();
+  }
+
+  public removeCommand(commandId: string): void {
+    const next = this.queue.filter(c => c.id !== commandId);
+    if (next.length !== this.queue.length) {
+      this.queue = next;
+      this.saveQueue();
+    }
+  }
+
   public getQueue(): OfflineCommand[] {
     return [...this.queue];
   }
@@ -164,7 +188,12 @@ class OfflineQueueManager {
 
   public setContext(accountId:string, accountToken:string, shiftToken:string): void {
     this.context = {accountId,accountToken,shiftToken};
-    this.queue = this.queue.filter(command => command.accountId === accountId && command.accountToken === accountToken);
+    this.queue = this.queue.filter(
+      command =>
+        command.accountId === accountId &&
+        command.accountToken === accountToken &&
+        (!command.shiftToken || !shiftToken || command.shiftToken === shiftToken)
+    );
     this.saveQueue();
   }
 

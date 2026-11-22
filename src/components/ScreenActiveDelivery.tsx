@@ -21,6 +21,7 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({ assi
   const [sheet, setSheet] = useState<'route' | 'contact' | 'details' | null>(null);
   const assignmentKey = assignment.assignmentId || assignment.id || assignment.orderId;
   const storageKey = `nw:gate-wait:${assignmentKey}`;
+  const extraStorageKey = `nw:gate-extra:${assignmentKey}`;
   const [waitingStartedAt, setWaitingStartedAt] = useState<number | null>(() => {
     if (assignment.waitingGateStartedAt) {
       const parsed = Date.parse(assignment.waitingGateStartedAt);
@@ -28,9 +29,17 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({ assi
     }
     try { const value = Number(localStorage.getItem(storageKey)); return Number.isFinite(value) && value > 0 ? value : null; } catch { return null; }
   });
-  const [localExtraMinutes, setLocalExtraMinutes] = useState(0);
+  const [localExtraMinutes, setLocalExtraMinutes] = useState<number>(() => {
+    try { const saved = Number(localStorage.getItem(extraStorageKey)); return Number.isFinite(saved) && saved > 0 ? saved : 0; } catch { return 0; }
+  });
+  const [gateWaitNotice, setGateWaitNotice] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
   const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (['delivered', 'entregue', 'canceled_by_store', 'canceled_by_driver', 'withdrawn', 'returned_to_dispatch'].includes(assignment.status)) {
+      try { localStorage.removeItem(storageKey); localStorage.removeItem(extraStorageKey); } catch { /* noop */ }
+    }
+  }, [assignment.status, storageKey, extraStorageKey]);
   useEffect(() => {
     if (!assignment.waitingGateStartedAt) return;
     const parsed = Date.parse(assignment.waitingGateStartedAt);
@@ -52,14 +61,25 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({ assi
   const progressPercent = totalSeconds > 0 ? Math.min(100, (remainingSeconds / totalSeconds) * 100) : 0;
   const formatCountdown = (secs: number) => `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
 
-  const handleStartGateWait = () => {
+  const handleStartGateWait = async () => {
     audioAlert.playClickSound();
     const timestamp = Date.now();
     setNow(timestamp); setWaitingStartedAt(timestamp);
+    setGateWaitNotice('');
     try { localStorage.setItem(storageKey, String(timestamp)); } catch { /* O relógio continua em memória. */ }
-    void api.setGateWait(assignment.assignmentId || assignment.id || '', new Date(timestamp).toISOString(), baseMinutes);
+    const sent = await api.setGateWait(assignment.assignmentId || assignment.id || '', new Date(timestamp).toISOString(), baseMinutes);
+    if (!sent) {
+      setGateWaitNotice('Espera registrada neste aparelho; será enviada à loja assim que houver conexão.');
+    }
   };
-  const handleExtend3Min = () => { audioAlert.playClickSound(); setLocalExtraMinutes(previous => previous + 3); };
+  const handleExtend3Min = () => {
+    audioAlert.playClickSound();
+    setLocalExtraMinutes((previous) => {
+      const next = previous + 3;
+      try { localStorage.setItem(extraStorageKey, String(next)); } catch { /* noop */ }
+      return next;
+    });
+  };
   const fullAddress = [assignment.address, assignment.addressNumber, assignment.neighborhood, assignment.city].filter(Boolean).join(', ');
   const encodedAddress = encodeURIComponent(fullAddress);
   const hasAddress = Boolean(assignment.address?.trim());
@@ -115,6 +135,7 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({ assi
       {waitingStartedAt === null ? <button type="button" className="btn-glove btn-glove-warning" onClick={handleStartGateWait}><Clock size={20} />Cheguei no portão · Iniciar espera</button> : <>
         <div className="de-wait-progress" aria-hidden="true"><span style={{ width: `${progressPercent}%` }} /></div>
         {isExpired && <p className="de-warning-copy" role="status">Se o cliente não atender, registre o problema ou entre em contato com a loja. A entrega continua pendente.</p>}
+        {gateWaitNotice && <p className="de-empty-info" role="status">{gateWaitNotice}</p>}
         <div className="de-secondary-actions"><button type="button" className="btn-glove btn-glove-secondary" onClick={handleExtend3Min}>Dar +3 min</button><button type="button" className="btn-glove btn-glove-secondary" onClick={() => openWhatsApp(true)} disabled={!customerPhone}><MessageCircle size={18} />Avisar: no portão</button></div>
         {!customerPhone && <p className="de-empty-info">Telefone não informado. Peça à loja para contatar o cliente.</p>}
       </>}

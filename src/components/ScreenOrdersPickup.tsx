@@ -4,13 +4,7 @@ import {
   Package,
   CheckSquare,
   Square,
-  AlertTriangle,
-  ArrowRight,
-  Clock,
-  MapPin,
-  ChevronRight,
-  Layers,
-  Store
+  ArrowRight
 } from 'lucide-react';
 import { Assignment } from '../types';
 import { audioAlert } from '../utils/audioAlert';
@@ -59,10 +53,10 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
 
   const selectAll = () => {
     audioAlert.playClickSound();
-    if (selectedIds.length === waitingPickup.length) {
+    if (visibleSelectedIds.length === waitingPickup.length && waitingPickup.length > 0) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(waitingPickup.map((a) => a.assignmentId || a.id || ''));
+      setSelectedIds(waitingPickup.map(assignmentKey).filter(Boolean));
     }
   };
 
@@ -206,19 +200,19 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
                     gap: '6px'
                   }}
                 >
-                  {selectedIds.length === waitingPickup.length ? (
+                  {visibleSelectedIds.length === waitingPickup.length && waitingPickup.length > 0 ? (
                     <CheckSquare size={16} color="var(--nw-pink)" />
                   ) : (
                     <Square size={16} />
                   )}
-                  <span>{visibleSelectedIds.length === waitingPickup.length ? 'Desmarcar todos' : 'Selecionar todos'}</span>
+                  <span>{visibleSelectedIds.length === waitingPickup.length && waitingPickup.length > 0 ? 'Desmarcar todos' : 'Selecionar todos'}</span>
                 </button>
               </div>
 
               {/* Lista de Pedidos Aguardando Retirada */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {waitingPickup.map((item) => {
-                  const itemId = item.assignmentId || item.id || '';
+                  const itemId = assignmentKey(item);
                   const isSelected = visibleSelectedIds.includes(itemId);
                   return (
                     <div

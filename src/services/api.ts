@@ -11,13 +11,9 @@ export class ApiClient {
   private ledger: StoreShiftSummary[] = [];
   private presence: DriverPresence = { manualEnabled: true, isOnline: true, lastHeartbeat: new Date().toISOString() };
   private bootstrapped = false;
-  private legacySession: DriverSession | null = null;
   private flushPromise: Promise<{ syncedCount: number; errors: number }> | null = null;
   private accountSync: { token: string; promise: Promise<{ account: ReturnType<typeof accountClient.getAccount>; session: DriverSession | null }> } | null = null;
   constructor() {
-    try {
-      this.legacySession = JSON.parse(localStorage.getItem(LEGACY_SESSION_KEY) || 'null');
-    } catch { /* Dados locais antigos não autorizam acesso. */ }
     localStorage.removeItem(LEGACY_SESSION_KEY);
     // Nunca restaura tokens de plantão de um cache web: o servidor valida cada sessão.
     localStorage.removeItem(CACHE_KEY);
@@ -63,14 +59,14 @@ export class ApiClient {
   private query(action: string) { const identity = this.identity(); return action + '?' + new URLSearchParams(identity).toString(); }
   private async authenticate(action: 'login', body: unknown) {
     const account = await accountClient.authenticate(action, body);
-    this.legacySession = null; localStorage.removeItem(LEGACY_SESSION_KEY);
+    localStorage.removeItem(LEGACY_SESSION_KEY);
     await this.synchronizeAccount(); return account;
   }
   public startFirstAccess(phone: string, code: string) { return accountClient.startFirstAccess(phone, code); }
   public cancelFirstAccess() { accountClient.cancelFirstAccess(); }
   public async completeFirstAccess(details: FirstAccessDetails) {
     const account = await accountClient.completeFirstAccess(details);
-    this.legacySession = null; localStorage.removeItem(LEGACY_SESSION_KEY);
+    localStorage.removeItem(LEGACY_SESSION_KEY);
     await this.synchronizeAccount();
     return account;
   }
@@ -100,9 +96,9 @@ export class ApiClient {
     offlineQueue.setContext(accountClient.getAccount()!.id, accountClient.getToken(), this.session?.token || '');
     return { account: accountClient.getAccount(), session: this.session };
   }
-  public async logoutDriver() { this.accountSync = null; this.legacySession = null; localStorage.removeItem(LEGACY_SESSION_KEY); localStorage.removeItem('novaesweb_driver_account_v2'); await accountClient.logout(); }
+  public async logoutDriver() { this.accountSync = null; localStorage.removeItem(LEGACY_SESSION_KEY); localStorage.removeItem('novaesweb_driver_account_v2'); await accountClient.logout(); }
   public logout() { return this.logoutDriver(); }
-  public clearAllLocalData() { this.legacySession = null; accountClient.clear(); localStorage.removeItem(LEGACY_SESSION_KEY); localStorage.removeItem('novaesweb_driver_account_v2'); }
+  public clearAllLocalData() { accountClient.clear(); localStorage.removeItem(LEGACY_SESSION_KEY); localStorage.removeItem('novaesweb_driver_account_v2'); }
   public async activateInvite(code: string, _fingerprint?: string) { return this.activateStoreShift(code); }
   public async activateStoreShift(inviteCode: string): Promise<DriverSession> {
     if (!this.bootstrapped) throw new Error('Aguarde a sincronização da sua conta.');
@@ -168,9 +164,21 @@ export class ApiClient {
   public async setGateWait(assignmentId: string, waitingGateStartedAt: string, waitingGateLimitMinutes = 5): Promise<boolean> {
     try {
       if (!this.session) return false;
-      await this.request('gate-wait-start', { ...this.identity(), assignmentId, waitingGateStartedAt, waitingGateLimitMinutes });
+      const payload = { ...this.identity(), assignmentId, waitingGateStartedAt, waitingGateLimitMinutes };
+      if (!offlineQueue.getIsOnline()) {
+        offlineQueue.enqueue('gate_wait_start', payload);
+        return false;
+      }
+      await this.request('gate-wait-start', payload);
       return true;
-    } catch { return false; }
+    } catch (error) {
+      if (this.session && !(error instanceof AccountRequestError && error.status >= 400 && error.status < 500)) {
+        try {
+          offlineQueue.enqueue('gate_wait_start', { ...this.identity(), assignmentId, waitingGateStartedAt, waitingGateLimitMinutes });
+        } catch { /* noop */ }
+      }
+      return false;
+    }
   }
   public async getHistory(): Promise<{ items: DeliveryHistoryItem[]; totalEarnings: number; hasUninformedFees: boolean }> {
     if (!this.session) return normalizeDeliveryHistory([]);
@@ -200,7 +208,7 @@ export class ApiClient {
       if (command.status === 'failed') continue;
       if (offlineQueue.isRetryGated(command)) continue;
       try {
-        const action = { delivery_confirm: 'delivery-confirm', pickup_confirm: 'pickup-confirm', route_reorder: 'route-reorder', assignment_withdraw: 'assignment-withdraw' }[command.action];
+        const action = { delivery_confirm: 'delivery-confirm', pickup_confirm: 'pickup-confirm', route_start: 'route-start', route_reorder: 'route-reorder', assignment_withdraw: 'assignment-withdraw', gate_wait_start: 'gate-wait-start' }[command.action];
         await this.request(action, command.payload, { 'x-idempotency-key': command.idempotencyKey, Authorization: 'Bearer ' + command.shiftToken, 'x-session-token': command.shiftToken, 'x-driver-id': command.payload.driverId, 'x-store-id': command.payload.storeId }); offlineQueue.markConfirmed(command.id); syncedCount++;
       } catch (error) { errors++; if (!accountClient.getToken()) break; offlineQueue.markFailed(command.id, error instanceof Error ? error.message : 'Erro ao sincronizar', !(error instanceof AccountRequestError) || error.status >= 500); }
     }

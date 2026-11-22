@@ -29,6 +29,7 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
   const [flushMessage, setFlushMessage] = useState<string | null>(null);
 
   const pendingCount = offlineQueue.getPendingCount();
+  const failedCommands = offlineQueue.getQueue().filter(c => c.status === 'failed');
   const isOnline = offlineQueue.getIsOnline();
 
   const handleFlushQueue = async () => {
@@ -193,6 +194,69 @@ export const ModalSessionAndStore: React.FC<ModalSessionAndStoreProps> = ({
                 <RefreshCw size={13} className={isFlushingQueue ? 'spin' : ''} />
                 <span>Sincronizar</span>
               </button>
+            </div>
+          )}
+
+          {failedCommands.length > 0 && (
+            <div
+              style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid var(--nw-red)',
+                borderRadius: '14px',
+                padding: '12px 14px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}
+            >
+              <div>
+                <p style={{ fontSize: '13px', fontWeight: 800, color: '#fca5a5' }}>
+                  {failedCommands.length} {failedCommands.length === 1 ? 'ação falhou' : 'ações falharam'} ao sincronizar
+                </p>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  {failedCommands[0]?.lastError || 'A loja rejeitou ou não validou o envio anterior.'}
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => { offlineQueue.retryFailed(); void handleFlushQueue(); }}
+                  disabled={isFlushingQueue || !isOnline}
+                  style={{
+                    flex: 1,
+                    background: 'var(--nw-amber)',
+                    color: '#000',
+                    border: 'none',
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    cursor: !isOnline ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  Reenviar falhas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    audioAlert.playClickSound();
+                    failedCommands.forEach(c => offlineQueue.removeCommand(c.id));
+                    setFlushMessage('Pendências rejeitadas descartadas.');
+                  }}
+                  style={{
+                    background: 'var(--bg-elevated)',
+                    color: 'var(--text-muted)',
+                    border: '1px solid var(--border-subtle)',
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Descartar
+                </button>
+              </div>
             </div>
           )}
 

@@ -5,10 +5,8 @@ import {
   ArrowDown,
   GripVertical,
   CheckCircle,
-  MapPin,
   Clock,
   ArrowRight,
-  ShieldAlert,
   AlertCircle,
   Sparkles,
   Compass,
@@ -87,7 +85,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
           const id = assignmentKey(s);
           const metric = result.stops.find(item => item.assignmentId === id);
           return {
-            assignmentId: s.assignmentId,
+            assignmentId: id,
             sequence: idx + 1,
             ...(metric ? {
               routeEstimate: {
@@ -130,14 +128,14 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
     e.stopPropagation();
     audioAlert.playClickSound();
     const encoded = encodeURIComponent(getFullAddress(stop));
-    window.open(`https://waze.com/ul?q=${encoded}&navigate=yes`, '_blank');
+    window.open(`https://waze.com/ul?q=${encoded}&navigate=yes`, '_blank', 'noopener,noreferrer');
   };
 
   const handleOpenGoogleMaps = (e: React.MouseEvent, stop: Assignment) => {
     e.stopPropagation();
     audioAlert.playClickSound();
     const encoded = encodeURIComponent(getFullAddress(stop));
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank');
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encoded}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleOpenWhatsApp = (e: React.MouseEvent, stop: Assignment) => {
@@ -145,8 +143,10 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
     audioAlert.playClickSound();
     const rawPhone = (stop.customerPhone || '').replace(/\D/g, '');
     if (!rawPhone) return;
-    const msg = encodeURIComponent(`Olá ${stop.customerName || 'Cliente'}! Sou o entregador da Bella Pizza e estou a caminho do seu pedido #${stop.orderNumber}.`);
-    window.open(`https://wa.me/55${rawPhone}?text=${msg}`, '_blank');
+    const whatsappPhone = rawPhone.startsWith('55') && rawPhone.length >= 12 ? rawPhone : `55${rawPhone}`;
+    const storeLabel = stop.storeName || 'loja parceira';
+    const msg = encodeURIComponent(`Olá ${stop.customerName || 'Cliente'}! Sou o entregador da ${storeLabel} e estou a caminho do seu pedido #${stop.orderNumber}.`);
+    window.open(`https://wa.me/${whatsappPhone}?text=${msg}`, '_blank', 'noopener,noreferrer');
   };
 
   // Reordenação por setas Subir/Descer
@@ -198,11 +198,12 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
   const handleSaveOrder = async () => {
     if (isSaving || isOptimizing) return;
     setUndoOrder(null);
+    setRouteError('');
     setIsSaving(true);
     audioAlert.playClickSound();
     try {
       const payload = stops.map((s, idx) => ({
-        assignmentId: s.assignmentId,
+        assignmentId: assignmentKey(s),
         sequence: idx + 1
       }));
       await onReorder(payload);
@@ -237,7 +238,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
     try {
       if (hasChanges) {
         const reordered = stops.map((s, idx) => ({
-          assignmentId: s.assignmentId,
+          assignmentId: assignmentKey(s),
           sequence: idx + 1,
         }));
         await onReorder(reordered);
@@ -416,33 +417,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
               const isLast = index === stops.length - 1;
               const isDragging = draggedIndex === index;
 
-              const pendingStartStops = stops.filter(stop => stop.status === 'picked_up' && !stop.routeStartedAt);
-  const hasStartedRoute = stops.some(stop => stop.status === 'in_transit' || stop.status === 'em_rota' || Boolean(stop.routeStartedAt));
-
-  const handleStartRouteClick = async () => {
-    if (!stops.length || isSaving || isOptimizing || isStartingRoute || !onStartRoute) return;
-    setIsStartingRoute(true);
-    setRouteError('');
-    audioAlert.playClickSound();
-    try {
-      if (hasChanges) {
-        const reordered = stops.map((s, idx) => ({
-          assignmentId: s.assignmentId,
-          sequence: idx + 1,
-        }));
-        await onReorder(reordered);
-        setHasChanges(false);
-        setUndoOrder(null);
-      }
-      await onStartRoute(stops);
-    } catch (error) {
-      setRouteError(error instanceof Error ? error.message : 'Não foi possível iniciar a rota agora. Tente novamente.');
-    } finally {
-      setIsStartingRoute(false);
-    }
-  };
-
-  return (
+              return (
                 <RouteSwipeCard
                   key={assignmentKey(stop)}
                   stop={stop}

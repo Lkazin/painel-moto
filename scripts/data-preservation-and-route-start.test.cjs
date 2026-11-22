@@ -169,3 +169,55 @@ test('ScreenRoute exige clique em Iniciar rota para pedidos picked_up e salva or
   assert.equal(walk(treeAfterStart, (n) => n.type === 'button' && textOf(n).includes('Iniciar rota')).length, 0);
   assert.match(textOf(treeAfterStart), /Rota iniciada · Mapa ao vivo liberado/);
 });
+
+
+test('App.tsx usa handleCloseStoreShift e handleLogoutAccount em todas as instâncias de ScreenSettings', () => {
+  const app = fs.readFileSync('src/App.tsx', 'utf8');
+  const settingsMatches = app.match(/<ScreenSettings[\s\S]*?\/>/g) || [];
+  assert.equal(settingsMatches.length, 2);
+  for (const block of settingsMatches) {
+    assert.match(block, /onCloseShift=\{handleCloseStoreShift\}/);
+    assert.match(block, /onLogoutAccount=\{handleLogoutAccount\}/);
+  }
+  assert.match(app, /handleTogglePresence[\s\S]*?try\s*\{[\s\S]*?await api\.setPresence\(newStatus\)[\s\S]*?\}\s*catch/);
+});
+
+test('OfflineQueueManager filtra comandos de plantão antigo e expõe reenvio/descarte de falhas', () => {
+  const storage = new Map();
+  const mgrCtx = {
+    exports: {},
+    console,
+    Date,
+    localStorage: {
+      getItem: (k) => storage.get(k) || null,
+      setItem: (k, v) => storage.set(k, v),
+      removeItem: (k) => storage.delete(k),
+    },
+    navigator: { onLine: true },
+    window: { addEventListener() {} },
+    require: () => ({ nativeSecureAccess: () => false, driverSecurity: {} }),
+  };
+  const { stripTypeScriptTypes } = require('node:module');
+  const qSrc = stripTypeScriptTypes(
+    fs.readFileSync('src/services/offlineQueue.ts', 'utf8').replace(/import[\s\S]*?from '[^']+';/g, '')
+  )
+    .replaceAll('export function ', 'function ')
+    .replaceAll('export const ', 'const ')
+    .replace(/^\s*export\s+/gm, '') + ';Object.assign(exports,{offlineQueue});';
+  vm.runInNewContext(qSrc, mgrCtx);
+  const q = mgrCtx.exports.offlineQueue;
+  q.setContext('acc-1', 'tok-1', 'shift-old');
+  const cmd = q.enqueue('delivery_confirm', { assignmentId: 'a-1' });
+  q.markFailed(cmd.id, 'Erro teste', false);
+  assert.equal(q.getFailedCount(), 1);
+  q.retryFailed();
+  assert.equal(q.getFailedCount(), 0);
+  q.setContext('acc-1', 'tok-1', 'shift-new');
+  assert.equal(q.getQueue().length, 0);
+});
+
+test('ScreenRoute não usa mais marca fixa no WhatsApp e abre links com noopener,noreferrer', () => {
+  const route = fs.readFileSync('src/components/ScreenRoute.tsx', 'utf8');
+  assert.doesNotMatch(route, /Bella Pizza/);
+  assert.match(route, /noopener,noreferrer/);
+});

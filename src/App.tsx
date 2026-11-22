@@ -78,9 +78,8 @@ export const App: React.FC = () => {
   const [session, setSession] = useState<DriverSession | null>(api.getSession());
   const [presence, setPresence] = useState<DriverPresence>(api.getPresence());
   const [isOnline, setIsOnline] = useState<boolean>(offlineQueue.getIsOnline());
-  const { preferences, updatePreferences } = useExperiencePreferences();
-  const theme: 'dark' | 'light' = preferences.theme === 'system'
-    ? (window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : preferences.theme;
+  const { preferences } = useExperiencePreferences();
+  void preferences;
 
   // Restaura a sessão Android somente a partir do Keystore.
   // A opção biométrica não abre uma autenticação sem toque explícito do entregador.
@@ -135,8 +134,9 @@ export const App: React.FC = () => {
 
   // Estados de Navegação
   const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'route' | 'history'>('dashboard');
-  const [activeDelivery, setActiveDelivery] = useState<Assignment | null>(null);
+  const [activeDeliverySnapshot, setActiveDelivery] = useState<Assignment | null>(null);
   const [pinTarget, setPinTarget] = useState<Assignment | null>(null);
+  const routeDeliveredRef = useRef<Map<string, number | null>>(new Map());
 
   // Estados de Dados
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -260,7 +260,7 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Monitora conectividade e fila offline real
+  // Monitora conectividade real
   useEffect(() => {
     const unsubscribe = offlineQueue.subscribe(() => {
       setIsOnline(offlineQueue.getIsOnline());
@@ -300,9 +300,16 @@ export const App: React.FC = () => {
         }
         noticeAssignmentStates.current.set(id, item.status);
       }
+      const queuedIds = new Set(
+        offlineQueue.getQueue()
+          .filter(cmd => cmd.action === 'delivery_confirm')
+          .map(cmd => String(cmd.payload?.assignmentId || ''))
+          .filter(Boolean)
+      );
       const mergedAssignments = reconcileAssignmentsWithServer(
         readCachedAssignments(account?.id, session.storeId),
-        data
+        data,
+        queuedIds
       );
       setAssignments(mergedAssignments);
       saveCachedAssignments(account?.id, session.storeId, mergedAssignments);
@@ -339,6 +346,31 @@ export const App: React.FC = () => {
   useEffect(() => {
     refreshAssignments();
   }, [refreshAssignments]);
+
+  // Agenda reenvio automático da fila offline respeitando backoff exponencial
+  useEffect(() => {
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleFlush = () => {
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = undefined;
+      }
+      if (!offlineQueue.getIsOnline() || !accountReady || !session) return;
+      const pending = offlineQueue.getQueue().filter(c => c.status === 'pending');
+      if (!pending.length) return;
+      const nextAt = Math.min(...pending.map(c => (typeof c.retryAt === 'number' ? c.retryAt : Date.now())));
+      const delay = Math.max(50, nextAt - Date.now());
+      retryTimer = setTimeout(() => {
+        if (offlineQueue.getIsOnline()) void api.flushOfflineQueue().then(() => refreshAssignments()).catch(() => {});
+      }, delay);
+    };
+    const unsubscribe = offlineQueue.subscribe(scheduleFlush);
+    scheduleFlush();
+    return () => {
+      if (retryTimer) clearTimeout(retryTimer);
+      unsubscribe();
+    };
+  }, [accountReady, session, refreshAssignments]);
 
   // Tempo real: a loja avisa pelo Supabase Realtime e só então consultamos.
   // A consulta lenta de segurança (60s) cobre aviso perdido/app em segundo plano,
@@ -453,12 +485,16 @@ export const App: React.FC = () => {
   // Handler de Ligado/Desligado
   const handleTogglePresence = async () => {
     const newStatus = !presence.manualEnabled;
-    const updated = await api.setPresence(newStatus);
-    setPresence(updated);
-    if (newStatus) {
-      showToast('Você está LIGADO e disponível para receber novas corridas.', 'success');
-    } else {
-      showToast('Você está DESLIGADO. Conclua os pedidos em andamento sem receber novas ofertas.', 'info');
+    try {
+      const updated = await api.setPresence(newStatus);
+      setPresence(updated);
+      if (newStatus) {
+        showToast('Você está LIGADO e disponível para receber novas corridas.', 'success');
+      } else {
+        showToast('Você está DESLIGADO. Conclua os pedidos em andamento sem receber novas ofertas.', 'info');
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível alterar sua disponibilidade.', 'error');
     }
   };
 
@@ -572,31 +608,60 @@ export const App: React.FC = () => {
 
   // Sucesso na Entrega com PIN
   const handleDeliverySuccess = async (_message: string, isOfflinePending?: boolean) => {
-    const completedAssignment = pinTarget || activeDelivery;
+    const completedAssignment = pinTarget || activeDeliverySnapshot;
+    const completedId = completedAssignment?.assignmentId || completedAssignment?.id || '';
+    const activeKey = completedAssignment ? (completedAssignment.assignmentId || completedAssignment.id || completedAssignment.orderId) : '';
     setPinTarget(null);
     setActiveDelivery(null);
+
+    if (activeKey) {
+      try {
+        localStorage.removeItem(`nw:gate-wait:${activeKey}`);
+        localStorage.removeItem(`nw:gate-extra:${activeKey}`);
+      } catch { /* noop */ }
+    }
+
+    if (isOfflinePending && completedId) {
+      setAssignments((prev) => {
+        const next = prev.map((item) =>
+          (item.assignmentId || item.id || '') === completedId ? { ...item, isPendingSync: true } : item
+        );
+        saveCachedAssignments(account?.id, session?.storeId, next);
+        return next;
+      });
+    }
+
+    if (completedId) {
+      routeDeliveredRef.current.set(
+        completedId,
+        typeof completedAssignment?.deliveryFee === 'number' && Number.isFinite(completedAssignment.deliveryFee)
+          ? completedAssignment.deliveryFee
+          : null
+      );
+    }
 
     const refreshedAssignments = await refreshAssignments();
     const trackingDecision = deliveryTrackingDecision(
       refreshedAssignments || assignments,
-      completedAssignment?.assignmentId || completedAssignment?.id,
+      completedId || undefined,
       !isOfflinePending
     );
 
     if (isOfflinePending) {
       showToast('Entrega gravada no aparelho! Pendente de validação online com a loja.', 'info');
     } else {
-      publishNotice({ id: `delivery:${completedAssignment?.assignmentId || completedAssignment?.id}:completed`, kind: 'success', title: 'Entrega finalizada!', message: 'Pedido entregue e validado pelo servidor da loja.', onOpen: () => setActiveTab('history') });
+      publishNotice({ id: `delivery:${completedId}:completed`, kind: 'success', title: 'Entrega finalizada!', message: 'Pedido entregue e validado pelo servidor da loja.', onOpen: () => setActiveTab('history') });
     }
 
     // Se concluiu a última entrega da rota, encerra sessão de GPS e abre a tela de Resumo de Rota
     if (trackingDecision.canFinishRoute) {
       trackingService.stop();
-      setRouteCompletedStats({
-        count: 1,
-        fees: completedAssignment?.deliveryFee || 0,
-        hasUninformed: completedAssignment?.deliveryFee === null
-      });
+      const deliveredEntries = Array.from(routeDeliveredRef.current.values());
+      const count = Math.max(1, deliveredEntries.length);
+      const fees = deliveredEntries.reduce<number>((sum, fee) => sum + (typeof fee === 'number' ? fee : 0), 0);
+      const hasUninformed = deliveredEntries.some((fee) => fee === null);
+      routeDeliveredRef.current.clear();
+      setRouteCompletedStats({ count, fees, hasUninformed });
       setIsRouteCompletedOpen(true);
     } else {
       setActiveTab('route');
@@ -608,6 +673,7 @@ export const App: React.FC = () => {
     try {
       const res = await api.closeStoreShift();
       trackingService.stop();
+      routeDeliveredRef.current.clear();
       setSession(null);
       setIsStoreModalOpen(false);
       setIsProfileLedgerOpen(false);
@@ -625,13 +691,24 @@ export const App: React.FC = () => {
   const handleLogoutAccount = async () => {
     const currentAccountId = account?.id;
     trackingService.stop(false);
+    routeDeliveredRef.current.clear();
     try {
       await api.logoutDriver();
       clearDriverSnapshotOnLogout(currentAccountId);
+      setIsSettingsOpen(false);
+      setIsProfileLedgerOpen(false);
+      setIsStoreModalOpen(false);
       showToast('Você saiu da sua conta.', 'info');
     }
     catch (error) { setAccountNotice(error instanceof Error ? error.message : 'Falha ao sair.'); }
   };
+
+  const activeDeliveryId = activeDeliverySnapshot
+    ? (activeDeliverySnapshot.assignmentId || activeDeliverySnapshot.id || activeDeliverySnapshot.orderId)
+    : null;
+  const activeDelivery = activeDeliverySnapshot
+    ? (assignments.find((a) => (a.assignmentId || a.id || a.orderId) === activeDeliveryId) || activeDeliverySnapshot)
+    : null;
 
   // Pedidos no balcão e na rota para os badges do bottom nav
   const waitingPickupCount = assignments.filter((a) => a.status === 'waiting_pickup').length;
@@ -649,6 +726,10 @@ export const App: React.FC = () => {
       <p>Use a digital ou o reconhecimento facial do seu aparelho para continuar.</p>
       <button type="button" className="btn-glove btn-glove-accent" onClick={() => void unlockBiometric()}>Desbloquear com digital ou rosto</button>
       <button type="button" className="btn-glove" onClick={() => {
+        const currentAccountId = account?.id;
+        trackingService.stop(false);
+        accountClient.clear('Entre com seu telefone e senha para recuperar o acesso.');
+        clearDriverSnapshotOnLogout(currentAccountId);
         setBiometricLocked(false);
         setAccount(null);
         setUnlockError('');
@@ -723,11 +804,9 @@ export const App: React.FC = () => {
             account={account}
             activeSession={session}
             onClose={() => setIsSettingsOpen(false)}
-            onCloseShift={async () => { await api.closeStoreShift(); setSession(null); setIsSettingsOpen(false); }}
-            onLogoutAccount={async () => { await api.logoutDriver(); setAccount(null); setIsSettingsOpen(false); }}
+            onCloseShift={handleCloseStoreShift}
+            onLogoutAccount={handleLogoutAccount}
             onShowToast={showToast}
-            currentTheme={theme}
-            onToggleTheme={() => updatePreferences({ theme: theme === 'dark' ? 'light' : 'dark' })}
           />
         )}
 
@@ -951,11 +1030,9 @@ export const App: React.FC = () => {
           account={account}
           activeSession={session}
           onClose={() => setIsSettingsOpen(false)}
-          onCloseShift={async () => { await api.closeStoreShift(); setSession(null); setIsSettingsOpen(false); }}
-          onLogoutAccount={async () => { await api.logoutDriver(); setAccount(null); setIsSettingsOpen(false); }}
+          onCloseShift={handleCloseStoreShift}
+          onLogoutAccount={handleLogoutAccount}
           onShowToast={showToast}
-          currentTheme={theme}
-          onToggleTheme={() => updatePreferences({ theme: theme === 'dark' ? 'light' : 'dark' })}
         />
       )}
 

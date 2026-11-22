@@ -200,7 +200,7 @@ class TrackingService {
           // Só transmite para o servidor se não for apenas verificação de permissão e se a sessão de rota estiver ativa
           if (!options?.onlyCheckPermission && this.currentState.isActive) {
             this.handleNewLocation(loc, true);
-            if (this.watchId === null) {
+            if (supportsBackgroundTracking() ? !this.nativeWatching : this.watchId === null) {
               this.startWatch(identity.driverId);
             }
           }
@@ -334,7 +334,7 @@ class TrackingService {
     this.notify();
 
     // Captura imediata da posição atual e inicia watchPosition real
-    if (!supportsBackgroundTracking()) this.requestLocationPermission();
+    this.requestLocationPermission();
     this.startWatch(resolvedDriverId);
   }
 
@@ -448,27 +448,37 @@ class TrackingService {
   }
 
   private async sendEndSession(driverId: string) {
-    try {
-      const identity = getStoredDriverIdentity(driverId);
-      await accountClient.request(`${logisticsApiUrl()}/tracking-session-end`, {
+    const identity = getStoredDriverIdentity(driverId);
+    const body = JSON.stringify({
+      driverId: identity.driverId,
+      membershipId: identity.membershipId,
+      sessionToken: identity.token,
+    });
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-driver-id': identity.driverId,
+      ...(identity.token
+        ? {
+            'x-session-token': identity.token,
+            Authorization: `Bearer ${identity.token}`,
+          }
+        : {}),
+    };
+    const send = () =>
+      accountClient.request(`${logisticsApiUrl()}/tracking-session-end`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-driver-id': identity.driverId,
-          ...(identity.token
-            ? {
-                'x-session-token': identity.token,
-                Authorization: `Bearer ${identity.token}`,
-              }
-            : {}),
-        },
-        body: JSON.stringify({
-          driverId: identity.driverId,
-          membershipId: identity.membershipId,
-          sessionToken: identity.token,
-        }),
+        headers,
+        body,
       });
-    } catch (e) {}
+    try {
+      await send();
+    } catch {
+      try {
+        await send();
+      } catch {
+        // Sem rede no encerramento; servidor expira sinal antigo automaticamente.
+      }
+    }
   }
 }
 

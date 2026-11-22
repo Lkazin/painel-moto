@@ -49,8 +49,6 @@ interface ScreenSettingsProps {
   onCloseShift: () => void | Promise<void>;
   onLogoutAccount: () => void;
   onShowToast?: (text: string, type: 'success' | 'error' | 'info') => void;
-  currentTheme?: 'dark' | 'light';
-  onToggleTheme?: () => void;
 }
 
 /**

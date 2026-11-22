@@ -19,6 +19,7 @@ export const ScreenHistory: React.FC = () => {
   const [hasUninformed, setHasUninformed] = useState<boolean>(() => initialCached?.hasUninformedFees || false);
   const [loading, setLoading] = useState<boolean>(() => !initialCached);
   const [error, setError] = useState(false);
+  const [usingCachedFallback, setUsingCachedFallback] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -26,6 +27,7 @@ export const ScreenHistory: React.FC = () => {
     const cached = readCachedHistory(accountId, storeId);
     setLoading(!cached);
     setError(false);
+    setUsingCachedFallback(false);
     const fetchData = async () => {
       try {
         const histData = await api.getHistory();
@@ -33,9 +35,15 @@ export const ScreenHistory: React.FC = () => {
         setHistoryItems(histData.items);
         setTotalEarnings(histData.totalEarnings);
         setHasUninformed(histData.hasUninformedFees);
+        setUsingCachedFallback(false);
         saveCachedHistory(accountId, storeId, histData);
-      } catch (e) {
-        if (live && !readCachedHistory(accountId, storeId)) setError(true);
+      } catch {
+        if (!live) return;
+        if (readCachedHistory(accountId, storeId)) {
+          setUsingCachedFallback(true);
+        } else {
+          setError(true);
+        }
       } finally {
         if (live) setLoading(false);
       }
@@ -46,13 +54,28 @@ export const ScreenHistory: React.FC = () => {
 
   const [exported, setExported] = useState(false);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const csv = buildHistoryCsv(historyItems);
+    const fileName = historyCsvFileName();
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        const file = new File([`\uFEFF${csv}`], fileName, { type: 'text/csv;charset=utf-8' });
+        const canShareFiles = typeof (navigator as any).canShare === 'function' && (navigator as any).canShare({ files: [file] });
+        if (canShareFiles) {
+          await navigator.share({ title: 'Histórico de entregas', files: [file] });
+          setExported(true);
+          setTimeout(() => setExported(false), 2500);
+          return;
+        }
+      }
+    } catch {
+      /* Segue para o download direto caso o compartilhamento nativo seja cancelado ou indisponível. */
+    }
     const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = historyCsvFileName();
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -178,6 +201,12 @@ export const ScreenHistory: React.FC = () => {
         <h3 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-muted)' }}>
           Últimas Entregas Realizadas
         </h3>
+
+        {usingCachedFallback && (
+          <p className="card-surface" role="status" style={{ fontSize: '12px', color: 'var(--nw-amber)', padding: '10px 12px', margin: 0 }}>
+            Sem conexão com a loja no momento · exibindo histórico salvo neste aparelho.
+          </p>
+        )}
 
         {loading ? (
           <DriverLoadingSkeleton variant="history-list" />
