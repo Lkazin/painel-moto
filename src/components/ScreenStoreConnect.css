@@ -17,10 +17,20 @@
 .store-connect__hero {
   position: relative;
   margin-inline: calc(-1 * clamp(16px, 6vw, 36px));
-  flex: 0 0 auto;
-  min-height: 0;
+  flex: 1 1 0;
+  min-height: clamp(240px, 49svh, 450px);
   padding-inline: clamp(16px, 6vw, 36px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: max(env(safe-area-inset-top), 2dvh);
+  font-style: italic;
+  line-height: 1.05;
 }
+.store-connect__hero strong { font-size: clamp(24px, 5dvh, 44px); letter-spacing: -.045em; }
+.store-connect__hero > span { font-weight: 750; font-size: clamp(16px, 2.9dvh, 24px); color: #ff91d4; }
+.store-connect__logo { width: auto; height: clamp(42px, 10dvh, 94px); object-fit: contain; mix-blend-mode: screen; }
 .store-connect__logout {
   position: absolute;
   top: max(env(safe-area-inset-top), 14px);
@@ -31,23 +41,28 @@
   min-height: 36px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(50, 21, 60, 0.85);
+  background: rgba(50, 21, 60, 0.88);
   border: 1px solid rgba(225, 182, 220, 0.35);
   color: #f8e4f5;
   font: inherit;
+  font-style: normal;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
 .store-connect__logout:active { opacity: 0.85; }
-.store-connect__form { text-align: center; margin-top: 0; position: relative; flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; padding-bottom: clamp(20px, 6svh, 56px); }
-.store-connect__form h1 { margin: 0; font-size: clamp(28px, 7.6vw, 40px); line-height: 1.12; color: white; }
-.store-connect__form p { margin: 8px auto 16px; max-width: 32ch; color: #eed9ef; line-height: 1.45; }
-.store-connect__form label { display: block; text-align: left; margin-bottom: 7px; font-weight: 700; }
-.store-connect__field, .store-connect__form button, .store-connect__account { display: flex; align-items: center; gap: 12px; }
-.store-connect__field { padding: 0 15px; border: 1px solid #805785; border-radius: 12px; color: #e1b6dc; background: #32153c; }
-.store-connect__field:focus-within { border-color: #9e73a5; outline: none; box-shadow: none; }
-.store-connect__field input { flex: 1; min-width: 0; height: 52px; background: transparent; border: 0; outline: none; box-shadow: none; color: white; font: inherit; font-weight: 800; letter-spacing: .06em; }
+.store-connect__form { text-align: center; margin-top: 0; position: relative; flex: 0 0 auto; }
+.store-connect__form h1 { margin: 0; font-size: clamp(26px, 7.2vw, 38px); line-height: 1.1; color: white; }
+.store-connect__form p { margin: 6px auto 12px; max-width: 32ch; color: #eed9ef; line-height: 1.4; font-size: 14px; }
+.store-connect__form label { display: block; text-align: left; margin-bottom: 6px; font-weight: 700; font-size: 14px; }
+.store-connect__field, .store-connect__submit, .store-connect__account { display: flex; align-items: center; gap: 10px; }
+.store-connect__field { padding: 0 10px 0 14px; border: 1px solid #805785; border-radius: 12px; color: #e1b6dc; background: rgba(50, 21, 60, 0.94); transition: border-color 150ms ease, box-shadow 150ms ease; }
+.store-connect__field:focus-within { border-color: #a97bb0; outline: none; box-shadow: none; }
+.store-connect__field--valid,
+.store-connect__field--valid:focus-within { border-color: #34d399; box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.28); }
+.store-connect__field--invalid,
+.store-connect__field--invalid:focus-within { border-color: #f87171; box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.24); }
+.store-connect__field input { flex: 1; min-width: 0; height: 48px; background: transparent; border: 0; outline: none; box-shadow: none; color: white; font: inherit; font-weight: 800; letter-spacing: .06em; }
 .store-connect__field input:focus,
 .store-connect__field input:focus-visible { outline: none; box-shadow: none; }
 .store-connect__field input:-webkit-autofill,
@@ -57,38 +72,99 @@
   transition: background-color 5000s ease-in-out 0s;
 }
 .store-connect__field input::placeholder { color: #c299c7; }
-.store-connect__form button { justify-content: center; width: 100%; min-height: 55px; margin: 18px 0 9px; background: linear-gradient(105deg,#d61a68,#ca11ad 55%,#8315df); color: white; border: 1px solid #f273da; border-radius: 15px; font: inherit; font-size: 18px; font-weight: 800; cursor: pointer; }
-.store-connect__form button:disabled { opacity: .7; }
-.store-connect small { display: block; color: #dfc3e3; }
-.store-connect__form [role=alert] { display: flex; gap: 8px; align-items: center; margin-top: 10px; color: #ffc3d4; text-align: left; }
+.store-connect__valid-icon { color: #34d399; flex-shrink: 0; }
+.store-connect__paste {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(225, 182, 220, 0.35);
+  background: rgba(88, 34, 108, 0.72);
+  color: #f6def2;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.store-connect__paste:active { opacity: 0.82; }
+.store-connect__paste:disabled { opacity: 0.5; cursor: default; }
+.store-connect__submit { justify-content: center; width: 100%; min-height: 50px; margin: 12px 0 2px; background: linear-gradient(105deg,#d61a68,#ca11ad 55%,#8315df); color: white; border: 1px solid #f273da; border-radius: 14px; font: inherit; font-size: 17px; font-weight: 800; cursor: pointer; }
+.store-connect__submit:disabled { opacity: .7; }
+.store-connect small { display: block; margin-top: 7px; color: #dfc3e3; font-size: 12.5px; }
+.store-connect small.store-connect__status--valid { color: #6ee7b7; font-weight: 700; }
+.store-connect__recent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 8px;
+  margin-top: 10px;
+}
+.store-connect__recent-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #d8b5dc;
+  font-size: 12px;
+  font-weight: 600;
+}
+.store-connect__recent-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.store-connect__recent-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(225, 182, 220, 0.34);
+  background: rgba(58, 22, 70, 0.82);
+  color: #f8e4f5;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.store-connect__recent-chip.is-selected {
+  border-color: #34d399;
+  background: rgba(16, 185, 129, 0.18);
+  color: #a7f3d0;
+}
+.store-connect__form [role=alert] { display: flex; gap: 8px; align-items: center; margin-top: 8px; color: #ffc3d4; text-align: left; font-size: 13px; }
 .store-connect__account { justify-content: space-between; border-top: 1px solid #633463; padding-top: 14px; }
 .store-connect__account button { display: grid; place-items: center; width: 44px; height: 44px; color: white; background: #481857; border: 1px solid #88578f; border-radius: 12px; }
-.store-connect__benefits { list-style: none; margin: 8px 0 0; padding: 18px 0 0; border-top: 1px solid #633463; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.store-connect__benefits li { display: grid; justify-items: center; align-content: start; gap: 7px; text-align: center; font-size: 13px; color: #eed9ef; }
+.store-connect__benefits { list-style: none; margin: 4px 0 0; padding: 12px 0 4px; border-top: 1px solid #633463; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.store-connect__benefits li { display: grid; justify-items: center; align-content: start; gap: 5px; text-align: center; font-size: 12.5px; color: #eed9ef; }
+.store-connect__benefits li + li { border-inline-start: 1px solid rgb(240 175 228 / 18%); }
 .store-connect__benefits svg { color: #f48adb; }
 @media (max-height: 700px) {
-  .store-connect__form h1 { font-size: 28px; }
-  .store-connect__form p { margin: 4px auto 10px; font-size: 14px; }
-  .store-connect__form button { min-height: 44px; margin: 10px 0 4px; }
-  .store-connect__field input { height: 44px; }
+  .store-connect__hero { min-height: clamp(190px, 43svh, 310px); }
+  .store-connect__form h1 { font-size: 26px; }
+  .store-connect__form p { margin: 4px auto 8px; font-size: 13.5px; }
+  .store-connect__submit { min-height: 44px; margin: 8px 0 2px; }
+  .store-connect__field input { height: 42px; }
   .store-connect__benefits { margin: 0; padding-top: 8px; }
   .store-connect__benefits li { gap: 3px; }
 }
-@media (orientation: landscape) and (max-height: 520px) {
-  .app-container.app-container--connect, .store-connect { max-width: none; width: 100%; }
-  .store-connect { display: grid; grid-template-columns: 1fr 1.4fr; grid-template-rows: 1fr auto; align-items: center; padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right)); }
-  .store-connect__hero { grid-row: span 2; align-self: stretch; margin: 0; }
-  .store-connect__benefits { grid-column: 2; }
-}
-.store-connect__hero { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: max(env(safe-area-inset-top), 2dvh); font-style: italic; line-height: 1.05; }
-.store-connect__hero strong { font-size: clamp(24px, 5dvh, 44px); letter-spacing: -.045em; }
-.store-connect__hero span { font-weight: 750; font-size: clamp(16px, 2.9dvh, 24px); color: #ff91d4; }
-.store-connect__logo { width: auto; height: clamp(42px, 10dvh, 94px); object-fit: contain; mix-blend-mode: screen; }
-.store-connect__benefits li + li { border-inline-start: 1px solid rgb(240 175 228 / 18%); }
-.store-connect__benefits { padding-bottom: 4px; }
 @media (max-height: 700px) and (orientation: portrait) {
   .store-connect { background-size: 100% 100%; }
 }
 @media (orientation: landscape) and (max-height: 520px) {
-  .store-connect { background: linear-gradient(to right, transparent 30%, #22052e 52%), url('/brand/plantao-completo.png') left 37% / 50% auto no-repeat, #22052e; }
+  .app-container.app-container--connect, .store-connect { max-width: none; width: 100%; }
+  .store-connect {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    grid-template-rows: 1fr auto;
+    align-items: center;
+    padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right));
+    background: linear-gradient(to right, transparent 30%, #22052e 52%), url('/brand/plantao-completo.png') left 37% / 50% auto no-repeat, #22052e;
+  }
+  .store-connect__hero { min-height: 0; grid-row: span 2; align-self: stretch; margin: 0; }
+  .store-connect__benefits { grid-column: 2; }
 }

@@ -223,13 +223,19 @@ test('ScreenRoute não usa mais marca fixa no WhatsApp e abre links com noopener
 });
 
 
-test('ScreenStoreConnect remove contorno rosa de foco, centraliza formulario e inclui botao Sair ligado ao logout', () => {
+test('ScreenStoreConnect remove contorno rosa de foco, posiciona formulario abaixo da ilustracao, inclui Sair, Colar, historico e validacao visual', () => {
   const css = fs.readFileSync('src/components/ScreenStoreConnect.css', 'utf8');
   const tsx = fs.readFileSync('src/components/ScreenStoreConnect.tsx', 'utf8');
   const app = fs.readFileSync('src/App.tsx', 'utf8');
   assert.doesNotMatch(css, /outline:\s*2px\s+solid\s+#ffc0ec/);
   assert.match(css, /\.store-connect__field:focus-within\s*\{[^}]*outline:\s*none/);
+  assert.match(css, /\.store-connect__hero\s*\{[^}]*flex:\s*1\s+1\s+0/);
+  assert.match(css, /\.store-connect__hero\s*\{[^}]*min-height:\s*clamp\(/);
+  assert.match(css, /\.store-connect__field--valid/);
   assert.match(tsx, /onLogout/);
   assert.match(tsx, />\s*Sair\s*</);
+  assert.match(tsx, />\s*Colar\s*</);
+  assert.match(tsx, /store-connect__recent/);
+  assert.match(tsx, /isCompleteStoreCode/);
   assert.match(app, /<ScreenStoreConnect[\s\S]*onLogout=\{/);
 });
