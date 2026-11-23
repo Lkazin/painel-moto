@@ -1,16 +1,42 @@
-.nwa-update-banner {
-  position: relative; isolation: isolate;
-  margin: calc(10px + env(safe-area-inset-top, 0px)) auto 10px;
-  width: min(516px, calc(100% - 24px));
-  padding: 14px 16px; border: 1px solid var(--border-strong, #b38bbf); border-top: 3px solid var(--nw-pink, #ff2e9a); border-radius: 18px;
-  background: var(--bg-surface, #22072f); color: var(--text-main, #fff);
-  box-shadow: 0 6px 22px #0003; font-size: 14px;
-  animation: nwa-update-enter 180ms ease-out;
+.nwa-update-overlay {
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  height: 0;
+  overflow: visible;
+  pointer-events: none;
 }
-.nwa-update-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.nwa-update-heading strong { font-size: 16px; }
-.nwa-update-heading p { margin-top: 4px; font-size: 13px; color: var(--text-muted, #e5c4f0); }
-.nwa-update-close { display: grid; place-items: center; flex-shrink: 0; min-width: 44px; min-height: 44px; background: transparent; border: 0; color: inherit; cursor: pointer; }
+.nwa-update-banner {
+  position: relative; isolation: isolate; pointer-events: auto;
+  margin: calc(10px + env(safe-area-inset-top, 0px)) auto 0;
+  width: min(468px, calc(100% - 20px));
+  padding: 13px 15px;
+  border: 1px solid rgba(242, 115, 218, 0.42);
+  border-radius: 20px;
+  background: rgba(24, 6, 38, 0.88);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  color: var(--text-main, #fff);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.48), 0 0 24px rgba(255, 46, 154, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  font-size: 14px;
+  animation: nwa-update-enter 260ms cubic-bezier(.22, .8, .25, 1);
+  transition: padding 180ms ease, border-radius 180ms ease;
+}
+.nwa-update-banner.is-minimized { padding: 9px 12px; border-radius: 999px; }
+.nwa-update-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nwa-update-title-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.nwa-update-badge {
+  display: grid; place-items: center; flex: none;
+  width: 34px; height: 34px; border-radius: 11px;
+  background: linear-gradient(135deg, #ff2e9a, #8b2fe8);
+  color: #fff; box-shadow: 0 4px 14px rgba(255, 46, 154, 0.35);
+}
+.nwa-update-banner.is-minimized .nwa-update-badge { width: 30px; height: 30px; border-radius: 50%; }
+.nwa-update-heading strong { display: block; font-size: 14.5px; line-height: 1.2; }
+.nwa-update-heading p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-muted, #e5c4f0); }
+.nwa-update-head-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.nwa-update-close, .nwa-update-minimize { display: grid; place-items: center; flex-shrink: 0; min-width: 36px; min-height: 36px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.08); color: inherit; cursor: pointer; }
+.nwa-update-banner.is-minimized .nwa-update-close, .nwa-update-banner.is-minimized .nwa-update-minimize { border-radius: 999px; }
 .nwa-update-help { margin: 10px 0; color: var(--text-muted, #e5c4f0); font-size: 12px; line-height: 1.5; }
 .nwa-update-notes { margin: 7px 0 0; color: var(--text-main, #fff); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .nwa-update-banner .nwa-update-help { margin: 7px 0; font-size: 11px; }
@@ -48,7 +74,7 @@
 .nwa-phone-attention { border-left: 3px solid var(--nw-amber, #f59e0b); padding-left: 10px; }
 .nwa-update-banner button:focus-visible, .nwa-update-settings button:focus-visible, .nwa-update-settings input:focus-visible { outline: 3px solid var(--nw-pink, #ff2e9a); outline-offset: 3px; }
 .nwa-update-banner button:active, .nwa-update-settings button:active { opacity: .82; }
-@keyframes nwa-update-enter { from { opacity: .3; } to { opacity: 1; } }
+@keyframes nwa-update-enter { from { opacity: 0; transform: translateY(-14px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .nwa-update-banner { animation: none; } }
 [data-reduced-motion='true'] .nwa-update-banner { animation: none; }
 @media (prefers-reduced-motion: reduce) { .nwa-download-progress-track > span { transition: none; } }

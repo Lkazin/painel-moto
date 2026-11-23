@@ -909,7 +909,7 @@ export const App: React.FC = () => {
                 <p>Confira sua internet e tente novamente. Nenhum pedido foi removido.</p>
                 <button className="btn-glove btn-glove-accent" type="button" onClick={() => { setAssignmentsLoadState('loading'); void refreshAssignments(); }}>Tentar novamente</button>
               </section>
-            ) : <>
+            ) : <div key={activeTab} className="nw-tab-stage">
             {/* Tela 2: Início / Dashboard */}
             {activeTab === 'dashboard' && (
               <ScreenDashboard
@@ -951,7 +951,7 @@ export const App: React.FC = () => {
 
             {/* Tela 8: Histórico & Ganhos */}
             {activeTab === 'history' && <ScreenHistory />}
-            </>}
+            </div>}
           </>
         )}
       </main>

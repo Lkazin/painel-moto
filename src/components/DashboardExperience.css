@@ -102,10 +102,39 @@
 .nw-store, .nw-dashboard-presence-button, .nw-device-status, .nw-dashboard-pickup-link { transition: transform 110ms ease; }
 .nw-store:active, .nw-shortcuts button:active, .nw-device-status:active, .nw-dashboard-presence-button:active:not(:disabled), .nw-dashboard-primary:active:not(:disabled), .nw-dashboard-pickup-link:active { transform: scale(0.975); }
 @media (prefers-reduced-motion: no-preference) {
-  html:not([data-reduced-motion="true"]) .nw-dashboard-next--available .nw-dashboard-status-dot {
+  html:not([data-reduced-motion="true"]) .nw-dashboard-next--available .nw-dashboard-status-dot,
+  html:not([data-reduced-motion="true"]) .nw-dashboard-presence-button.is-on::before {
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.65);
     animation: nw-status-pulse 2.2s infinite;
   }
+  html:not([data-reduced-motion="true"]) .nw-dashboard > * {
+    animation: nw-dash-enter 280ms cubic-bezier(.22, .8, .25, 1) both;
+  }
+  html:not([data-reduced-motion="true"]) .nw-dashboard > *:nth-child(2) { animation-delay: 40ms; }
+  html:not([data-reduced-motion="true"]) .nw-dashboard > *:nth-child(3) { animation-delay: 80ms; }
+  html:not([data-reduced-motion="true"]) .nw-dashboard > *:nth-child(4) { animation-delay: 120ms; }
+  html:not([data-reduced-motion="true"]) .nw-dashboard > *:nth-child(5) { animation-delay: 160ms; }
+  html:not([data-reduced-motion="true"]) .nw-dashboard > *:nth-child(6) { animation-delay: 200ms; }
+  html:not([data-reduced-motion="true"]) .nw-tab-stage {
+    animation: nw-tab-enter 210ms cubic-bezier(.22, .8, .25, 1) both;
+  }
+}
+.nw-dashboard-presence-button { position: relative; }
+.nw-dashboard-presence-button.is-on::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #34d399;
+  flex-shrink: 0;
+}
+@keyframes nw-dash-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes nw-tab-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 @keyframes nw-status-pulse {
   0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.65); }

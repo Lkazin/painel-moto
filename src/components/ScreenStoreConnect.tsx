@@ -174,6 +174,16 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
 
   return (
     <div className="store-connect">
+      <div className="store-connect__backdrop" aria-hidden="true">
+        <div className="store-connect__art" />
+        <div className="store-connect__glow" />
+        <div className="store-connect__sparks">
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
       <header className="store-connect__hero">
         {onLogout && (
           <button

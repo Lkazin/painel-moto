@@ -265,3 +265,23 @@ test('Melhorias de interatividade em Dashboard, History, OrdersPickup, ActiveDel
   assert.match(auth, /formatPhoneBrInput/);
   assert.match(auth, /handlePasteAccessCode/);
 });
+
+test('AppUpdateNotice flutua sem deslocar layout e telas iniciais possuem animacao sutil na cidade e cards', () => {
+  const updCss = fs.readFileSync('src/components/AppUpdateNotice.css', 'utf8');
+  const updTsx = fs.readFileSync('src/components/AppUpdateNotice.tsx', 'utf8');
+  const connectCss = fs.readFileSync('src/components/ScreenStoreConnect.css', 'utf8');
+  const connectTsx = fs.readFileSync('src/components/ScreenStoreConnect.tsx', 'utf8');
+  const dashCss = fs.readFileSync('src/components/DashboardExperience.css', 'utf8');
+
+  assert.match(updTsx, /nwa-update-overlay/);
+  assert.match(updTsx, /is-minimized/);
+  assert.match(updCss, /\.nwa-update-overlay\s*\{[^}]*height:\s*0/);
+  assert.match(updCss, /backdrop-filter:\s*blur/);
+
+  assert.match(connectTsx, /store-connect__backdrop/);
+  assert.match(connectCss, /nw-city-breathe/);
+  assert.match(connectCss, /nw-sunset-pulse/);
+
+  assert.match(dashCss, /nw-dash-enter/);
+  assert.match(dashCss, /nw-tab-enter/);
+});

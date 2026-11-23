@@ -1,18 +1,80 @@
 .app-container.app-container--connect { padding-bottom: 0; }
 .store-connect {
+  position: relative;
+  overflow: hidden;
   box-sizing: border-box;
   width: 100%;
   min-height: 100vh;
   min-height: 100svh;
   margin: 0 auto;
   padding: 0 clamp(16px, 6vw, 36px) max(14px, env(safe-area-inset-bottom));
-  background: #22052e url('/brand/plantao-completo.png') center / cover no-repeat;
+  background: #22052e;
   color: white;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: clamp(8px, 1.4svh, 14px);
   overscroll-behavior: none;
+}
+.store-connect__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.store-connect__art {
+  position: absolute;
+  inset: -2%;
+  background: #22052e url('/brand/plantao-completo.png') center / cover no-repeat;
+  transform-origin: 50% 42%;
+  animation: nw-city-breathe 18s ease-in-out infinite alternate;
+  will-change: transform;
+}
+.store-connect__glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(56% 32% at 33% 31%, rgba(255, 198, 92, 0.22), transparent 70%),
+    radial-gradient(64% 34% at 72% 40%, rgba(255, 58, 162, 0.16), transparent 72%);
+  mix-blend-mode: screen;
+  animation: nw-sunset-pulse 7.5s ease-in-out infinite alternate;
+  will-change: opacity, transform;
+}
+.store-connect__sparks {
+  position: absolute;
+  inset: 0;
+}
+.store-connect__sparks span {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 224, 150, 0.95) 0%, rgba(255, 92, 184, 0) 70%);
+  opacity: 0;
+  animation: nw-city-spark 6.5s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+.store-connect__sparks span:nth-child(1) { width: 6px; height: 6px; left: 22%; top: 44%; animation-delay: 0s; }
+.store-connect__sparks span:nth-child(2) { width: 5px; height: 5px; left: 48%; top: 38%; animation-delay: 1.8s; animation-duration: 7.2s; }
+.store-connect__sparks span:nth-child(3) { width: 7px; height: 7px; left: 76%; top: 46%; animation-delay: 3.1s; animation-duration: 6.2s; }
+.store-connect__sparks span:nth-child(4) { width: 4px; height: 4px; left: 60%; top: 30%; animation-delay: 4.4s; animation-duration: 8s; }
+.store-connect__hero,
+.store-connect__form,
+.store-connect__benefits {
+  position: relative;
+  z-index: 1;
+}
+@keyframes nw-city-breathe {
+  0% { transform: scale(1) translate3d(0, 0, 0); }
+  100% { transform: scale(1.036) translate3d(0, -5px, 0); }
+}
+@keyframes nw-sunset-pulse {
+  0% { opacity: 0.45; transform: scale(0.97); }
+  100% { opacity: 0.9; transform: scale(1.04); }
+}
+@keyframes nw-city-spark {
+  0%, 100% { opacity: 0; transform: translate3d(0, 8px, 0) scale(0.7); }
+  45% { opacity: 0.85; transform: translate3d(3px, -12px, 0) scale(1.1); }
+  85% { opacity: 0.15; transform: translate3d(-2px, -22px, 0) scale(0.8); }
 }
 .store-connect__hero {
   position: relative;
@@ -160,7 +222,7 @@
   .store-connect__benefits li { gap: 3px; }
 }
 @media (max-height: 700px) and (orientation: portrait) {
-  .store-connect { background-size: 100% 100%; }
+  .store-connect__art { background-size: 100% 100%; }
 }
 @media (orientation: landscape) and (max-height: 520px) {
   .app-container.app-container--connect, .store-connect { max-width: none; width: 100%; }
@@ -170,8 +232,17 @@
     grid-template-rows: 1fr auto;
     align-items: center;
     padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right));
+    background: #22052e;
+  }
+  .store-connect__art {
     background: linear-gradient(to right, transparent 30%, #22052e 52%), url('/brand/plantao-completo.png') left 37% / 50% auto no-repeat, #22052e;
   }
   .store-connect__hero { min-height: 0; grid-row: span 2; align-self: stretch; margin: 0; }
   .store-connect__benefits { grid-column: 2; }
 }
+@media (prefers-reduced-motion: reduce) {
+  .store-connect__art, .store-connect__glow, .store-connect__sparks span { animation: none !important; }
+}
+html[data-reduced-motion='true'] .store-connect__art,
+html[data-reduced-motion='true'] .store-connect__glow,
+html[data-reduced-motion='true'] .store-connect__sparks span { animation: none !important; }

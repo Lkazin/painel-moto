@@ -132,19 +132,50 @@ function CellularUpdateSettings({ automatic }: { automatic: boolean }) {
   </section>;
 }
 
-/** Mounted outside account/shift branches so the update is available before login too. */
+/** Mounted outside account/shift branches so the update floats without pushing page layout. */
 export function AppUpdateNotice() {
   const state = useUpdates(true);
+  const [minimized, setMinimized] = useState(false);
   if (!state?.supported || !state.release || state.dismissed) return null;
-  return <aside className="nwa-update-banner" aria-label="Atualização do aplicativo" role="status">
-    <div className="nwa-update-heading">
-      <div><strong>Nova versão disponível</strong><p>NovaesWeb Entregador {state.release.version}</p></div>
-      <button type="button" aria-label="Lembrar da atualização depois" className="nwa-update-close" onClick={() => appUpdates.dismiss()}><X size={20} aria-hidden="true" /></button>
-    </div>
-    {briefNotes(state.release.notes) && <p className="nwa-update-notes">{briefNotes(state.release.notes)}</p>}
-    <p className="nwa-update-help">Conclua suas entregas antes de instalar. O Android pedirá sua confirmação.</p>
-    <div className="nwa-update-actions"><DownloadUpdate release={state.release} /><button type="button" className="nwa-update-later" onClick={() => appUpdates.dismiss()}>Agora não</button></div>
-  </aside>;
+  const notes = briefNotes(state.release.notes);
+  return <div className="nwa-update-overlay">
+    <aside className={`nwa-update-banner${minimized ? ' is-minimized' : ''}`} aria-label="Atualização do aplicativo" role="status">
+      <div className="nwa-update-heading">
+        <div className="nwa-update-title-row">
+          <span className="nwa-update-badge" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z" />
+              <path d="M5 19l1-2.5L8.5 15.5 6 14.5 5 12l-1 2.5L1.5 15.5 4 16.5z" />
+            </svg>
+          </span>
+          <div>
+            <strong>Nova versão disponível</strong>
+            <p>NovaesWeb Entregador {state.release.version}</p>
+          </div>
+        </div>
+        <div className="nwa-update-head-actions">
+          <button
+            type="button"
+            className="nwa-update-minimize"
+            aria-expanded={!minimized}
+            aria-label={minimized ? 'Expandir aviso de atualização' : 'Recolher aviso de atualização'}
+            title={minimized ? 'Expandir' : 'Recolher'}
+            onClick={() => setMinimized(previous => !previous)}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {minimized ? <polyline points="6 9 12 15 18 9" /> : <polyline points="18 15 12 9 6 15" />}
+            </svg>
+          </button>
+          <button type="button" aria-label="Lembrar da atualização depois" className="nwa-update-close" onClick={() => appUpdates.dismiss()}><X size={18} aria-hidden="true" /></button>
+        </div>
+      </div>
+      {!minimized && <>
+        {notes && <p className="nwa-update-notes">{notes}</p>}
+        <p className="nwa-update-help">Conclua suas entregas antes de instalar. O Android pedirá sua confirmação.</p>
+        <div className="nwa-update-actions"><DownloadUpdate release={state.release} /><button type="button" className="nwa-update-later" onClick={() => appUpdates.dismiss()}>Agora não</button></div>
+      </>}
+    </aside>
+  </div>;
 }
 
 export function AppUpdateSettings() {
