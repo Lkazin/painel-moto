@@ -777,7 +777,7 @@ export const App: React.FC = () => {
   // FLUXO 2: Entregador está logado, mas NÃO tem plantão ativo na loja -> Tela de Conectar à Loja & Extrato
   if (!session) {
     return (
-      <div className="app-container">
+      <div className="app-container app-container--connect">
         <ScreenStoreConnect
           account={account}
           onShiftStarted={(newSession) => {
@@ -786,30 +786,7 @@ export const App: React.FC = () => {
             refreshAssignments();
             showToast(`Plantão iniciado na ${newSession.storeName}!`, 'success');
           }}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          onOpenLedgerModal={() => setIsProfileLedgerOpen(true)}
         />
-
-        {/* Modal de Extrato Completo e Perfil */}
-        {isProfileLedgerOpen && !isSettingsOpen && (
-          <ScreenProfileLedger
-            account={account}
-            activeSession={session}
-            onClose={() => setIsProfileLedgerOpen(false)}
-          />
-        )}
-
-        {isSettingsOpen && account && (
-          <ScreenSettings
-            account={account}
-            activeSession={session}
-            onClose={() => setIsSettingsOpen(false)}
-            onCloseShift={handleCloseStoreShift}
-            onLogoutAccount={handleLogoutAccount}
-            onShowToast={showToast}
-          />
-        )}
-
         <InAppNotice />
       </div>
     );

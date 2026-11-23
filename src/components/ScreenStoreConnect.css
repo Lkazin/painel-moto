@@ -1,0 +1,51 @@
+.app-container.app-container--connect { padding-bottom: 0; }
+.store-connect {
+  box-sizing: border-box;
+  width: min(100%, 520px);
+  height: 100dvh;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 6vw, 36px) max(10px, env(safe-area-inset-bottom));
+  background: linear-gradient(158deg, #340546, #21032e 52%, #31093f);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.5dvh, 16px);
+}
+.store-connect__hero {
+  margin-inline: calc(-1 * clamp(16px, 6vw, 36px));
+  flex: 1 1 0;
+  min-height: 0;
+  background: linear-gradient(to top, #290434, transparent 8%), url('/brand/plantao-motoboy.jpg') center / cover;
+}
+.store-connect__form { text-align: center; margin-top: 0; position: relative; }
+.store-connect__form h1 { margin: 0; font-size: clamp(29px, 8vw, 43px); line-height: 1.12; color: white; }
+.store-connect__form p { margin: 9px auto 20px; max-width: 32ch; color: #eed9ef; line-height: 1.45; }
+.store-connect__form label { display: block; text-align: left; margin-bottom: 7px; font-weight: 700; }
+.store-connect__field, .store-connect__form button, .store-connect__account { display: flex; align-items: center; gap: 12px; }
+.store-connect__field { padding: 0 15px; border: 2px solid #c146d4; border-radius: 15px; color: #f48adb; background: #270837; }
+.store-connect__field:focus-within { outline: 2px solid #ffc0ec; outline-offset: 2px; }
+.store-connect__field input { flex: 1; min-width: 0; height: 52px; background: transparent; border: 0; outline: 0; color: white; font: inherit; font-weight: 800; letter-spacing: .06em; }
+.store-connect__field input::placeholder { color: #c299c7; }
+.store-connect__form button { justify-content: center; width: 100%; min-height: 55px; margin: 18px 0 9px; background: linear-gradient(105deg,#d61a68,#ca11ad 55%,#8315df); color: white; border: 1px solid #f273da; border-radius: 15px; font: inherit; font-size: 18px; font-weight: 800; cursor: pointer; }
+.store-connect__form button:disabled { opacity: .7; }
+.store-connect small { display: block; color: #dfc3e3; }
+.store-connect__form [role=alert] { display: flex; gap: 8px; align-items: center; margin-top: 10px; color: #ffc3d4; text-align: left; }
+.store-connect__account { justify-content: space-between; border-top: 1px solid #633463; padding-top: 14px; }
+.store-connect__account button { display: grid; place-items: center; width: 44px; height: 44px; color: white; background: #481857; border: 1px solid #88578f; border-radius: 12px; }
+.store-connect__benefits { list-style: none; margin: 8px 0 0; padding: 18px 0 0; border-top: 1px solid #633463; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.store-connect__benefits li { display: grid; justify-items: center; align-content: start; gap: 7px; text-align: center; font-size: 13px; color: #eed9ef; }
+.store-connect__benefits svg { color: #f48adb; }
+@media (max-height: 700px) {
+  .store-connect__form h1 { font-size: 28px; }
+  .store-connect__form p { margin: 4px auto 10px; font-size: 14px; }
+  .store-connect__form button { min-height: 44px; margin: 10px 0 4px; }
+  .store-connect__field input { height: 44px; }
+  .store-connect__benefits { margin: 0; padding-top: 8px; }
+  .store-connect__benefits li { gap: 3px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .app-container.app-container--connect, .store-connect { max-width: none; width: 100%; }
+  .store-connect { display: grid; grid-template-columns: 1fr 1.4fr; grid-template-rows: 1fr auto; align-items: center; padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right)); }
+  .store-connect__hero { grid-row: span 2; align-self: stretch; margin: 0; }
+  .store-connect__benefits { grid-column: 2; }
+}
