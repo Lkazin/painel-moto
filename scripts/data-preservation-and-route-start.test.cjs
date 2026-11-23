@@ -240,3 +240,28 @@ test('ScreenStoreConnect remove contorno rosa de foco, posiciona formulario abai
   assert.match(tsx, /isCompleteStoreCode/);
   assert.match(app, /<ScreenStoreConnect[\s\S]*onLogout=\{/);
 });
+
+test('Melhorias de interatividade em Dashboard, History, OrdersPickup, ActiveDelivery e AuthDriver estao integradas', () => {
+  const dash = fs.readFileSync('src/components/ScreenDashboard.tsx', 'utf8');
+  const hist = fs.readFileSync('src/components/ScreenHistory.tsx', 'utf8');
+  const pickup = fs.readFileSync('src/components/ScreenOrdersPickup.tsx', 'utf8');
+  const active = fs.readFileSync('src/components/ScreenActiveDelivery.tsx', 'utf8');
+  const auth = fs.readFileSync('src/components/ScreenAuthDriver.tsx', 'utf8');
+
+  assert.match(dash, /nw-count-btn/);
+  assert.match(dash, /hideEarnings/);
+  assert.match(dash, /novaesweb_hide_earnings_v1/);
+
+  assert.match(hist, /setFilterMode/);
+  assert.match(hist, /expandedId/);
+  assert.match(hist, /Atualizar/);
+
+  assert.match(pickup, /selectedFeeTotal/);
+  assert.match(pickup, /filteredWaiting/);
+
+  assert.match(active, /Copiar endereço/);
+  assert.match(active, /Copiar telefone/);
+
+  assert.match(auth, /formatPhoneBrInput/);
+  assert.match(auth, /handlePasteAccessCode/);
+});

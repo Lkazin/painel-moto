@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import React, { useState, useEffect, useRef } from 'react';
-import { BatteryCharging, Power, Navigation, Package, TrendingUp, AlertCircle, ArrowRight, Info, Smartphone, History, Wallet, Store, MapPin, CheckCircle2 } from 'lucide-react';
+import { BatteryCharging, Power, Navigation, Package, TrendingUp, AlertCircle, ArrowRight, Info, Smartphone, History, Wallet, Store, MapPin, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { DriverSession, DriverPresence, Assignment, TrackingSessionState } from '../types';
 import { audioAlert } from '../utils/audioAlert';
 import { getNotificationPermission } from '../utils/mobileWake';
@@ -72,10 +72,21 @@ function StoreThumbnail({ session }: { session: DriverSession }) {
 export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({ session, presence, assignments, completedTodayCount, earningsEstimated, onTogglePresence, onNavigateToRoute, onNavigateToOrders, onNavigateToHistory, onOpenLedger, onOpenSettings, onOpenStore }) => {
   const [toggleLoading, setToggleLoading] = useState(false);
   const [presenceError, setPresenceError] = useState('');
+  const [hideEarnings, setHideEarnings] = useState<boolean>(() => {
+    try { return localStorage.getItem('novaesweb_hide_earnings_v1') === '1'; } catch { return false; }
+  });
   const activeDeliveries = assignments.filter(a => a.status === 'picked_up' || a.status === 'in_transit' || a.status === 'em_rota').sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
   const waitingPickup = assignments.filter(a => a.status === 'waiting_pickup');
   const nextStop = activeDeliveries[0];
   const isAvailable = presence.manualEnabled && presence.isOnline;
+  const toggleHideEarnings = () => {
+    audioAlert.playClickSound();
+    setHideEarnings(previous => {
+      const next = !previous;
+      try { localStorage.setItem('novaesweb_hide_earnings_v1', next ? '1' : '0'); } catch { /* noop */ }
+      return next;
+    });
+  };
   const handlePresenceClick = async () => {
     if (toggleLoading) return;
     setToggleLoading(true); setPresenceError(''); audioAlert.playClickSound();
@@ -116,12 +127,33 @@ export const ScreenDashboard: React.FC<ScreenDashboardProps> = ({ session, prese
     </section>
 
     <section className="nw-summary" aria-label="Resumo da loja conectada">
-      <h2><TrendingUp size={20}/> Ganhos informados</h2>
-      <AnimatedMetric value={earningsEstimated} money />
+      <div className="nw-summary-head">
+        <h2><TrendingUp size={20}/> Ganhos informados</h2>
+        <div className="nw-summary-actions">
+          <button type="button" className="nw-summary-eye" onClick={toggleHideEarnings} aria-pressed={hideEarnings} aria-label={hideEarnings ? 'Mostrar valor dos ganhos' : 'Ocultar valor dos ganhos'} title={hideEarnings ? 'Mostrar ganhos' : 'Ocultar ganhos'}>
+            {hideEarnings ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+          </button>
+          <button type="button" className="nw-summary-ledger" onClick={() => { audioAlert.playClickSound(); onOpenLedger(); }}>
+            Extrato <ArrowRight size={13} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+      {hideEarnings
+        ? <span className="nw-dashboard-number nw-dashboard-masked" aria-label="Valor ocultado">R$ •••••</span>
+        : <AnimatedMetric value={earningsEstimated} money />}
       <div className="nw-counts">
-        <div><small>Para retirar</small><AnimatedMetric value={waitingPickup.length}/></div>
-        <div><small>Em andamento</small><AnimatedMetric value={activeDeliveries.length}/></div>
-        <div><small>Concluídas</small><AnimatedMetric value={completedTodayCount}/></div>
+        <button type="button" className="nw-count-btn" onClick={() => { audioAlert.playClickSound(); onNavigateToOrders(); }}>
+          <small>Para retirar</small>
+          <AnimatedMetric value={waitingPickup.length}/>
+        </button>
+        <button type="button" className="nw-count-btn" onClick={() => { audioAlert.playClickSound(); onNavigateToRoute(); }}>
+          <small>Em andamento</small>
+          <AnimatedMetric value={activeDeliveries.length}/>
+        </button>
+        <button type="button" className="nw-count-btn" onClick={() => { audioAlert.playClickSound(); onNavigateToHistory(); }}>
+          <small>Concluídas</small>
+          <AnimatedMetric value={completedTodayCount}/>
+        </button>
       </div>
     </section>
 

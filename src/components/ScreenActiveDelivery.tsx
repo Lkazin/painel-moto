@@ -34,6 +34,7 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({ assi
   });
   const [gateWaitNotice, setGateWaitNotice] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
+  const [copiedField, setCopiedField] = useState<'address' | 'phone' | null>(null);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (['delivered', 'entregue', 'canceled_by_store', 'canceled_by_driver', 'withdrawn', 'returned_to_dispatch'].includes(assignment.status)) {
@@ -98,6 +99,15 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({ assi
   };
   const openPin = () => { audioAlert.playClickSound(); onOpenPinConfirmation(assignment); };
   const reportProblem = () => { audioAlert.playClickSound(); onRequestWithdraw(assignment); };
+  const copyText = async (value: string, field: 'address' | 'phone') => {
+    if (!value) return;
+    audioAlert.playClickSound();
+    try {
+      await navigator.clipboard?.writeText?.(value);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(current => (current === field ? null : current)), 2000);
+    } catch { /* clipboard unavailable */ }
+  };
 
   return <div className={`de-screen${focusMode ? ' de-focus' : ''}`}>
     <div className="de-toolbar">
@@ -113,6 +123,16 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({ assi
         {assignment.addressComplement && <p className="de-complement">{assignment.addressComplement}</p>}
         <p>{[assignment.neighborhood, assignment.city].filter(Boolean).join(' · ') || 'Bairro e cidade não informados'}</p>
         {!hasAddress && <p>Confira os dados com a loja antes de iniciar a navegação.</p>}
+        {hasAddress && (
+          <button type="button" className={`de-copy-chip${copiedField === 'address' ? ' is-copied' : ''}`} onClick={() => void copyText(fullAddress, 'address')} aria-label="Copiar endereço completo">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {copiedField === 'address'
+                ? <polyline points="20 6 9 17 4 12" />
+                : <><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></>}
+            </svg>
+            <span>{copiedField === 'address' ? 'Endereço copiado' : 'Copiar endereço'}</span>
+          </button>
+        )}
       </div></div>
       {assignment.instructions && <div className="de-reference"><strong>OBSERVAÇÃO DO CLIENTE</strong><p>{assignment.instructions}</p></div>}
       <details className="de-expand" key={`${assignmentKey}-${focusMode ? 'focus' : 'full'}`}>
@@ -150,7 +170,7 @@ export const ScreenActiveDelivery: React.FC<ScreenActiveDeliveryProps> = ({ assi
 
     {sheet && <DeliveryBottomSheet title={sheet === 'route' ? 'Abrir navegação' : sheet === 'contact' ? 'Falar com o cliente' : 'Detalhes do pedido'} description={`Pedido #${assignment.orderNumber || 'não informado'}`} onClose={() => setSheet(null)}>
       {sheet === 'route' && <><p className="de-empty-info">{hasAddress ? fullAddress : 'Endereço não informado. Confirme com a loja antes de abrir a rota.'}</p><button type="button" onClick={openWaze} className="btn-glove btn-glove-waze" disabled={!hasAddress}><Compass size={22} />Abrir no Waze</button><button type="button" onClick={openGoogleMaps} className="btn-glove btn-glove-maps" disabled={!hasAddress}><Navigation size={22} />Google Maps</button></>}
-      {sheet === 'contact' && <>{customerPhone ? <><p className="de-empty-info">{assignment.customerName} · {assignment.customerPhone}</p><button type="button" onClick={() => openWhatsApp()} className="btn-glove btn-glove-secondary"><MessageCircle size={22} />Abrir WhatsApp</button><button type="button" onClick={callCustomer} className="btn-glove btn-glove-secondary"><Phone size={22} />Ligar para o cliente</button><p className="de-empty-info">O WhatsApp abre uma mensagem para você revisar antes de enviar.</p></> : <><p className="de-empty-info">O telefone do cliente não foi informado no pedido. Entre em contato com a loja para conferir os dados.</p><button type="button" className="de-link-button" onClick={() => { setSheet(null); reportProblem(); }}><AlertTriangle size={18} />Registrar problema</button></>}</>}
+      {sheet === 'contact' && <>{customerPhone ? <><p className="de-empty-info">{assignment.customerName} · {assignment.customerPhone}</p><button type="button" onClick={() => openWhatsApp()} className="btn-glove btn-glove-secondary"><MessageCircle size={22} />Abrir WhatsApp</button><button type="button" onClick={callCustomer} className="btn-glove btn-glove-secondary"><Phone size={22} />Ligar para o cliente</button><button type="button" onClick={() => void copyText(assignment.customerPhone || customerPhone, 'phone')} className="de-link-button"><Phone size={18} />{copiedField === 'phone' ? 'Telefone copiado' : 'Copiar telefone'}</button><p className="de-empty-info">O WhatsApp abre uma mensagem para você revisar antes de enviar.</p></> : <><p className="de-empty-info">O telefone do cliente não foi informado no pedido. Entre em contato com a loja para conferir os dados.</p><button type="button" className="de-link-button" onClick={() => { setSheet(null); reportProblem(); }}><AlertTriangle size={18} />Registrar problema</button></>}</>}
       {sheet === 'details' && <dl className="de-detail-list"><div><dt>Loja</dt><dd>{assignment.storeName || 'Não informada'}</dd></div><div><dt>Cliente</dt><dd>{assignment.customerName || 'Não informado'}</dd></div><div><dt>Endereço</dt><dd>{hasAddress ? fullAddress : 'Não informado'}</dd></div><div><dt>Complemento</dt><dd>{assignment.addressComplement || 'Não informado'}</dd></div><div><dt>Observações</dt><dd>{assignment.instructions || 'Nenhuma observação informada'}</dd></div><div><dt>Itens</dt><dd>{assignment.itemsSummary || 'Não informados pela loja'}</dd></div><div><dt>Taxa de entrega</dt><dd>{typeof assignment.deliveryFee === 'number' && Number.isFinite(assignment.deliveryFee) ? assignment.deliveryFee.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Não informada'}</dd></div></dl>}
     </DeliveryBottomSheet>}
 

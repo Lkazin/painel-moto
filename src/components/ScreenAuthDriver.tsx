@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Phone, Lock, ArrowRight, LogIn, AlertCircle, Eye, EyeOff, Shield, FileText, Package, ShieldCheck, Headphones, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Phone, Lock, ArrowRight, LogIn, AlertCircle, Eye, EyeOff, Shield, FileText, Package, ShieldCheck, Headphones, CheckCircle, ArrowLeft, ClipboardPaste } from 'lucide-react';
 import './ScreenAuthDriver.css';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
@@ -8,9 +8,21 @@ import { AccountInformationModal } from './AccountInformationModal';
 
 interface ScreenAuthDriverProps { onLoginSuccess: (account: DriverAccount) => void; notice?: string; }
 function normalizeFirstAccessCode(value: string) {
-  const raw = value.toUpperCase().replace(/[\s-]/g, '').replace(/[^A-Z0-9]/g, '');
+  const upper = value.toUpperCase();
+  const extracted = upper.match(/AC-[A-F0-9]{1,12}/);
+  const raw = (extracted ? extracted[0] : upper).replace(/[\s-]/g, '').replace(/[^A-Z0-9]/g, '');
   if (raw.length <= 2 && 'AC'.startsWith(raw)) return raw;
   return raw.startsWith('AC') ? 'AC-' + raw.slice(2).replace(/[^A-F0-9]/g, '').slice(0, 12) : raw.slice(0, 14);
+}
+function formatPhoneBrInput(value: string) {
+  let digits = value.replace(/\D/g, '');
+  if (digits.length >= 12 && digits.startsWith('55')) digits = digits.slice(2);
+  digits = digits.slice(0, 11);
+  if (!digits.length) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({onLoginSuccess,notice}) => {
   const [mode,setMode] = useState<'login'|'first-access'>('login');
@@ -35,6 +47,23 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({onLoginSucces
     requestRevision.current++; api.cancelFirstAccess();
     setMode(nextMode); setChallenge(null); setCode(''); setPassword(''); setConfirmation('');
     setAddress(''); setVehicleModel(''); setPlate(''); setShowPassword(false); setLoading(false); setErrorMessage(null);
+  };
+  const isAccessCodeValid = /^AC-[A-F0-9]{12}$/.test(code);
+  const handlePasteAccessCode = async () => {
+    if (loading) return;
+    audioAlert.playClickSound();
+    try {
+      const text = await navigator.clipboard?.readText?.();
+      const normalized = normalizeFirstAccessCode(text || '');
+      if (!normalized || normalized.length < 4) {
+        setErrorMessage('Nenhum código AC-... encontrado na área de transferência.');
+        return;
+      }
+      setCode(normalized);
+      setErrorMessage(null);
+    } catch {
+      setErrorMessage('Segure no campo de código para colar.');
+    }
   };
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -93,8 +122,8 @@ export const ScreenAuthDriver: React.FC<ScreenAuthDriverProps> = ({onLoginSucces
                 <div><label htmlFor="nwl-model" className="nwl-label">Nome ou modelo da moto</label><input id="nwl-model" className="nwl-input nwl-input--plain" value={vehicleModel} onChange={event => setVehicleModel(event.target.value)} minLength={2} maxLength={100} required disabled={loading} placeholder="Ex.: Honda CG 160"/></div>
                 <div><label htmlFor="nwl-plate" className="nwl-label">Placa <span className="nwl-optional">opcional</span></label><input id="nwl-plate" className="nwl-input nwl-input--plain" value={plate} onChange={event => setPlate(event.target.value.toUpperCase())} maxLength={12} disabled={loading} autoCapitalize="characters" placeholder="Pode deixar para depois"/></div>
               </> : <>
-                <div><label htmlFor="nwl-phone" className="nwl-label"><Phone size={16} aria-hidden="true"/>{mode === 'login' ? 'Telefone com DDD' : 'WhatsApp cadastrado pela loja'}</label><div className="nwl-field"><input id="nwl-phone" className="nwl-input" type="tel" autoComplete={mode === 'login' ? 'username' : 'tel'} value={phone} onChange={event => {setPhone(event.target.value);setErrorMessage(null);}} maxLength={20} required disabled={loading} placeholder="(51) 99999-9999"/><Phone size={20} className="nwl-input-icon" aria-hidden="true"/></div></div>
-                {mode === 'first-access' && <div><label htmlFor="nwl-access-code" className="nwl-label">Código de primeiro acesso</label><input id="nwl-access-code" className="nwl-input nwl-input--plain nwl-code-input" value={code} onChange={event => {setCode(normalizeFirstAccessCode(event.target.value));setErrorMessage(null);}} onPaste={event => {event.preventDefault();setCode(normalizeFirstAccessCode(event.clipboardData.getData('text')));setErrorMessage(null);}} autoComplete="off" autoCapitalize="characters" spellCheck={false} placeholder="AC-XXXXXXXXXXXX" pattern="AC-[A-F0-9]{12}" minLength={15} maxLength={15} required disabled={loading} aria-describedby="nwl-access-code-help"/><p id="nwl-access-code-help" className="nwl-field-help">Peça o código AC-... ao lojista. O código de plantão NW-... não é utilizado nesta etapa.</p></div>}
+                <div><label htmlFor="nwl-phone" className="nwl-label"><Phone size={16} aria-hidden="true"/>{mode === 'login' ? 'Telefone com DDD' : 'WhatsApp cadastrado pela loja'}</label><div className="nwl-field"><input id="nwl-phone" className="nwl-input" type="tel" autoComplete={mode === 'login' ? 'username' : 'tel'} value={phone} onChange={event => {setPhone(formatPhoneBrInput(event.target.value));setErrorMessage(null);}} maxLength={16} required disabled={loading} placeholder="(51) 99999-9999"/><Phone size={20} className="nwl-input-icon" aria-hidden="true"/></div></div>
+                {mode === 'first-access' && <div><label htmlFor="nwl-access-code" className="nwl-label">Código de primeiro acesso</label><div className="nwl-field"><input id="nwl-access-code" className={`nwl-input nwl-input--plain nwl-input--with-action nwl-code-input${isAccessCodeValid ? ' nwl-input--valid' : ''}`} value={code} onChange={event => {setCode(normalizeFirstAccessCode(event.target.value));setErrorMessage(null);}} onPaste={event => {event.preventDefault();setCode(normalizeFirstAccessCode(event.clipboardData.getData('text')));setErrorMessage(null);}} autoComplete="off" autoCapitalize="characters" spellCheck={false} placeholder="AC-XXXXXXXXXXXX" pattern="AC-[A-F0-9]{12}" minLength={15} maxLength={15} required disabled={loading} aria-describedby="nwl-access-code-help"/><button type="button" className="nwl-paste-btn" onClick={() => { void handlePasteAccessCode(); }} disabled={loading} aria-label="Colar código de primeiro acesso"><ClipboardPaste size={15} aria-hidden="true"/><span>Colar</span></button></div><p id="nwl-access-code-help" className={`nwl-field-help${isAccessCodeValid ? ' nwl-field-help--valid' : ''}`}>{isAccessCodeValid ? 'Código completo — toque em Conferir meu acesso.' : 'Peça o código AC-... ao lojista. O código de plantão NW-... não é utilizado nesta etapa.'}</p></div>}
               </>}
               {(mode === 'login' || challenge) && <div><label htmlFor="nwl-password" className="nwl-label"><Lock size={16} aria-hidden="true"/>{challenge ? 'Crie sua senha' : 'Senha'}</label><div className="nwl-field"><input id="nwl-password" className="nwl-input nwl-input--password" type={showPassword ? 'text' : 'password'} value={password} onChange={event => setPassword(event.target.value)} autoComplete={challenge ? 'new-password' : 'current-password'} minLength={challenge ? 8 : undefined} maxLength={128} required disabled={loading}/><Lock size={20} className="nwl-input-icon" aria-hidden="true"/><button type="button" className="nwl-eye-btn" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>{showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}</button></div></div>}
               {challenge && <div><label htmlFor="nwl-password-confirmation" className="nwl-label">Confirme sua senha</label><input id="nwl-password-confirmation" className="nwl-input nwl-input--plain" type={showPassword ? 'text' : 'password'} value={confirmation} onChange={event => setConfirmation(event.target.value)} autoComplete="new-password" minLength={8} maxLength={128} required disabled={loading}/><p className="nwl-field-help">Use de 8 a 128 caracteres e guarde sua senha. A recuperação automática por telefone ainda não está disponível.</p></div>}

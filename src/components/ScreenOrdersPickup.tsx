@@ -29,10 +29,25 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
 
   const [confirmation, setConfirmation] = useState<{ selected: string[]; scope: string[] } | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const confirmDialog = useRef<HTMLDialogElement>(null);
   const waitingPickup = waitingPickupAssignments(assignments);
   const pickedUp = activeRouteAssignments(assignments);
   const visibleSelectedIds = keepPickupSelection(selectedIds, assignments);
+  const queryLower = searchQuery.trim().toLocaleLowerCase('pt-BR');
+  const filteredWaiting = queryLower
+    ? waitingPickup.filter(item =>
+        [item.orderNumber, item.customerName, item.address, item.neighborhood]
+          .some(field => String(field || '').toLocaleLowerCase('pt-BR').includes(queryLower))
+      )
+    : waitingPickup;
+  const selectedSet = new Set(visibleSelectedIds);
+  const selectedFeeTotal = waitingPickup.reduce((sum, item) => {
+    if (!selectedSet.has(assignmentKey(item))) return sum;
+    return typeof item.deliveryFee === 'number' && Number.isFinite(item.deliveryFee)
+      ? sum + item.deliveryFee
+      : sum;
+  }, 0);
 
   useEffect(() => { setSelectedIds(previous => keepPickupSelection(previous, assignments)); }, [assignments]);
   useEffect(() => {
@@ -209,9 +224,63 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
                 </button>
               </div>
 
+              {waitingPickup.length >= 3 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '0 12px',
+                    minHeight: '42px',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-card)'
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-subtle)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+                  </svg>
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={event => setSearchQuery(event.target.value)}
+                    placeholder="Buscar pedido nº, cliente ou bairro..."
+                    aria-label="Filtrar pedidos aguardando retirada"
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      background: 'transparent',
+                      border: 0,
+                      outline: 'none',
+                      color: '#ffffff',
+                      font: 'inherit',
+                      fontSize: '13px'
+                    }}
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      aria-label="Limpar busca"
+                      style={{ background: 'none', border: 0, color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'grid', placeItems: 'center' }}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Lista de Pedidos Aguardando Retirada */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {waitingPickup.map((item) => {
+                {filteredWaiting.length === 0 ? (
+                  <div className="card-surface" style={{ textAlign: 'center', padding: '20px' }}>
+                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+                      Nenhum pedido encontrado para "{searchQuery}".
+                    </p>
+                  </div>
+                ) : filteredWaiting.map((item) => {
                   const itemId = assignmentKey(item);
                   const isSelected = visibleSelectedIds.includes(itemId);
                   return (
@@ -222,10 +291,11 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
                       style={{
                         cursor: 'pointer',
                         borderColor: isSelected ? 'var(--nw-pink)' : 'var(--border-subtle)',
-                        boxShadow: isSelected ? '0 0 16px var(--nw-pink-glow)' : 'none'
+                        boxShadow: isSelected ? '0 0 16px var(--nw-pink-glow)' : 'none',
+                        transition: 'transform 110ms ease, border-color 140ms ease'
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(itemId)} onClick={event => event.stopPropagation()} disabled={isSubmitting} aria-label={`Retirar pedido ${item.orderNumber}`} style={{ width: 24, height: 24, accentColor: 'var(--nw-pink)', flexShrink: 0 }} />
                           <div>
@@ -238,11 +308,26 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
                           </div>
                         </div>
 
-                        {item.deliveryFee !== null && (
-                          <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--nw-emerald)' }}>
-                            R$ {item.deliveryFee.toFixed(2).replace('.', ',')}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {item.deliveryFee !== null && (
+                            <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--nw-emerald)' }}>
+                              R$ {item.deliveryFee.toFixed(2).replace('.', ',')}
+                            </span>
+                          )}
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 800,
+                              padding: '3px 8px',
+                              borderRadius: '999px',
+                              background: isSelected ? 'rgba(236, 72, 153, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                              color: isSelected ? '#ffb3e0' : 'var(--text-subtle)',
+                              border: `1px solid ${isSelected ? 'var(--nw-pink)' : 'transparent'}`
+                            }}
+                          >
+                            {isSelected ? 'Marcado' : 'Marcar'}
                           </span>
-                        )}
+                        </div>
                       </div>
 
                       {/* Itens e Endereço */}
@@ -288,14 +373,14 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
                   onClick={handleConfirm}
                   disabled={visibleSelectedIds.length === 0 || isSubmitting}
                   className="btn-glove btn-glove-primary"
-                  style={{ height: '62px', fontSize: '17px' }}
+                  style={{ height: '62px', fontSize: '16px' }}
                 >
                   <PackageCheck size={24} strokeWidth={2.4} />
                   <span>
                     {isSubmitting
                       ? 'Confirmando com a loja...'
                       : visibleSelectedIds.length > 0
-                      ? `Retirar ${visibleSelectedIds.length} pedido(s) selecionado(s)`
+                      ? `Retirar ${visibleSelectedIds.length} pedido(s)${selectedFeeTotal > 0 ? ` · R$ ${selectedFeeTotal.toFixed(2).replace('.', ',')}` : ''}`
                       : 'Selecione os pedidos que vai retirar'}
                   </span>
                 </button>
@@ -333,7 +418,16 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
               </div>
 
               {pickedUp.map((item, idx) => (
-                <div key={item.assignmentId || item.id} className="card-surface">
+                <button
+                  key={item.assignmentId || item.id}
+                  type="button"
+                  onClick={() => {
+                    audioAlert.playClickSound();
+                    onNavigateToRoute();
+                  }}
+                  className="card-surface"
+                  style={{ width: '100%', textAlign: 'left', font: 'inherit', color: 'inherit', cursor: 'pointer', display: 'grid', gap: '4px' }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span
@@ -375,7 +469,7 @@ export const ScreenOrdersPickup: React.FC<ScreenOrdersPickupProps> = ({
                   <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
                     📍 {item.address}, {item.addressNumber} • {item.neighborhood}
                   </p>
-                </div>
+                </button>
               ))}
             </>
           )}

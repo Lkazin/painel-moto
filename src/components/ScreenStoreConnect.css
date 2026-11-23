@@ -144,6 +144,9 @@
 .store-connect__benefits li + li { border-inline-start: 1px solid rgb(240 175 228 / 18%); }
 .store-connect__benefits svg { color: #f48adb; }
 @media (orientation: portrait) {
+  .store-connect__form {
+    transform: translateY(clamp(-24px, -2.6svh, -12px));
+  }
   .store-connect__benefits { margin-top: clamp(16px, 5svh, 48px); }
   .store-connect__form p, .store-connect__form label { font-size: 15px; }
 }

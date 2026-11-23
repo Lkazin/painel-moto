@@ -72,16 +72,46 @@
   padding: clamp(14px, 4vw, 21px); border-radius: 18px; border: 1px solid #763278;
   background: linear-gradient(125deg,#511344,#361047 50%,#201035); box-shadow: none;
 }
-.nw-summary h2 { display: flex; align-items: center; gap: 8px; font-size: 1rem; }
+.nw-summary h2 { display: flex; align-items: center; gap: 8px; font-size: 1rem; margin: 0; }
 .nw-summary h2 svg { color: #50ecac; }
-.nw-summary > .nw-dashboard-number { font-size: clamp(2rem, 9vw, 3.3rem); }
-.nw-counts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); border-top: 1px solid #70346e; padding-top: 10px; margin-top: 8px; }
-.nw-counts div { display: grid; align-content: start; text-align: center; }
-.nw-counts div + div { border-left: 1px solid #693364; }
+.nw-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.nw-summary-actions { display: inline-flex; align-items: center; gap: 6px; }
+.nw-summary-eye, .nw-summary-ledger {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  min-height: 30px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08); color: #f6def2; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
+  transition: transform 110ms ease, background-color 140ms ease;
+}
+.nw-summary-eye { width: 32px; padding: 0; }
+.nw-summary-ledger { padding: 4px 10px; }
+.nw-summary-eye:active, .nw-summary-ledger:active { transform: scale(0.95); background: rgba(255, 255, 255, 0.16); }
+.nw-dashboard-masked { letter-spacing: 0.04em; color: #d8c2de; }
+.nw-summary > .nw-dashboard-number { font-size: clamp(2rem, 9vw, 3.3rem); display: block; }
+.nw-counts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); border-top: 1px solid #70346e; padding-top: 8px; margin-top: 8px; }
+.nw-count-btn {
+  display: grid; align-content: start; justify-items: center; text-align: center; gap: 2px;
+  background: transparent; border: 0; border-radius: 10px; padding: 6px 4px; color: inherit; font: inherit; cursor: pointer;
+  transition: transform 110ms ease, background-color 140ms ease;
+}
+.nw-count-btn + .nw-count-btn { border-left: 1px solid #693364; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.nw-count-btn:active { transform: scale(0.96); background: rgba(255, 255, 255, 0.08); }
 .nw-counts small { font-size: .75rem; color: #f0cfe7; }
-.nw-dashboard .nw-dashboard-primary { justify-content: center; min-height: 46px; margin-top: 12px; background: linear-gradient(105deg,#cf2169,#a20bbe,#7725d7); box-shadow: none; }
+.nw-dashboard .nw-dashboard-primary { justify-content: center; min-height: 46px; margin-top: 12px; background: linear-gradient(105deg,#cf2169,#a20bbe,#7725d7); box-shadow: none; transition: transform 110ms ease; }
 .nw-shortcuts { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; }
-.nw-shortcuts button { display: grid; place-items: center; align-content: center; gap: 5px; padding: 9px 2px; font-size: .78rem; font-weight: 700; background: linear-gradient(145deg,#45134f,#23112f); }
+.nw-shortcuts button { display: grid; place-items: center; align-content: center; gap: 5px; padding: 9px 2px; font-size: .78rem; font-weight: 700; background: linear-gradient(145deg,#45134f,#23112f); transition: transform 110ms ease; }
+.nw-store, .nw-dashboard-presence-button, .nw-device-status, .nw-dashboard-pickup-link { transition: transform 110ms ease; }
+.nw-store:active, .nw-shortcuts button:active, .nw-device-status:active, .nw-dashboard-presence-button:active:not(:disabled), .nw-dashboard-primary:active:not(:disabled), .nw-dashboard-pickup-link:active { transform: scale(0.975); }
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-reduced-motion="true"]) .nw-dashboard-next--available .nw-dashboard-status-dot {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.65);
+    animation: nw-status-pulse 2.2s infinite;
+  }
+}
+@keyframes nw-status-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.65); }
+  70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
 .nw-device-status { display: flex; gap: 10px; align-items: center; text-align: left; padding: 12px; background: #182332; }
 .nw-device-status span { flex: 1; }
 .nw-device-status small { display: block; color: var(--text-muted); }

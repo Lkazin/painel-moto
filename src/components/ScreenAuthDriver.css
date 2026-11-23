@@ -499,8 +499,14 @@
 
 /* Primeiro acesso em duas etapas, com identidade informada pela loja. */
 .nwl-input--plain { padding-left: 16px; }
+.nwl-input--with-action { padding-right: 90px; }
+.nwl-input--valid, .nwl-input--valid:focus { border-color: #34d399; box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.28); }
+.nwl-paste-btn { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 5px; height: 38px; padding: 0 11px; border-radius: 10px; border: 1px solid rgba(139, 47, 232, 0.28); background: rgba(139, 47, 232, 0.14); color: #3a1252; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.nwl-paste-btn:active { opacity: 0.8; }
+.nwl-paste-btn:disabled { opacity: 0.5; cursor: default; }
 .nwl-address-input { height: auto; min-height: 104px; padding-top: 14px; padding-bottom: 14px; resize: vertical; font: inherit; font-size: 16px; line-height: 1.5; }
 .nwl-field-help { margin: 7px 0 0; color: #eddaee; font-size: 12px; line-height: 1.6; }
+.nwl-field-help--valid { color: #8fe4ba; font-weight: 700; }
 .nwl-optional { color: #e3c1df; font-size: 11px; font-weight: 500; text-transform: none; }
 .nwl-code-input { letter-spacing: 1px; }
 .nwl-onboarding-steps { display: flex; flex-wrap: wrap; gap: 8px 16px; list-style: none; margin: 0 0 20px; padding: 0; font-size: 12px; color: #d8bfd9; }
