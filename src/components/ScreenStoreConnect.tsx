@@ -55,7 +55,11 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
 
   return (
     <div className="store-connect">
-      <div className="store-connect__hero" role="img" aria-label="NovaesWeb Entregador. Motoboy ao pôr do sol." />
+      <header className="store-connect__hero">
+        <img src="/brand/novaesweb-symbol.png" alt="" className="store-connect__logo" />
+        <strong>NovaesWeb</strong>
+        <span>Entregador</span>
+      </header>
       <form className="store-connect__form" onSubmit={event => {
         event.preventDefault();
         if (!loading) void handleConnectStore();
