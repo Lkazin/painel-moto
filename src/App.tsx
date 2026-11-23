@@ -590,20 +590,29 @@ export const App: React.FC = () => {
     const ids = stopsToStart.map((stop) => stop.assignmentId || stop.id || '').filter(Boolean);
     if (!ids.length) return;
     const res = await api.startRoute(ids);
+    const confirmedIds = new Set(res.startedIds.filter(id => ids.includes(id)));
+    if (!res.success || !confirmedIds.size) {
+      await refreshAssignments();
+      throw new Error('A loja não confirmou o início da rota. Confira os pedidos e tente novamente.');
+    }
     const startedAt = res.routeStartedAt || new Date().toISOString();
     setAssignments((previous) => {
       const next = previous.map((assignment) => {
         const key = assignment.assignmentId || assignment.id || '';
-        return res.startedIds.includes(key) || ids.includes(key)
+        return confirmedIds.has(key)
           ? { ...assignment, status: 'in_transit' as const, routeStartedAt: assignment.routeStartedAt || startedAt }
           : assignment;
       });
       saveCachedAssignments(account?.id, session?.storeId, next);
       return next;
     });
-    trackingService.start(session?.driverId, res.startedIds[0] || ids[0]);
+    trackingService.start(session?.driverId, ids.find(id => confirmedIds.has(id)));
     await refreshAssignments();
-    showToast('Rota iniciada! O mapa ao vivo foi liberado para os clientes.', 'success');
+    if (confirmedIds.size < ids.length) {
+      showToast('Apenas parte das entregas iniciou a rota. Confira as paradas pendentes.', 'info');
+    } else {
+      showToast('Rota iniciada! O mapa ao vivo foi liberado para os clientes.', 'success');
+    }
   };
 
   // Sucesso na Entrega com PIN
@@ -712,7 +721,7 @@ export const App: React.FC = () => {
 
   // Pedidos no balcão e na rota para os badges do bottom nav
   const waitingPickupCount = assignments.filter((a) => a.status === 'waiting_pickup').length;
-  const activeDeliveries = assignments.filter((a) => a.status === 'picked_up' || a.status === 'in_transit');
+  const activeDeliveries = assignments.filter((a) => a.status === 'picked_up' || a.status === 'in_transit' || a.status === 'em_rota');
 
   // FLUXO 1: Entregador NÃO está logado na sua conta pessoal -> Tela de Login / Cadastro
   if (!startupAnimationDone) return <StartupSplash />;
@@ -909,6 +918,10 @@ export const App: React.FC = () => {
                 assignments={assignments}
                 completedTodayCount={historySummary.itemsCount}
                 earningsEstimated={historySummary.totalEarnings}
+                onNavigateToHistory={() => setActiveTab('history')}
+                onOpenLedger={() => setIsProfileLedgerOpen(true)}
+                onOpenSettings={() => setIsSettingsOpen(true)}
+                onOpenStore={() => setIsStoreModalOpen(true)}
                 onTogglePresence={handleTogglePresence}
                 onNavigateToRoute={() => setActiveTab('route')}
                 onNavigateToOrders={() => setActiveTab('orders')}

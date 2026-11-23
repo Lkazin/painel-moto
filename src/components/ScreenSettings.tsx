@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+import { DriverPermissionsCard, PwaInstallCard, AndroidBatteryOptimizationCard } from './ScreenDashboard';
 import React, { useState } from 'react';
 import { X, Bike, CreditCard, Phone, Power, Sparkles, LogOut, Settings, Download, Smartphone } from 'lucide-react';
 import { AppUpdateSettings } from './AppUpdateNotice';
@@ -222,6 +224,9 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
 
         <SectionPushNotifications onShowToast={onShowToast} />
 
+        <SectionTitle>Localização e bateria</SectionTitle>
+        {activeSession && <DriverPermissionsCard />}
+        <AndroidBatteryOptimizationCard />
         <SectionTitle>Aparência</SectionTitle>
 
         <ItemTitle>Preferências do app</ItemTitle>
@@ -233,6 +238,7 @@ export const ScreenSettings: React.FC<ScreenSettingsProps> = ({
         <ItemTitle>Atualizações</ItemTitle>
 
         <AppUpdateSettings />
+        {!Capacitor.isNativePlatform() && <PwaInstallCard />}
 
         <section className="card-surface" aria-label="Aplicativo" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

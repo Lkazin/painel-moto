@@ -195,7 +195,8 @@ test('OfflineQueueManager filtra comandos de plantão antigo e expõe reenvio/de
     },
     navigator: { onLine: true },
     window: { addEventListener() {} },
-    require: () => ({ nativeSecureAccess: () => false, driverSecurity: {} }),
+    nativeSecureAccess: () => false,
+    driverSecurity: {},
   };
   const { stripTypeScriptTypes } = require('node:module');
   const qSrc = stripTypeScriptTypes(
@@ -230,7 +231,7 @@ test('ScreenStoreConnect remove contorno rosa de foco, posiciona formulario abai
   assert.doesNotMatch(css, /outline:\s*2px\s+solid\s+#ffc0ec/);
   assert.match(css, /\.store-connect__field:focus-within\s*\{[^}]*outline:\s*none/);
   assert.match(css, /\.store-connect__hero\s*\{[^}]*flex:\s*1\s+1\s+0/);
-  assert.match(css, /\.store-connect__hero\s*\{[^}]*min-height:\s*clamp\(/);
+  assert.match(css, /\.store-connect__hero\s*\{[^}]*min-height:\s*min-content/);
   assert.match(css, /\.store-connect__field--valid/);
   assert.match(tsx, /onLogout/);
   assert.match(tsx, />\s*Sair\s*</);

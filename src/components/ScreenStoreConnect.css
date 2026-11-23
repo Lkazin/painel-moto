@@ -1,7 +1,7 @@
 .app-container.app-container--connect { padding-bottom: 0; }
 .store-connect {
   box-sizing: border-box;
-  width: min(100%, 520px);
+  width: 100%;
   min-height: 100vh;
   min-height: 100svh;
   margin: 0 auto;
@@ -18,7 +18,7 @@
   position: relative;
   margin-inline: calc(-1 * clamp(16px, 6vw, 36px));
   flex: 1 1 0;
-  min-height: clamp(240px, 49svh, 450px);
+  min-height: min-content;
   padding-inline: clamp(16px, 6vw, 36px);
   display: flex;
   flex-direction: column;
@@ -143,13 +143,17 @@
 .store-connect__benefits li { display: grid; justify-items: center; align-content: start; gap: 5px; text-align: center; font-size: 12.5px; color: #eed9ef; }
 .store-connect__benefits li + li { border-inline-start: 1px solid rgb(240 175 228 / 18%); }
 .store-connect__benefits svg { color: #f48adb; }
+@media (orientation: portrait) {
+  .store-connect__benefits { margin-top: clamp(16px, 5svh, 48px); }
+  .store-connect__form p, .store-connect__form label { font-size: 15px; }
+}
 @media (max-height: 700px) {
-  .store-connect__hero { min-height: clamp(190px, 43svh, 310px); }
+
   .store-connect__form h1 { font-size: 26px; }
   .store-connect__form p { margin: 4px auto 8px; font-size: 13.5px; }
   .store-connect__submit { min-height: 44px; margin: 8px 0 2px; }
   .store-connect__field input { height: 42px; }
-  .store-connect__benefits { margin: 0; padding-top: 8px; }
+  .store-connect__benefits { padding-top: 8px; }
   .store-connect__benefits li { gap: 3px; }
 }
 @media (max-height: 700px) and (orientation: portrait) {

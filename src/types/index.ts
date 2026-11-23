@@ -46,6 +46,8 @@ export interface DriverSession {
   deviceFingerprint: string;
   storeId: string;
   storeName: string;
+  storeLogoUrl?: string;
+  storeCategory?: string;
   storeAddress?: string;
   membershipId: string;
   role: string;

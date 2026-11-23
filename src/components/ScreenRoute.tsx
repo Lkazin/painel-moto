@@ -245,7 +245,7 @@ export const ScreenRoute: React.FC<ScreenRouteProps> = ({
         setHasChanges(false);
         setUndoOrder(null);
       }
-      await onStartRoute(stops);
+      await onStartRoute(pendingStartStops);
     } catch (error) {
       setRouteError(error instanceof Error ? error.message : 'Não foi possível iniciar a rota agora. Tente novamente.');
     } finally {
