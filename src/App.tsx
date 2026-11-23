@@ -786,6 +786,7 @@ export const App: React.FC = () => {
             refreshAssignments();
             showToast(`Plantão iniciado na ${newSession.storeName}!`, 'success');
           }}
+          onLogout={() => { void handleLogoutAccount(); }}
         />
         <InAppNotice />
       </div>

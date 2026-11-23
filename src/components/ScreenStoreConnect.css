@@ -2,29 +2,60 @@
 .store-connect {
   box-sizing: border-box;
   width: min(100%, 520px);
-  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100svh;
   margin: 0 auto;
-  padding: 0 clamp(16px, 6vw, 36px) max(10px, env(safe-area-inset-bottom));
+  padding: 0 clamp(16px, 6vw, 36px) max(14px, env(safe-area-inset-bottom));
   background: #22052e url('/brand/plantao-completo.png') center / cover no-repeat;
   color: white;
   display: flex;
   flex-direction: column;
-  gap: clamp(6px, 1.5dvh, 16px);
+  justify-content: space-between;
+  gap: clamp(8px, 1.4svh, 14px);
+  overscroll-behavior: none;
 }
 .store-connect__hero {
+  position: relative;
   margin-inline: calc(-1 * clamp(16px, 6vw, 36px));
-  flex: 1 1 0;
+  flex: 0 0 auto;
   min-height: 0;
-
+  padding-inline: clamp(16px, 6vw, 36px);
 }
-.store-connect__form { text-align: center; margin-top: 0; position: relative; }
-.store-connect__form h1 { margin: 0; font-size: clamp(29px, 8vw, 43px); line-height: 1.12; color: white; }
-.store-connect__form p { margin: 9px auto 20px; max-width: 32ch; color: #eed9ef; line-height: 1.45; }
+.store-connect__logout {
+  position: absolute;
+  top: max(env(safe-area-inset-top), 14px);
+  right: clamp(14px, 4vw, 24px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(50, 21, 60, 0.85);
+  border: 1px solid rgba(225, 182, 220, 0.35);
+  color: #f8e4f5;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.store-connect__logout:active { opacity: 0.85; }
+.store-connect__form { text-align: center; margin-top: 0; position: relative; flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; padding-bottom: clamp(20px, 6svh, 56px); }
+.store-connect__form h1 { margin: 0; font-size: clamp(28px, 7.6vw, 40px); line-height: 1.12; color: white; }
+.store-connect__form p { margin: 8px auto 16px; max-width: 32ch; color: #eed9ef; line-height: 1.45; }
 .store-connect__form label { display: block; text-align: left; margin-bottom: 7px; font-weight: 700; }
 .store-connect__field, .store-connect__form button, .store-connect__account { display: flex; align-items: center; gap: 12px; }
-.store-connect__field { padding: 0 15px; border: 1px solid #805785; border-radius: 10px; color: #e1b6dc; background: #32153c; }
-.store-connect__field:focus-within { outline: 2px solid #ffc0ec; outline-offset: 2px; }
-.store-connect__field input { flex: 1; min-width: 0; height: 52px; background: transparent; border: 0; outline: 0; color: white; font: inherit; font-weight: 800; letter-spacing: .06em; }
+.store-connect__field { padding: 0 15px; border: 1px solid #805785; border-radius: 12px; color: #e1b6dc; background: #32153c; }
+.store-connect__field:focus-within { border-color: #9e73a5; outline: none; box-shadow: none; }
+.store-connect__field input { flex: 1; min-width: 0; height: 52px; background: transparent; border: 0; outline: none; box-shadow: none; color: white; font: inherit; font-weight: 800; letter-spacing: .06em; }
+.store-connect__field input:focus,
+.store-connect__field input:focus-visible { outline: none; box-shadow: none; }
+.store-connect__field input:-webkit-autofill,
+.store-connect__field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff;
+  -webkit-box-shadow: 0 0 0 1000px #32153c inset;
+  transition: background-color 5000s ease-in-out 0s;
+}
 .store-connect__field input::placeholder { color: #c299c7; }
 .store-connect__form button { justify-content: center; width: 100%; min-height: 55px; margin: 18px 0 9px; background: linear-gradient(105deg,#d61a68,#ca11ad 55%,#8315df); color: white; border: 1px solid #f273da; border-radius: 15px; font: inherit; font-size: 18px; font-weight: 800; cursor: pointer; }
 .store-connect__form button:disabled { opacity: .7; }

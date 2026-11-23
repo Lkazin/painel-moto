@@ -221,3 +221,15 @@ test('ScreenRoute não usa mais marca fixa no WhatsApp e abre links com noopener
   assert.doesNotMatch(route, /Bella Pizza/);
   assert.match(route, /noopener,noreferrer/);
 });
+
+
+test('ScreenStoreConnect remove contorno rosa de foco, centraliza formulario e inclui botao Sair ligado ao logout', () => {
+  const css = fs.readFileSync('src/components/ScreenStoreConnect.css', 'utf8');
+  const tsx = fs.readFileSync('src/components/ScreenStoreConnect.tsx', 'utf8');
+  const app = fs.readFileSync('src/App.tsx', 'utf8');
+  assert.doesNotMatch(css, /outline:\s*2px\s+solid\s+#ffc0ec/);
+  assert.match(css, /\.store-connect__field:focus-within\s*\{[^}]*outline:\s*none/);
+  assert.match(tsx, /onLogout/);
+  assert.match(tsx, />\s*Sair\s*</);
+  assert.match(app, /<ScreenStoreConnect[\s\S]*onLogout=\{/);
+});

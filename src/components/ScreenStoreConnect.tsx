@@ -1,6 +1,6 @@
 import './ScreenStoreConnect.css';
 import React, { useState } from 'react';
-import { AlertCircle, ArrowRight, Bike, Package, Store, Wallet } from 'lucide-react';
+import { AlertCircle, ArrowRight, Bike, LogOut, Package, Store, Wallet } from 'lucide-react';
 import { DriverAccount, DriverSession } from '../types';
 import { api } from '../services/api';
 import { audioAlert } from '../utils/audioAlert';
@@ -8,10 +8,12 @@ import { audioAlert } from '../utils/audioAlert';
 interface ScreenStoreConnectProps {
   account?: DriverAccount;
   onShiftStarted: (session: DriverSession) => void;
+  onLogout?: () => void;
 }
 
 export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
-  onShiftStarted
+  onShiftStarted,
+  onLogout
 }) => {
   const [storeCode, setStoreCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -56,6 +58,20 @@ export const ScreenStoreConnect: React.FC<ScreenStoreConnectProps> = ({
   return (
     <div className="store-connect">
       <header className="store-connect__hero">
+        {onLogout && (
+          <button
+            type="button"
+            className="store-connect__logout"
+            onClick={() => {
+              audioAlert.playClickSound();
+              onLogout();
+            }}
+            aria-label="Sair da conta e voltar ao login"
+          >
+            <LogOut size={14} aria-hidden="true" />
+            <span>Sair</span>
+          </button>
+        )}
         <img src="/brand/novaesweb-symbol.png" alt="" className="store-connect__logo" />
         <strong>NovaesWeb</strong>
         <span>Entregador</span>
